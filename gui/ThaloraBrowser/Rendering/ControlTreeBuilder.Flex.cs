@@ -13,7 +13,7 @@ public partial class ControlTreeBuilder
     /// <summary>
     /// Build a StackPanel (or WrapPanel) containing block-level child controls.
     /// </summary>
-    private Control BuildBlockContent(StyledElement element, double fontSize, int depth = 0)
+    private Control BuildBlockContent(StyledElement element, double fontSize, int depth = 0, double availableWidth = 0)
     {
         var styles = element.Styles;
         bool isFlex = styles.Display == "flex" || styles.Display == "inline-flex";
@@ -22,17 +22,49 @@ public partial class ControlTreeBuilder
         if (isGrid && (!string.IsNullOrEmpty(styles.GridTemplateColumns)
             || !string.IsNullOrEmpty(styles.GridTemplateAreas)))
         {
-            return BuildGridContent(element, fontSize, depth);
+            return BuildGridContent(element, fontSize, depth, availableWidth);
         }
 
-        // Fix 5: Navigation menu detection — when a <ul>/<ol> has list-style-type:none
-        // AND is a direct child of <nav> (or the element itself is <nav> wrapping a list),
-        // it's almost certainly a horizontal navigation menu. Many sites rely on CSS rules
-        // like `.nav-list { display: flex; list-style: none }` that our selector engine
-        // may not match. Detect this pattern and treat as horizontal flex.
+        // Float simulation: when block children have float:right or float:left,
+        // arrange them in a two/three-column Grid beside normal-flow content.
+        // This handles common patterns like Wikipedia's infobox (float:right) and TOC (float:left).
+        // Only applies when both floated and normal-flow children coexist.
+        if (!isFlex && !isGrid)
+        {
+            var floatRight = element.Children
+                .Where(c => c.Styles.Float == "right" && c.Styles.Display != "none")
+                .ToList();
+            var floatLeft = element.Children
+                .Where(c => c.Styles.Float == "left" && c.Styles.Display != "none")
+                .ToList();
+            var normalFlow = element.Children
+                .Where(c => c.Styles.Float != "right" && c.Styles.Float != "left"
+                         && c.Styles.Display != "none")
+                .ToList();
+
+            if ((floatRight.Any() || floatLeft.Any()) && normalFlow.Any())
+            {
+                return BuildFloatLayout(element, normalFlow, floatLeft, floatRight, fontSize, depth, availableWidth);
+            }
+        }
+
+        // Navigation menu detection: horizontal layout for ul/ol with list-style:none.
+        // Only applies when the list is SHORT (≤8 items) — content TOCs like Wikipedia's
+        // have 13+ items and must remain vertical. Nav menus are typically concise.
+        // Also only applies when display is not explicitly set to block, OR when all li
+        // children have float:left (classic CSS horizontal nav pattern: "ul li { float:left }").
+        bool allLisFloatLeft = (element.Tag is "ul" or "ol")
+            && element.Children.Any(c => c.Tag == "li")
+            && element.Children.Where(c => c.Tag == "li").All(c => c.Styles.Float == "left");
         bool isNavList = !isFlex && !isGrid
             && (element.Tag is "ul" or "ol")
-            && styles.ListStyleType == "none";
+            && styles.ListStyleType == "none"
+            && (styles.Display != "block" || allLisFloatLeft)
+            && element.Children.Count(c => c.Tag == "li") <= 8;
+
+        // <tr> with display:table-row renders its <td>/<th> children horizontally.
+        // Without this, table cells would stack vertically instead of side-by-side.
+        bool isTableRow = styles.Display == "table-row";
 
         Panel panel;
 
@@ -163,7 +195,7 @@ public partial class ControlTreeBuilder
                             else
                                 grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
 
-                            var childControl = BuildControl(child, fontSize, depth + 1);
+                            var childControl = BuildControl(child, fontSize, depth + 1, availableWidth);
                             if (childControl != null)
                             {
                                 if (styles.AlignItems == "center")
@@ -201,7 +233,7 @@ public partial class ControlTreeBuilder
                         int col = isAround ? 1 : 0;
                         foreach (var child in visibleChildren)
                         {
-                            var childControl = BuildControl(child, fontSize, depth + 1);
+                            var childControl = BuildControl(child, fontSize, depth + 1, availableWidth);
                             if (childControl != null)
                             {
                                 if (styles.AlignItems == "center")
@@ -256,6 +288,14 @@ public partial class ControlTreeBuilder
                     panel.HorizontalAlignment = HorizontalAlignment.Left;
             }
         }
+        else if (isTableRow)
+        {
+            // <tr>: render <td>/<th> children as horizontal columns in a Grid.
+            // Each cell gets an Auto column — cells size to their content width.
+            var grid = new Grid();
+            grid.HorizontalAlignment = HorizontalAlignment.Stretch;
+            panel = grid;
+        }
         else
         {
             panel = new StackPanel { Orientation = Orientation.Vertical };
@@ -291,7 +331,7 @@ public partial class ControlTreeBuilder
         int listItemIndex = 0;
 
         // Track column index for horizontal flex Grid (default row flex without flex-grow)
-        bool isHorizFlexGrid = (isFlex || isNavList) && isRow && panel is Grid && !isWrap;
+        bool isHorizFlexGrid = ((isFlex || isNavList) && isRow && panel is Grid && !isWrap) || isTableRow;
         int flexGridCol = 0;
         var flexGap = isHorizFlexGrid ? Len(styles.Gap, fontSize) : null;
 
@@ -307,7 +347,7 @@ public partial class ControlTreeBuilder
                 && string.IsNullOrWhiteSpace(child.TextContent))
                 continue;
 
-            if (!isFlex && !isNavList && IsInlineElement(child))
+            if (!isFlex && !isNavList && !isTableRow && IsInlineElement(child))
             {
                 inlineBuffer.Add(child);
             }
@@ -330,7 +370,7 @@ public partial class ControlTreeBuilder
                 }
 
                 // Build block child (or blockified flex item)
-                var childControl = BuildControl(child, fontSize, depth + 1);
+                var childControl = BuildControl(child, fontSize, depth + 1, availableWidth);
                 if (childControl != null)
                 {
                     // For flex-wrap children, override percentage widths to resolve
@@ -373,6 +413,34 @@ public partial class ControlTreeBuilder
                             childControl, child, fontSize, listItemIndex);
                     }
 
+                    // align-self: override parent's align-items for this specific child
+                    if (isFlex && child.Styles.AlignSelf is { } selfAlign
+                        && selfAlign != "auto")
+                    {
+                        if (isRow)
+                        {
+                            childControl.VerticalAlignment = selfAlign switch
+                            {
+                                "flex-start" or "start" => VerticalAlignment.Top,
+                                "flex-end" or "end" => VerticalAlignment.Bottom,
+                                "center" => VerticalAlignment.Center,
+                                "stretch" => VerticalAlignment.Stretch,
+                                _ => childControl.VerticalAlignment,
+                            };
+                        }
+                        else
+                        {
+                            childControl.HorizontalAlignment = selfAlign switch
+                            {
+                                "flex-start" or "start" => HorizontalAlignment.Left,
+                                "flex-end" or "end" => HorizontalAlignment.Right,
+                                "center" => HorizontalAlignment.Center,
+                                "stretch" => HorizontalAlignment.Stretch,
+                                _ => childControl.HorizontalAlignment,
+                            };
+                        }
+                    }
+
                     if (isHorizFlexGrid)
                     {
                         // Add gap column before this item (if not first)
@@ -411,5 +479,75 @@ public partial class ControlTreeBuilder
         }
 
         return panel;
+    }
+
+    /// <summary>
+    /// Build a float layout: float:left children in left column, normal flow children in
+    /// center column, float:right children in right column. Simulates CSS float behavior
+    /// for common patterns like Wikipedia's infobox (float:right) and TOC (float:left).
+    /// </summary>
+    private Control BuildFloatLayout(
+        StyledElement element,
+        List<StyledElement> normalFlow,
+        List<StyledElement> floatLeft,
+        List<StyledElement> floatRight,
+        double fontSize,
+        int depth,
+        double availableWidth = 0)
+    {
+        var outerGrid = new Grid();
+        outerGrid.HorizontalAlignment = HorizontalAlignment.Stretch;
+
+        int contentCol = 0;
+
+        // Left float column
+        if (floatLeft.Any())
+        {
+            outerGrid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+            contentCol = 1;
+
+            var leftPanel = new StackPanel { Orientation = Orientation.Vertical };
+            foreach (var fc in floatLeft)
+            {
+                var ctrl = BuildControl(fc, fontSize, depth + 1, availableWidth);
+                if (ctrl != null)
+                    leftPanel.Children.Add(ctrl);
+            }
+            Grid.SetColumn(leftPanel, 0);
+            outerGrid.Children.Add(leftPanel);
+        }
+
+        // Normal flow children in center (Star column — fills remaining space)
+        outerGrid.ColumnDefinitions.Add(new ColumnDefinition(1, GridUnitType.Star));
+
+        var normalPanel = new StackPanel { Orientation = Orientation.Vertical };
+        foreach (var child in normalFlow)
+        {
+            if (child.Styles.Display == "none") continue;
+            var ctrl = BuildControl(child, fontSize, depth + 1, availableWidth);
+            if (ctrl != null)
+                normalPanel.Children.Add(ctrl);
+        }
+        Grid.SetColumn(normalPanel, contentCol);
+        outerGrid.Children.Add(normalPanel);
+
+        // Right float column
+        if (floatRight.Any())
+        {
+            outerGrid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+            int rightCol = contentCol + 1;
+
+            var rightPanel = new StackPanel { Orientation = Orientation.Vertical };
+            foreach (var fc in floatRight)
+            {
+                var ctrl = BuildControl(fc, fontSize, depth + 1, availableWidth);
+                if (ctrl != null)
+                    rightPanel.Children.Add(ctrl);
+            }
+            Grid.SetColumn(rightPanel, rightCol);
+            outerGrid.Children.Add(rightPanel);
+        }
+
+        return outerGrid;
     }
 }

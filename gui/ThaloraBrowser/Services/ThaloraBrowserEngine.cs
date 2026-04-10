@@ -61,6 +61,71 @@ public sealed class ThaloraBrowserEngine : IThaloraBrowserEngine
     }
 
     /// <summary>
+    /// Navigate to a URL without executing JavaScript (Phase 1 of two-phase navigation).
+    /// Returns the static HTML immediately after fetch + CSS load, before any JS runs.
+    /// Follow up with ExecutePageScriptsAsync() for JS-driven content.
+    /// Uses a dedicated thread with 8MB stack (same reason as NavigateAsync).
+    /// </summary>
+    public Task<string?> NavigateStaticAsync(string url)
+    {
+        var tcs = new TaskCompletionSource<string?>();
+        var thread = new Thread(() =>
+        {
+            _engineLock.Wait();
+            try
+            {
+                ThrowIfDisposed();
+                var ptr = ThaloraNative.thalora_navigate_static(_instance, url);
+                RefreshNavCache();
+                tcs.SetResult(ConsumeRustString(ptr));
+            }
+            catch (Exception ex)
+            {
+                tcs.SetException(ex);
+            }
+            finally
+            {
+                _engineLock.Release();
+            }
+        }, 8 * 1024 * 1024);
+        thread.IsBackground = true;
+        thread.Start();
+        return tcs.Task;
+    }
+
+    /// <summary>
+    /// Execute page scripts on the already-loaded page (Phase 2 of two-phase navigation).
+    /// Runs Boa JS engine on the static HTML, updates the DOM, and returns whether the DOM changed.
+    /// Uses a dedicated thread with 8MB stack — Boa JS execution needs deep stack space,
+    /// same as NavigateAsync.
+    /// </summary>
+    public Task<bool> ExecutePageScriptsAsync()
+    {
+        var tcs = new TaskCompletionSource<bool>();
+        var thread = new Thread(() =>
+        {
+            _engineLock.Wait();
+            try
+            {
+                ThrowIfDisposed();
+                var result = ThaloraNative.thalora_execute_page_scripts(_instance);
+                tcs.SetResult(result == 1);
+            }
+            catch (Exception ex)
+            {
+                tcs.SetException(ex);
+            }
+            finally
+            {
+                _engineLock.Release();
+            }
+        }, 8 * 1024 * 1024); // 8MB stack for Boa JS execution
+        thread.IsBackground = true;
+        thread.Start();
+        return tcs.Task;
+    }
+
+    /// <summary>
     /// Get the current URL.
     /// </summary>
     public Task<string?> GetCurrentUrlAsync()

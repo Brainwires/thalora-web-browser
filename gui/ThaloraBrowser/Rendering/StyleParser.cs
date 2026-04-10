@@ -14,6 +14,7 @@ internal static class StyleParser
     // --- Bundled font families ---
     // Registered via EmbeddedFontCollection in Program.cs with key URI "fonts:ThaloraBrowser".
     // Font files are in src/gui/fonts/ and embedded as AvaloniaResource.
+    // Rust's map_to_bundled_font() resolves CSS font stacks to one of these three names.
 
     internal static readonly FontFamily BundledNotoSans =
         new("fonts:ThaloraBrowser#Noto Sans");
@@ -21,6 +22,18 @@ internal static class StyleParser
         new("fonts:ThaloraBrowser#Noto Serif");
     internal static readonly FontFamily BundledFiraMono =
         new("fonts:ThaloraBrowser#Fira Mono");
+
+    /// <summary>
+    /// Resolve a bundled font name (as emitted by Rust's map_to_bundled_font()) to an
+    /// Avalonia FontFamily.  Rust outputs one of "NotoSans", "NotoSerif", "FiraMono".
+    /// Anything unrecognised defaults to NotoSans.
+    /// </summary>
+    internal static FontFamily ResolveFontFamily(string? name) => name?.Trim() switch
+    {
+        "NotoSerif" => BundledNotoSerif,
+        "FiraMono" => BundledFiraMono,
+        _ => BundledNotoSans,
+    };
 
     /// <summary>
     /// Parse a CSS length string (e.g., "16px", "1.5em", "50%", "auto") to pixels.
@@ -128,7 +141,10 @@ internal static class StyleParser
 
     /// <summary>
     /// Parse a CSS color string to an Avalonia Color.
-    /// Handles hex (#rgb, #rrggbb, #rrggbbaa), rgb(), rgba(), and named colors.
+    /// Rust pre-normalizes hex and rgb/hsl colors to #rrggbb / #rrggbbaa before
+    /// serialization, so this path only needs to handle hex and named colors.
+    /// The color() CSS Level-4 function (rare, e.g. Cloudflare blog) falls through
+    /// to Avalonia's parser which may handle it, or returns null as a safe default.
     /// </summary>
     internal static Color? ParseColor(string? value)
     {
@@ -136,160 +152,13 @@ internal static class StyleParser
             || value == "inherit" || value == "initial" || value == "unset" || value == "currentColor")
             return null;
 
-        value = value.Trim();
-
         // Skip unresolved CSS variables — they'll default to theme color
         if (value.Contains("var("))
             return null;
 
-        // Try Avalonia's built-in parser first (handles hex and named colors)
-        if (Color.TryParse(value, out var color))
+        // Avalonia handles hex (#rrggbb, #rrggbbaa, #rgb) and CSS named colors natively.
+        if (Color.TryParse(value.Trim(), out var color))
             return color;
-
-        // Handle rgb()/rgba() — both legacy (comma-separated) and modern (space-separated) syntax
-        if (value.StartsWith("rgb"))
-        {
-            var inner = value;
-            inner = inner.Replace("rgba(", "").Replace("rgb(", "").Replace(")", "").Trim();
-
-            // Modern CSS syntax: "R G B" or "R G B / A"
-            if (!inner.Contains(',') && inner.Contains(' '))
-            {
-                // Split on "/" for alpha
-                var alphaParts = inner.Split('/');
-                var channelStr = alphaParts[0].Trim();
-                var channels = channelStr.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-
-                if (channels.Length >= 3
-                    && TryParseColorChannel(channels[0], out var r)
-                    && TryParseColorChannel(channels[1], out var g)
-                    && TryParseColorChannel(channels[2], out var b))
-                {
-                    byte a = 255;
-                    if (alphaParts.Length > 1 && double.TryParse(alphaParts[1].Trim(),
-                        NumberStyles.Float, CultureInfo.InvariantCulture, out var alpha))
-                    {
-                        if (alpha <= 1.0)
-                            a = (byte)(Math.Clamp(alpha, 0, 1) * 255);
-                        else
-                            a = (byte)Math.Clamp(alpha, 0, 255);
-                    }
-                    return Color.FromArgb(a, r, g, b);
-                }
-            }
-
-            // Legacy syntax: "R, G, B" or "R, G, B, A"
-            var parts = inner.Split(',', StringSplitOptions.TrimEntries);
-            if (parts.Length >= 3
-                && TryParseColorChannel(parts[0], out var cr)
-                && TryParseColorChannel(parts[1], out var cg)
-                && TryParseColorChannel(parts[2], out var cb))
-            {
-                byte ca = 255;
-                if (parts.Length >= 4 && double.TryParse(parts[3],
-                    NumberStyles.Float, CultureInfo.InvariantCulture, out var alpha))
-                {
-                    if (alpha <= 1.0)
-                        ca = (byte)(Math.Clamp(alpha, 0, 1) * 255);
-                    else
-                        ca = (byte)Math.Clamp(alpha, 0, 255);
-                }
-                return Color.FromArgb(ca, cr, cg, cb);
-            }
-        }
-
-        // Handle CSS color() function — e.g., "color(#738a94 l(-25%))" or "color(#2da7cb lightness(-4%))"
-        // This is a CSS Color Level 4 relative color function used by sites like Cloudflare blog.
-        if (value.StartsWith("color(") && value.EndsWith(")"))
-        {
-            var inner = value.Substring(6, value.Length - 7).Trim();
-            // Split into base color and modifiers
-            // Pattern: "#hex modifier(value) modifier(value)..."
-            var firstSpace = inner.IndexOf(' ');
-            if (firstSpace > 0)
-            {
-                var baseColorStr = inner.Substring(0, firstSpace).Trim();
-                var modifiers = inner.Substring(firstSpace).Trim();
-
-                var baseColor = ParseColor(baseColorStr);
-                if (baseColor.HasValue)
-                {
-                    // Convert to HSL for lightness/whiteness modifications
-                    var c = baseColor.Value;
-                    double r = c.R / 255.0, g = c.G / 255.0, b = c.B / 255.0;
-                    double max = Math.Max(r, Math.Max(g, b));
-                    double min = Math.Min(r, Math.Min(g, b));
-                    double hue = 0, sat = 0, lit = (max + min) / 2.0;
-
-                    if (max != min)
-                    {
-                        double d = max - min;
-                        sat = lit > 0.5 ? d / (2.0 - max - min) : d / (max + min);
-                        if (max == r) hue = (g - b) / d + (g < b ? 6 : 0);
-                        else if (max == g) hue = (b - r) / d + 2;
-                        else hue = (r - g) / d + 4;
-                        hue *= 60;
-                    }
-
-                    // Apply modifiers: l(-25%), lightness(-4%), whiteness(7%)
-                    foreach (var mod in modifiers.Split(' ', StringSplitOptions.RemoveEmptyEntries))
-                    {
-                        var m = mod.Trim();
-                        // Parse "l(value%)" or "lightness(value%)"
-                        string? percentStr = null;
-                        if (m.StartsWith("l(") && m.EndsWith(")") && m.Length > 3)
-                            percentStr = m.Substring(2, m.Length - 3).TrimEnd('%');
-                        else if (m.StartsWith("lightness(") && m.EndsWith(")") && m.Length > 11)
-                            percentStr = m.Substring(10, m.Length - 11).TrimEnd('%');
-                        else if (m.StartsWith("whiteness(") && m.EndsWith(")") && m.Length > 11)
-                            percentStr = m.Substring(10, m.Length - 11).TrimEnd('%');
-
-                        if (percentStr != null && double.TryParse(percentStr,
-                            NumberStyles.Float, CultureInfo.InvariantCulture, out var pct))
-                        {
-                            // Apply as relative adjustment to lightness
-                            lit = Math.Clamp(lit + pct / 100.0, 0, 1);
-                        }
-                    }
-
-                    var (rr, gg, bb) = HslToRgb(hue, sat, lit);
-                    return Color.FromArgb(c.A, (byte)rr, (byte)gg, (byte)bb);
-                }
-            }
-            else
-            {
-                // No modifiers, just "color(#hex)" — parse as is
-                return ParseColor(inner);
-            }
-        }
-
-        // Handle hsl()/hsla()
-        if (value.StartsWith("hsl"))
-        {
-            var inner = value.Replace("hsla(", "").Replace("hsl(", "").Replace(")", "").Trim();
-            // Try both comma and space separators
-            var parts = inner.Contains(',')
-                ? inner.Split(',', StringSplitOptions.TrimEntries)
-                : inner.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-
-            if (parts.Length >= 3
-                && double.TryParse(parts[0].TrimEnd('d', 'e', 'g'), NumberStyles.Float, CultureInfo.InvariantCulture, out var h)
-                && double.TryParse(parts[1].TrimEnd('%'), NumberStyles.Float, CultureInfo.InvariantCulture, out var s)
-                && double.TryParse(parts[2].TrimEnd('%').Split('/')[0].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var l))
-            {
-                // Convert HSL to RGB
-                s /= 100.0; l /= 100.0;
-                var (rr, gg, bb) = HslToRgb(h, s, l);
-                byte alpha = 255;
-                // Check for alpha after "/" or as 4th comma-separated value
-                if (parts.Length >= 4 && double.TryParse(parts[3].TrimEnd('%'),
-                    NumberStyles.Float, CultureInfo.InvariantCulture, out var a))
-                {
-                    alpha = a <= 1.0 ? (byte)(Math.Clamp(a, 0, 1) * 255) : (byte)Math.Clamp(a, 0, 255);
-                }
-                return Color.FromArgb(alpha, (byte)rr, (byte)gg, (byte)bb);
-            }
-        }
 
         return null;
     }
@@ -306,29 +175,18 @@ internal static class StyleParser
 
     /// <summary>
     /// Parse a CSS font-weight string to Avalonia FontWeight.
+    /// Rust normalizes keywords ("bold" → "700", "normal" → "400") before
+    /// serialization, so only numeric strings are expected here.
     /// </summary>
     internal static FontWeight ParseFontWeight(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
             return FontWeight.Normal;
 
-        return value.Trim().ToLowerInvariant() switch
-        {
-            "normal" => FontWeight.Normal,
-            "bold" => FontWeight.Bold,
-            "bolder" => FontWeight.SemiBold,
-            "lighter" => FontWeight.Light,
-            "100" => FontWeight.Thin,
-            "200" => FontWeight.ExtraLight,
-            "300" => FontWeight.Light,
-            "400" => FontWeight.Normal,
-            "500" => FontWeight.Medium,
-            "600" => FontWeight.SemiBold,
-            "700" => FontWeight.Bold,
-            "800" => FontWeight.ExtraBold,
-            "900" => FontWeight.Black,
-            _ => FontWeight.Normal,
-        };
+        if (ushort.TryParse(value.Trim(), out var w))
+            return (FontWeight)w;
+
+        return FontWeight.Normal;
     }
 
     /// <summary>
@@ -345,100 +203,6 @@ internal static class StyleParser
             "oblique" => FontStyle.Oblique,
             _ => FontStyle.Normal,
         };
-    }
-
-    /// <summary>
-    /// Map a CSS font-family string to a bundled Avalonia FontFamily.
-    /// Walks the comma-separated font stack and matches known font names.
-    /// </summary>
-    internal static FontFamily MapToBundledFontFamily(string? cssFontFamily)
-    {
-        if (string.IsNullOrWhiteSpace(cssFontFamily))
-            return BundledNotoSans;
-
-        foreach (var name in cssFontFamily.Split(','))
-        {
-            var trimmed = name.Trim().Trim('"', '\'').ToLowerInvariant();
-
-            switch (trimmed)
-            {
-                // Monospace
-                case "monospace":
-                case "fira mono":
-                case "fira code":
-                case "courier new":
-                case "courier":
-                case "consolas":
-                case "menlo":
-                case "monaco":
-                case "source code pro":
-                case "jetbrains mono":
-                case "sf mono":
-                case "ubuntu mono":
-                case "dejavu sans mono":
-                case "liberation mono":
-                case "lucida console":
-                case "ui-monospace":
-                    return BundledFiraMono;
-
-                // Serif
-                case "serif":
-                case "noto serif":
-                case "times new roman":
-                case "times":
-                case "georgia":
-                case "palatino":
-                case "palatino linotype":
-                case "book antiqua":
-                case "garamond":
-                case "cambria":
-                case "dejavu serif":
-                case "liberation serif":
-                case "ui-serif":
-                case "cursive":
-                case "fantasy":
-                    return BundledNotoSerif;
-
-                // Sans-serif (most common on the web)
-                case "sans-serif":
-                case "noto sans":
-                case "arial":
-                case "helvetica":
-                case "helvetica neue":
-                case "segoe ui":
-                case "open sans":
-                case "roboto":
-                case "lato":
-                case "inter":
-                case "source sans pro":
-                case "source sans 3":
-                case "ubuntu":
-                case "nunito":
-                case "poppins":
-                case "montserrat":
-                case "raleway":
-                case "pt sans":
-                case "verdana":
-                case "tahoma":
-                case "trebuchet ms":
-                case "lucida grande":
-                case "lucida sans":
-                case "dejavu sans":
-                case "liberation sans":
-                case "gill sans":
-                case "franklin gothic medium":
-                case "-apple-system":
-                case "system-ui":
-                case "blinkmacsystemfont":
-                case "ui-sans-serif":
-                case "ui-rounded":
-                case "math":
-                case "emoji":
-                    return BundledNotoSans;
-            }
-        }
-
-        return BundledNotoSans;
     }
 
     /// <summary>
@@ -561,56 +325,4 @@ internal static class StyleParser
         return 1.4;
     }
 
-    /// <summary>
-    /// Try to parse a color channel value (handles both integer 0-255 and percentage 0%-100%).
-    /// </summary>
-    private static bool TryParseColorChannel(string value, out byte result)
-    {
-        result = 0;
-        value = value.Trim();
-
-        if (value.EndsWith('%'))
-        {
-            if (double.TryParse(value.AsSpan(0, value.Length - 1),
-                NumberStyles.Float, CultureInfo.InvariantCulture, out var pct))
-            {
-                result = (byte)Math.Clamp(pct / 100.0 * 255, 0, 255);
-                return true;
-            }
-            return false;
-        }
-
-        if (double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var num))
-        {
-            result = (byte)Math.Clamp(num, 0, 255);
-            return true;
-        }
-
-        return false;
-    }
-
-    /// <summary>
-    /// Convert HSL values to RGB (r, g, b as 0-255).
-    /// </summary>
-    private static (int r, int g, int b) HslToRgb(double h, double s, double l)
-    {
-        h = ((h % 360) + 360) % 360;
-        double c = (1 - Math.Abs(2 * l - 1)) * s;
-        double x = c * (1 - Math.Abs((h / 60.0) % 2 - 1));
-        double m = l - c / 2;
-
-        double r1 = 0, g1 = 0, b1 = 0;
-        if (h < 60) { r1 = c; g1 = x; }
-        else if (h < 120) { r1 = x; g1 = c; }
-        else if (h < 180) { g1 = c; b1 = x; }
-        else if (h < 240) { g1 = x; b1 = c; }
-        else if (h < 300) { r1 = x; b1 = c; }
-        else { r1 = c; b1 = x; }
-
-        return (
-            (int)Math.Clamp((r1 + m) * 255, 0, 255),
-            (int)Math.Clamp((g1 + m) * 255, 0, 255),
-            (int)Math.Clamp((b1 + m) * 255, 0, 255)
-        );
-    }
 }

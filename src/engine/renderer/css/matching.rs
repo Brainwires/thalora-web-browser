@@ -429,6 +429,93 @@ impl CssProcessor {
         styles
     }
 
+    /// Collect CSS custom property definitions (--name: value) from rules matching this element.
+    /// Used for element-scoped variable resolution: CSS custom properties are inherited and
+    /// can be scoped to specific elements via attribute selectors like [data-color-mode="dark"].
+    /// Returns only rules that define `--` custom properties, sorted by cascade order.
+    pub fn collect_custom_properties_for_element(
+        &self,
+        element: &scraper::ElementRef,
+    ) -> HashMap<String, String> {
+        let mut vars: HashMap<String, String> = HashMap::new();
+
+        if let Some(ref index) = self.rule_index {
+            let el = element.value();
+            let tag_name = el.name().to_lowercase();
+
+            let mut candidates = Vec::new();
+            if let Some(tag_rules) = index.by_tag.get(&tag_name) {
+                candidates.extend_from_slice(tag_rules);
+            }
+            if let Some(id_attr) = el.attr("id") {
+                let id_lower = id_attr.to_lowercase();
+                if let Some(id_rules) = index.by_id.get(&id_lower) {
+                    candidates.extend_from_slice(id_rules);
+                }
+            }
+            if let Some(class_attr) = el.attr("class") {
+                for cls in class_attr.split_whitespace() {
+                    let cls_lower = cls.to_lowercase();
+                    if let Some(class_rules) = index.by_class.get(&cls_lower) {
+                        candidates.extend_from_slice(class_rules);
+                    }
+                }
+            }
+            candidates.extend_from_slice(&index.universal);
+            candidates.sort_unstable();
+            candidates.dedup();
+
+            let mut matching_rules: Vec<&ParsedRule> = Vec::new();
+            for &ci in &candidates {
+                let compiled = &self.compiled_rules[ci];
+                let rule = &self.rules[compiled.rule_index];
+
+                // Skip rules with no custom property declarations — fast path
+                if !rule.declarations.keys().any(|k| k.starts_with("--")) {
+                    continue;
+                }
+
+                let mut matched = false;
+                for (i, compiled_sel) in compiled.compiled_selectors.iter().enumerate() {
+                    if let Some(sel) = compiled_sel
+                        && sel.matches(element)
+                    {
+                        matched = true;
+                        break;
+                    } else {
+                        let raw_selectors: Vec<&str> =
+                            rule.selector.split(',').map(|s| s.trim()).collect();
+                        if let Some(raw_sel) = raw_selectors.get(i)
+                            && Self::matches_pseudo_class_fallback(raw_sel, &tag_name, el)
+                        {
+                            matched = true;
+                            break;
+                        }
+                    }
+                }
+
+                if matched {
+                    matching_rules.push(rule);
+                }
+            }
+
+            // Apply in cascade order so higher-specificity rules win
+            matching_rules.sort_by(|a, b| cascade_cmp(a, b));
+            for rule in matching_rules {
+                for (prop, val) in &rule.declarations {
+                    if prop.starts_with("--") {
+                        vars.insert(
+                            prop.clone(),
+                            val.trim_end_matches(" !important").to_string(),
+                        );
+                    }
+                }
+            }
+        }
+
+        vars
+    }
+
     /// Compute hover-specific styles for an element using scraper's selector matching.
     ///
     /// This iterates all parsed rules looking for selectors that contain `:hover`.

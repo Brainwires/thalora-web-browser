@@ -6,6 +6,8 @@ namespace ThaloraBrowser.Services;
 public interface IThaloraBrowserEngine : IDisposable
 {
     Task<string?> NavigateAsync(string url);
+    Task<string?> NavigateStaticAsync(string url);
+    Task<bool> ExecutePageScriptsAsync();
     Task<string?> GetCurrentUrlAsync();
     Task<string?> GetPageHtmlAsync();
     Task<bool> GoBackAsync();

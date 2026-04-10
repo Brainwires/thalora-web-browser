@@ -63,6 +63,14 @@ public partial class ControlTreeBuilder
     /// </summary>
     public ElementActionRegistry ElementActions => _elementActions;
 
+    /// <summary>
+    /// Positioned elements (position:absolute/fixed) collected during BuildFromJson().
+    /// Each entry contains the built control, its offset type, and resolved top/left pixel values.
+    /// WebContentControl places these on a Canvas overlay after the main content is built.
+    /// </summary>
+    public record PositionedEntry(Control Control, string PositionType, double Top, double Left, double? Right, double? Bottom);
+    public List<PositionedEntry> PositionedElements { get; } = new();
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = null, // We use explicit [JsonPropertyName] attributes
@@ -145,7 +153,7 @@ public partial class ControlTreeBuilder
 #if DEBUG
         var swBuild = System.Diagnostics.Stopwatch.StartNew();
 #endif
-        var control = BuildControl(result.Root, 16.0, 0);
+        var control = BuildControl(result.Root, 16.0, 0, _viewportWidth);
 #if DEBUG
         swBuild.Stop();
         Console.Error.WriteLine($"[TIMING] C# BuildControl (tree construction): {swBuild.ElapsedMilliseconds}ms");
@@ -165,7 +173,7 @@ public partial class ControlTreeBuilder
     /// Recursively convert a StyledElement into an Avalonia Control.
     /// parentFontSize is the inherited font size for em/% resolution.
     /// </summary>
-    private Control? BuildControl(StyledElement element, double parentFontSize, int depth = 0)
+    private Control? BuildControl(StyledElement element, double parentFontSize, int depth = 0, double availableWidth = 0)
     {
         // Bail out if recursion is too deep to avoid stack overflow on deeply nested DOMs
         if (depth > MaxBuildDepth)
@@ -188,14 +196,27 @@ public partial class ControlTreeBuilder
         // in-flow anyway and may contain important content like nav bars).
         if (styles.Position == "fixed" || styles.Position == "absolute")
         {
-            // Only hide if there's a *meaningful* (non-zero) offset — zero offsets like
-            // top:0; left:0; right:0 are used to stretch overlays to fill their parent
-            // and should still render in normal flow. Negative or large values (e.g. -1000px)
-            // indicate genuinely off-screen content that would break layout if rendered.
             bool hasOffset = IsNonZeroOffset(styles.Top) || IsNonZeroOffset(styles.Right)
                           || IsNonZeroOffset(styles.Bottom) || IsNonZeroOffset(styles.Left);
             if (hasOffset)
-                return null;
+            {
+                // Collect for Canvas overlay instead of discarding.
+                // Temporarily clear position to avoid re-triggering this branch in recursive calls.
+                var positionType = styles.Position;
+                styles.Position = null;
+                // fontSize not yet resolved here; use parentFontSize as approximation for offsets
+                var posControl = BuildControl(element, parentFontSize, depth + 1, availableWidth);
+                styles.Position = positionType;
+                if (posControl != null)
+                {
+                    double top = Len(styles.Top, parentFontSize) ?? 0;
+                    double left = Len(styles.Left, parentFontSize) ?? 0;
+                    double? right = string.IsNullOrEmpty(styles.Right) ? null : Len(styles.Right, parentFontSize);
+                    double? bottom = string.IsNullOrEmpty(styles.Bottom) ? null : Len(styles.Bottom, parentFontSize);
+                    PositionedElements.Add(new PositionedEntry(posControl, positionType, top, left, right, bottom));
+                }
+                return null; // Not added to normal flow
+            }
             styles.Position = null;
         }
         // sticky elements participate in normal flow — render them normally
@@ -282,6 +303,21 @@ public partial class ControlTreeBuilder
         bool hasOnlyInlineChildren = element.Children.Count > 0
             && element.Children.All(c => IsInlineElement(c));
 
+        // Special case: table cells (td/th) or block elements whose only meaningful
+        // content is an image nested inside inline elements (span → a → img).
+        // InlineUIContainer in SelectableTextBlock often fails to render images.
+        // Build the image directly as a block Image control instead.
+        if (hasOnlyInlineChildren && element.Tag is "td" or "th" or "div" or "p")
+        {
+            var singleImg = FindSingleImageElement(element);
+            if (singleImg != null)
+            {
+                var imgControl = BuildImage(singleImg, fontSize);
+                imgControl.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center;
+                return WrapInBorder(imgControl, styles, fontSize);
+            }
+        }
+
         // Build the appropriate control
         Control content;
         if (specialContent != null)
@@ -313,7 +349,7 @@ public partial class ControlTreeBuilder
                         Text = linkText,
                         Foreground = linkColor,
                         FontSize = fontSize,
-                        FontFamily = StyleParser.MapToBundledFontFamily(styles.FontFamily ?? linkStyles.FontFamily),
+                        FontFamily = StyleParser.ResolveFontFamily(styles.FontFamily ?? linkStyles.FontFamily),
                         FontWeight = StyleParser.ParseFontWeight(styles.FontWeight ?? linkStyles.FontWeight),
                         FontStyle = StyleParser.ParseFontStyle(styles.FontStyle ?? linkStyles.FontStyle),
                         TextWrapping = TextWrapping.NoWrap,
@@ -403,8 +439,14 @@ public partial class ControlTreeBuilder
             if (!HasVisibleContent(element))
                 return null;
 
-            // Build a panel with child controls
-            content = BuildBlockContent(element, fontSize, depth);
+            // Compute this element's resolved width so children can resolve % widths against it.
+            double childAvailableWidth = ComputeExpectedWidth(styles, fontSize, availableWidth > 0 ? availableWidth : _viewportWidth);
+
+            // CSS table layout: map display:table to an Avalonia Grid
+            if (styles.Display is "table" or "inline-table")
+                content = BuildTableContent(element, fontSize, depth, childAvailableWidth);
+            else
+                content = BuildBlockContent(element, fontSize, depth, childAvailableWidth);
         }
         else if (!string.IsNullOrEmpty(element.TextContent))
         {
@@ -512,14 +554,18 @@ public partial class ControlTreeBuilder
             }
         }
 
-        // Apply max-width — resolve percentages against viewport width as approximation
+        // Available width for resolving percentage widths:
+        // prefer what the parent passed in, fall back to viewport width.
+        double parentWidth = availableWidth > 0 ? availableWidth : _viewportWidth;
+
+        // Apply max-width — resolve percentages against parent width
         double? maxWidth;
         if (IsPercentage(styles.MaxWidth))
         {
             if (double.TryParse(styles.MaxWidth!.TrimEnd('%', ' '),
                 System.Globalization.NumberStyles.Float,
                 System.Globalization.CultureInfo.InvariantCulture, out var pct))
-                maxWidth = pct / 100.0 * _viewportWidth;
+                maxWidth = pct / 100.0 * parentWidth;
             else
                 maxWidth = null;
         }
@@ -530,7 +576,7 @@ public partial class ControlTreeBuilder
         if (maxWidth.HasValue)
             border.MaxWidth = maxWidth.Value;
 
-        // Apply explicit width/height — resolve percentages against viewport width as approximation.
+        // Apply explicit width/height — resolve percentages against parent width.
         // Special case: width:100% means "fill parent" in CSS. Setting an explicit pixel
         // value breaks nested elements (e.g., search input getting viewport width instead
         // of flex item width). Use HorizontalAlignment.Stretch for 100%, which lets
@@ -550,8 +596,8 @@ public partial class ControlTreeBuilder
                 }
                 else
                 {
-                    // Partial percentages → approximate against viewport
-                    width = wpct / 100.0 * _viewportWidth;
+                    // Partial percentages → resolve against actual parent width
+                    width = wpct / 100.0 * parentWidth;
                 }
             }
             else
@@ -604,5 +650,30 @@ public partial class ControlTreeBuilder
         var s = offset.Trim();
         return s != "0" && s != "0px" && s != "0em" && s != "0rem"
             && s != "auto" && s != "none" && s != "";
+    }
+
+    /// <summary>
+    /// Computes the pixel width this element is expected to occupy, for passing down to children
+    /// so they can resolve percentage widths against the actual parent width rather than viewport.
+    /// Falls back to <paramref name="parentWidth"/> for stretch/auto.
+    /// </summary>
+    private double ComputeExpectedWidth(ResolvedStyles styles, double fontSize, double parentWidth)
+    {
+        if (!string.IsNullOrEmpty(styles.Width))
+        {
+            if (IsPercentage(styles.Width))
+            {
+                if (double.TryParse(styles.Width.TrimEnd('%', ' '),
+                    System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out var pct))
+                    return pct / 100.0 * parentWidth;
+            }
+            else if (Len(styles.Width, fontSize) is double w)
+                return w;
+        }
+        // Cap at max-width if set
+        if (!string.IsNullOrEmpty(styles.MaxWidth) && Len(styles.MaxWidth, fontSize) is double mw)
+            return Math.Min(parentWidth, mw);
+        return parentWidth;
     }
 }

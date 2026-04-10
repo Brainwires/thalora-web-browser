@@ -73,6 +73,7 @@ public partial class ControlTreeBuilder
                 if (string.IsNullOrEmpty(text))
                     return;
 
+                text = ApplyTextTransform(text, styles.TextTransform);
                 var run = new Run(text);
 
                 // Apply text styling from parent/inherited styles
@@ -87,7 +88,7 @@ public partial class ControlTreeBuilder
                 if (styles.FontStyle != null)
                     run.FontStyle = StyleParser.ParseFontStyle(styles.FontStyle);
                 if (styles.FontFamily != null)
-                    run.FontFamily = StyleParser.MapToBundledFontFamily(styles.FontFamily);
+                    run.FontFamily = StyleParser.ResolveFontFamily(styles.FontFamily);
                 if (styles.FontSize != null)
                     run.FontSize = fontSize;
 
@@ -207,7 +208,7 @@ public partial class ControlTreeBuilder
                     if (styles.FontWeight != null)
                         linkBlock.FontWeight = StyleParser.ParseFontWeight(styles.FontWeight);
                     if (styles.FontFamily != null)
-                        linkBlock.FontFamily = StyleParser.MapToBundledFontFamily(styles.FontFamily);
+                        linkBlock.FontFamily = StyleParser.ResolveFontFamily(styles.FontFamily);
                     if (styles.TextDecoration != null && styles.TextDecoration != "none")
                         linkBlock.TextDecorations = TextDecorations.Underline;
 
@@ -243,7 +244,7 @@ public partial class ControlTreeBuilder
                     if (styles.FontStyle != null)
                         linkRun.FontStyle = StyleParser.ParseFontStyle(styles.FontStyle);
                     if (styles.FontFamily != null)
-                        linkRun.FontFamily = StyleParser.MapToBundledFontFamily(styles.FontFamily);
+                        linkRun.FontFamily = StyleParser.ResolveFontFamily(styles.FontFamily);
                     if (styles.FontSize != null)
                         linkRun.FontSize = fontSize;
                     if (styles.TextDecoration != null && styles.TextDecoration != "none")
@@ -351,7 +352,7 @@ public partial class ControlTreeBuilder
                 if (styles.FontStyle != null)
                     span.FontStyle = StyleParser.ParseFontStyle(styles.FontStyle);
                 if (styles.FontFamily != null)
-                    span.FontFamily = StyleParser.MapToBundledFontFamily(styles.FontFamily);
+                    span.FontFamily = StyleParser.ResolveFontFamily(styles.FontFamily);
                 if (styles.FontSize != null)
                     span.FontSize = fontSize;
 

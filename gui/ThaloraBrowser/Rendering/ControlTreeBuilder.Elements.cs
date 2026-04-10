@@ -4,6 +4,7 @@ using Avalonia.Controls.Documents;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
+using System.Globalization;
 using System.Runtime.InteropServices;
 
 namespace ThaloraBrowser.Rendering;
@@ -14,6 +15,16 @@ namespace ThaloraBrowser.Rendering;
 /// </summary>
 public partial class ControlTreeBuilder
 {
+    /// <summary>Apply CSS text-transform to a string.</summary>
+    internal static string ApplyTextTransform(string text, string? transform) =>
+        transform?.ToLowerInvariant() switch
+        {
+            "uppercase" => text.ToUpperInvariant(),
+            "lowercase" => text.ToLowerInvariant(),
+            "capitalize" => CultureInfo.CurrentCulture.TextInfo.ToTitleCase(text.ToLowerInvariant()),
+            _ => text,
+        };
+
     /// <summary>
     /// Build a simple TextBlock for a text-only element.
     /// </summary>
@@ -22,6 +33,8 @@ public partial class ControlTreeBuilder
         var text = element.TextContent ?? "";
         if (string.IsNullOrWhiteSpace(text))
             return new Panel(); // Empty placeholder
+
+        text = ApplyTextTransform(text, element.Styles.TextTransform);
 
         var textBlock = new SelectableTextBlock
         {
@@ -179,8 +192,11 @@ public partial class ControlTreeBuilder
     {
         try
         {
-            // SVG images — load via Svg.Skia and convert to Avalonia bitmap
-            if (src.Contains(".svg", StringComparison.OrdinalIgnoreCase))
+            // SVG images — load via Svg.Skia and convert to Avalonia bitmap.
+            // Check extension on the final path component (before any query params),
+            // not a substring match — e.g. ".svg.png" is a PNG, not an SVG.
+            var srcPath = src.Split('?')[0].Split('#')[0];
+            if (srcPath.EndsWith(".svg", StringComparison.OrdinalIgnoreCase))
             {
                 await LoadSvgImageAsync(imageControl, src);
                 return;
@@ -530,7 +546,7 @@ public partial class ControlTreeBuilder
                     Text = value,
                     Watermark = placeholder,
                     FontSize = fontSize,
-                    FontFamily = StyleParser.MapToBundledFontFamily(styles.FontFamily),
+                    FontFamily = StyleParser.ResolveFontFamily(styles.FontFamily),
                     VerticalAlignment = VerticalAlignment.Center,
                     BorderThickness = new Thickness(0),
                     MinWidth = 120,
@@ -556,7 +572,7 @@ public partial class ControlTreeBuilder
         var btn = new Button
         {
             FontSize = fontSize,
-            FontFamily = StyleParser.MapToBundledFontFamily(styles.FontFamily),
+            FontFamily = StyleParser.ResolveFontFamily(styles.FontFamily),
             Padding = new Thickness(8, 4),
             VerticalAlignment = VerticalAlignment.Center,
             Background = btnBg,
@@ -601,7 +617,7 @@ public partial class ControlTreeBuilder
         var comboBox = new ComboBox
         {
             FontSize = fontSize,
-            FontFamily = StyleParser.MapToBundledFontFamily(styles.FontFamily),
+            FontFamily = StyleParser.ResolveFontFamily(styles.FontFamily),
             VerticalAlignment = VerticalAlignment.Center,
             MinWidth = 80,
             Background = comboBg,
@@ -663,7 +679,7 @@ public partial class ControlTreeBuilder
             Text = text,
             AcceptsReturn = true,
             FontSize = fontSize,
-            FontFamily = StyleParser.MapToBundledFontFamily(styles.FontFamily),
+            FontFamily = StyleParser.ResolveFontFamily(styles.FontFamily),
             MinHeight = 60,
             MinWidth = 200,
             TextWrapping = TextWrapping.Wrap,

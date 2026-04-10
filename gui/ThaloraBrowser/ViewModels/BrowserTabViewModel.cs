@@ -45,7 +45,12 @@ public partial class BrowserTabViewModel : ViewModelBase, IDisposable
     }
 
     /// <summary>
-    /// Navigate to a URL, updating all tab state.
+    /// Navigate to a URL using a two-phase pipeline for faster perceived load times.
+    ///
+    /// Phase 1 (fast): Fetch HTML + CSS only — no JS. Renders the static page skeleton
+    /// immediately so the user sees content instead of a blank screen.
+    ///
+    /// Phase 2 (background): Execute page scripts. Re-renders if JS modified the DOM.
     /// </summary>
     public async Task NavigateAsync(string url)
     {
@@ -61,7 +66,8 @@ public partial class BrowserTabViewModel : ViewModelBase, IDisposable
 
         try
         {
-            var html = await _engine.NavigateAsync(url);
+            // Phase 1: Fast static fetch (no JS) — show skeleton immediately
+            var html = await _engine.NavigateStaticAsync(url);
             HtmlContent = html;
 
             // Update URL to final (possibly redirected) URL
@@ -72,6 +78,16 @@ public partial class BrowserTabViewModel : ViewModelBase, IDisposable
             // Update title
             var title = await _engine.GetPageTitleAsync();
             Title = title ?? TruncateUrl(Url);
+
+            // Phase 2: Execute JS in the background — re-render if DOM was modified
+            StatusText = "Running scripts...";
+            var domChanged = await _engine.ExecutePageScriptsAsync();
+            if (domChanged && !_disposed)
+            {
+                var updatedHtml = await _engine.GetPageHtmlAsync();
+                if (!string.IsNullOrEmpty(updatedHtml))
+                    HtmlContent = updatedHtml;
+            }
 
             StatusText = Url;
         }

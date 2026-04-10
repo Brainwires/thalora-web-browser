@@ -249,6 +249,75 @@ impl HeadlessWebBrowser {
         self.history.current_index < self.history.entries.len().saturating_sub(1)
     }
 
+    /// Leak the Boa JS renderer, preventing its Drop from running on the wrong thread.
+    /// Call this before `thalora_destroy` drops the instance. See `thalora_destroy` for rationale.
+    pub fn leak_renderer(&mut self) {
+        if let Some(renderer) = self.renderer.take() {
+            std::mem::forget(renderer);
+        }
+    }
+
+    /// Execute page scripts on the already-loaded `current_content`.
+    ///
+    /// Called after a static navigate (no-JS fetch) to run Boa JS in a background
+    /// phase while the rendered skeleton is already visible. Updates `current_content`
+    /// with the JS-modified DOM when done.
+    ///
+    /// Returns `true` if the DOM was modified by JS, `false` if skipped or unchanged.
+    pub async fn execute_current_page_scripts(&mut self) -> Result<bool> {
+        let content = self.current_content.clone();
+        if !content.contains("<script") {
+            return Ok(false);
+        }
+
+        // Reinitialize the JS context on the current thread.
+        //
+        // WHY: NavigateStaticAsync runs on a dedicated 8MB OS thread (T_nav).
+        // ExecutePageScriptsAsync runs on a thread-pool thread (T_pool ≠ T_nav).
+        // Boa GC is thread-local — accessing GC objects from a different thread causes
+        // SIGSEGV. We mem::forget the old renderer (no finalizers on T_nav's GC state)
+        // and create a fresh context here on T_pool.
+        if let Some(old_renderer) = self.renderer.take() {
+            std::mem::forget(old_renderer);
+        }
+        let mut new_renderer = RustRenderer::new();
+        if let Err(e) = new_renderer.update_document_html(&content) {
+            eprintln!("WARNING: Failed to update document HTML for scripts: {}", e);
+        }
+        self.renderer = Some(new_renderer);
+
+        // Install CSP eval block if needed
+        if let Some(ref mut renderer) = self.renderer {
+            renderer.install_csp_eval_block();
+        }
+
+        // Run non-deferred scripts, fire DOMContentLoaded, then deferred scripts
+        self.execute_page_scripts(&content, false).await?;
+        self.fire_dom_content_loaded().await?;
+        self.execute_page_scripts(&content, true).await?;
+
+        // Wait for JS to settle (non-fatal timeout)
+        let _ = self.wait_for_js_execution(2000).await;
+
+        // Capture the JS-modified DOM
+        let original_len = self.current_content.len();
+        match self.execute_javascript("document.documentElement.outerHTML").await {
+            Ok(html) if html.len() > 100 => {
+                let full_html = if html.starts_with("<!") {
+                    html
+                } else if html.starts_with("<html") {
+                    format!("<!DOCTYPE html>{}", html)
+                } else {
+                    format!("<!DOCTYPE html><html>{}</html>", html)
+                };
+                let changed = full_html.len() != original_len;
+                self.current_content = full_html;
+                Ok(changed)
+            }
+            _ => Ok(false),
+        }
+    }
+
     /// Execute JavaScript in the internal renderer and return the raw string result.
     /// Tests call this on a MutexGuard (so &mut self) and await the future.
     pub async fn execute_javascript(&mut self, js_code: &str) -> Result<String> {

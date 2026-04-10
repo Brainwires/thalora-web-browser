@@ -168,7 +168,7 @@ public partial class ControlTreeBuilder
     private static void ApplyTextProperties(SelectableTextBlock textBlock, ResolvedStyles styles, double fontSize)
     {
         textBlock.FontSize = fontSize;
-        textBlock.FontFamily = StyleParser.MapToBundledFontFamily(styles.FontFamily);
+        textBlock.FontFamily = StyleParser.ResolveFontFamily(styles.FontFamily);
         textBlock.FontWeight = StyleParser.ParseFontWeight(styles.FontWeight);
         textBlock.FontStyle = StyleParser.ParseFontStyle(styles.FontStyle);
         textBlock.TextAlignment = StyleParser.ParseTextAlignment(styles.TextAlign);
@@ -298,13 +298,49 @@ public partial class ControlTreeBuilder
         => StyleParser.ParseBoxSides(sides, fontSize, parentSize, _viewportWidth, _viewportHeight);
 
     /// <summary>
+    /// If an inline element tree contains exactly one image element with an img_src
+    /// (and no meaningful text), return that image element. Otherwise return null.
+    /// Used to render image-only table cells as block Image controls instead of
+    /// InlineUIContainer (which fails to render in Avalonia).
+    /// </summary>
+    private static StyledElement? FindSingleImageElement(StyledElement element, int depth = 0)
+    {
+        if (depth > 8) return null;
+        if (element.Styles.Display == "none") return null;
+
+        // If this IS an img with src, return it
+        if (element.Tag == "img" && !string.IsNullOrEmpty(element.ImgSrc))
+            return element;
+
+        // If this element has text content (not just whitespace), it's not image-only
+        if (!string.IsNullOrWhiteSpace(element.TextContent))
+            return null;
+
+        StyledElement? foundImg = null;
+        foreach (var child in element.Children)
+        {
+            if (child.Styles.Display == "none") continue;
+            // Skip pure whitespace text nodes
+            if (child.Tag == "#text" && string.IsNullOrWhiteSpace(child.TextContent)) continue;
+            // Non-whitespace text means it's not image-only
+            if (child.Tag == "#text" && !string.IsNullOrWhiteSpace(child.TextContent)) return null;
+
+            var childImg = FindSingleImageElement(child, depth + 1);
+            if (childImg == null) return null; // non-image content found
+            if (foundImg != null) return null;  // multiple images
+            foundImg = childImg;
+        }
+        return foundImg; // may be null if no children
+    }
+
+    /// <summary>
     /// Check if an element has any visible content (non-whitespace text, images,
     /// visible backgrounds, explicit dimensions). Used to skip empty structural containers
     /// that would otherwise create unwanted vertical gaps.
     /// </summary>
     private static bool HasVisibleContent(StyledElement element, int depth = 0)
     {
-        if (depth > 10) return false; // guard against deep recursion
+        if (depth > 60) return false; // guard against deep recursion (GitHub content sits at depth 17+)
 
         // display:none is never visible
         if (element.Styles.Display == "none" || element.Styles.Visibility == "hidden")

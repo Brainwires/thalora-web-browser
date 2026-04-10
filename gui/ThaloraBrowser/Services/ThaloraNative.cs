@@ -30,6 +30,15 @@ internal static partial class ThaloraNative
     [LibraryImport(LibName, StringMarshalling = StringMarshalling.Utf8)]
     internal static partial IntPtr thalora_navigate(IntPtr inst, string url);
 
+    /// <summary>Navigate without executing JavaScript (Phase 1 of two-phase navigation).</summary>
+    [LibraryImport(LibName, StringMarshalling = StringMarshalling.Utf8)]
+    internal static partial IntPtr thalora_navigate_static(IntPtr inst, string url);
+
+    /// <summary>Execute page scripts on the already-loaded page (Phase 2).
+    /// Returns 1 if DOM changed, 0 if no change, -1 on error.</summary>
+    [LibraryImport(LibName)]
+    internal static partial int thalora_execute_page_scripts(IntPtr inst);
+
     [LibraryImport(LibName)]
     internal static partial IntPtr thalora_get_current_url(IntPtr inst);
 

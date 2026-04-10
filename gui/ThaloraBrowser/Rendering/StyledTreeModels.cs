@@ -202,6 +202,9 @@ internal class ResolvedStyles
     [JsonPropertyName("cursor")]
     public string? Cursor { get; set; }
 
+    [JsonPropertyName("float")]
+    public string? Float { get; set; }
+
     [JsonPropertyName("grid_template_columns")]
     public string? GridTemplateColumns { get; set; }
 

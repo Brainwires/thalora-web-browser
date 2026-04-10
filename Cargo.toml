@@ -95,6 +95,9 @@ rustybuzz = "0.12"
 # Video processing
 ffmpeg-next = { version = "7.0", optional = true }
 
+# Signal handling (Unix crash handler)
+libc = "0.2"
+
 # Error handling
 anyhow = "1.0"
 thiserror = "1.0"

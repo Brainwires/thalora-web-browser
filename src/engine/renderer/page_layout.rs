@@ -817,6 +817,41 @@ fn apply_ua_defaults(tag: &str, styles: &mut ComputedStyles, doc_mode: DocumentM
                 });
             }
         }
+        "center" | "dl" | "dt" | "dd" | "menu" => {
+            if styles.display.is_none() {
+                styles.display = Some("block".to_string());
+            }
+        }
+        "tbody" => {
+            if styles.display.is_none() {
+                styles.display = Some("table-row-group".to_string());
+            }
+        }
+        "thead" => {
+            if styles.display.is_none() {
+                styles.display = Some("table-header-group".to_string());
+            }
+        }
+        "tfoot" => {
+            if styles.display.is_none() {
+                styles.display = Some("table-footer-group".to_string());
+            }
+        }
+        "caption" => {
+            if styles.display.is_none() {
+                styles.display = Some("table-caption".to_string());
+            }
+        }
+        "colgroup" => {
+            if styles.display.is_none() {
+                styles.display = Some("table-column-group".to_string());
+            }
+        }
+        "col" => {
+            if styles.display.is_none() {
+                styles.display = Some("table-column".to_string());
+            }
+        }
         "tr" => {
             if styles.display.is_none() {
                 styles.display = Some("table-row".to_string());
@@ -1040,14 +1075,18 @@ pub fn compute_styled_tree_with_css(
         element_selectors: &mut element_selectors,
         counter_state: &mut counter_state,
     };
+    // Start with the global custom_properties as the root variable scope.
+    // Element-scoped rules will override these as we descend the tree.
+    let root_vars = css_processor.custom_properties.clone();
     let root = build_styled_element_from_dom(
         &root_node,
-        &css_processor,
+        &mut css_processor,
         &mut walk_state,
         viewport_w,
         None,
         0,
         doc_mode,
+        &root_vars,
     );
     eprintln!(
         "[TIMING] DOM tree walk (build_styled_element_from_dom): {}ms ({} elements)",
@@ -1117,18 +1156,56 @@ const HOVER_INTERACTIVE_TAGS: &[&str] = &[
 #[allow(clippy::only_used_in_recursion)]
 fn build_styled_element_from_dom(
     element_ref: &ElementRef,
-    css_processor: &CssProcessor,
+    css_processor: &mut CssProcessor,
     state: &mut DomWalkState<'_>,
     viewport_w: f32,
     parent_styles: Option<&ComputedStyles>,
     depth: u32,
     doc_mode: DocumentMode,
+    parent_vars: &HashMap<String, String>,
 ) -> StyledElement {
     let el = element_ref.value();
     let tag = el.name().to_lowercase();
 
+    // Element-scoped CSS variable resolution.
+    // CSS custom properties are inherited and can be overridden per-element via selectors
+    // like [data-color-mode="dark"]. Collect vars from matching rules, merge with parent vars,
+    // and temporarily override the processor's global custom_properties during style computation.
+    let element_own_vars = css_processor.collect_custom_properties_for_element(element_ref);
+    let effective_vars_owned: Option<HashMap<String, String>>;
+    let vars_changed: bool;
+    if element_own_vars.is_empty() {
+        effective_vars_owned = None;
+        vars_changed = false;
+    } else {
+        let mut merged = parent_vars.clone();
+        merged.extend(element_own_vars);
+        effective_vars_owned = Some(merged);
+        vars_changed = true;
+    }
+    let effective_vars: &HashMap<String, String> = if vars_changed {
+        effective_vars_owned.as_ref().unwrap()
+    } else {
+        parent_vars
+    };
+
+    // Temporarily swap custom_properties so var() references resolve with the element's scope
+    let saved_vars = if vars_changed {
+        Some(std::mem::replace(
+            &mut css_processor.custom_properties,
+            effective_vars.clone(),
+        ))
+    } else {
+        None
+    };
+
     // Compute CSS styles
     let mut styles = css_processor.compute_style_for_element(element_ref);
+
+    // Restore original custom_properties after computation
+    if let Some(saved) = saved_vars {
+        css_processor.custom_properties = saved;
+    }
 
     // Handle inline style attribute — use direct parser (no CssProcessor overhead)
     let elem_id = format!("e{}", *state.id_counter);
@@ -1410,6 +1487,26 @@ fn build_styled_element_from_dom(
         .clone()
         .unwrap_or_else(|| "normal".to_string());
 
+    // Pre-compute whether all children are block-level elements (used to suppress inter-block
+    // whitespace text nodes). Computing this ONCE before the loop avoids O(n²) behaviour
+    // where each whitespace text node would otherwise scan all siblings.
+    let all_children_are_block = element_ref.children().all(|n| match n.value() {
+        Node::Text(t) => t.text.as_ref().trim().is_empty(),
+        Node::Element(el) => {
+            let sib_tag = el.name.local.as_ref();
+            matches!(
+                sib_tag,
+                "div" | "p" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6"
+                    | "ul" | "ol" | "li" | "dl" | "dt" | "dd"
+                    | "article" | "aside" | "footer" | "header" | "main"
+                    | "nav" | "section" | "blockquote" | "pre" | "figure"
+                    | "figcaption" | "details" | "summary" | "hr"
+                    | "table" | "form" | "fieldset" | "address"
+            )
+        }
+        _ => true,
+    });
+
     // Build children — preserve ALL elements (inline and block) as children
     let mut children = Vec::new();
 
@@ -1436,58 +1533,10 @@ fn build_styled_element_from_dom(
                     let has_trailing_ws = raw_text.ends_with(char::is_whitespace);
                     let collapsed = raw_text.split_whitespace().collect::<Vec<_>>().join(" ");
                     if collapsed.is_empty() {
-                        // Whitespace-only text nodes: per CSS 2.1 §9.2.1.1, if
-                        // the whitespace-only text is a child of a block container
-                        // and all its element siblings are block-level, suppress it
-                        // (inter-block whitespace). Otherwise collapse to single space.
-                        let all_siblings_block = element_ref.children().all(|sibling| {
-                            match sibling.value() {
-                                Node::Text(t) => {
-                                    // Other whitespace-only text nodes don't prevent suppression
-                                    t.text.as_ref().trim().is_empty()
-                                }
-                                Node::Element(el) => {
-                                    let sib_tag = el.name.local.as_ref();
-                                    matches!(
-                                        sib_tag,
-                                        "div"
-                                            | "p"
-                                            | "h1"
-                                            | "h2"
-                                            | "h3"
-                                            | "h4"
-                                            | "h5"
-                                            | "h6"
-                                            | "ul"
-                                            | "ol"
-                                            | "li"
-                                            | "dl"
-                                            | "dt"
-                                            | "dd"
-                                            | "article"
-                                            | "aside"
-                                            | "footer"
-                                            | "header"
-                                            | "main"
-                                            | "nav"
-                                            | "section"
-                                            | "blockquote"
-                                            | "pre"
-                                            | "figure"
-                                            | "figcaption"
-                                            | "details"
-                                            | "summary"
-                                            | "hr"
-                                            | "table"
-                                            | "form"
-                                            | "fieldset"
-                                            | "address"
-                                    )
-                                }
-                                _ => true,
-                            }
-                        });
-                        if all_siblings_block {
+                        // Whitespace-only text node: suppress if all siblings are block-level.
+                        // `all_children_are_block` is pre-computed once above the loop (O(n) total
+                        // instead of O(n²) from recomputing for each whitespace text node).
+                        if all_children_are_block {
                             continue; // Suppress inter-block whitespace
                         }
                         if has_leading_ws || has_trailing_ws {
@@ -1555,7 +1604,7 @@ fn build_styled_element_from_dom(
                         continue;
                     }
 
-                    // Recursively build child element
+                    // Recursively build child element, passing the current var scope down
                     let child_styled = build_styled_element_from_dom(
                         &child_el_ref,
                         css_processor,
@@ -1564,6 +1613,7 @@ fn build_styled_element_from_dom(
                         Some(&styles),
                         depth + 1,
                         doc_mode,
+                        effective_vars,
                     );
 
                     // display:none is now handled inside build_styled_element_from_dom
@@ -1638,6 +1688,272 @@ fn build_styled_element_from_dom(
     }
 }
 
+// ─── Color / font / length normalization helpers ────────────────────────────
+// These run at serialization time so C# receives pre-processed values.
+// Colors → #rrggbb / #rrggbbaa hex; font-weight → numeric; font-family →
+// bundled name ("NotoSans" / "NotoSerif" / "FiraMono"); px/pt/rem lengths →
+// bare number string.  Unknown / context-dependent values pass through unchanged.
+
+/// Normalize a CSS color string to `#rrggbb` or `#rrggbbaa` hex.
+/// Named colors and the CSS `color()` Level-4 function are passed through for
+/// C# / Avalonia to handle (Avalonia.Color.TryParse supports named colors and
+/// hex natively).
+fn normalize_color(css: &str) -> String {
+    let s = css.trim();
+    match parse_color_to_rgba(s) {
+        Some((r, g, b, 255)) => format!("#{r:02x}{g:02x}{b:02x}"),
+        // Avalonia Color.TryParse uses ARGB order for 8-digit hex (#aarrggbb),
+        // which is the opposite of CSS (#rrggbbaa). Output ARGB to match Avalonia.
+        Some((r, g, b, a)) => format!("#{a:02x}{r:02x}{g:02x}{b:02x}"),
+        None => s.to_string(),
+    }
+}
+
+fn parse_color_to_rgba(s: &str) -> Option<(u8, u8, u8, u8)> {
+    // Hex: #rgb  #rgba  #rrggbb  #rrggbbaa
+    if let Some(hex) = s.strip_prefix('#') {
+        let chars: Vec<char> = hex.chars().collect();
+        return match chars.len() {
+            3 => {
+                let r = u8::from_str_radix(&format!("{0}{0}", chars[0]), 16).ok()?;
+                let g = u8::from_str_radix(&format!("{0}{0}", chars[1]), 16).ok()?;
+                let b = u8::from_str_radix(&format!("{0}{0}", chars[2]), 16).ok()?;
+                Some((r, g, b, 255))
+            }
+            4 => {
+                let r = u8::from_str_radix(&format!("{0}{0}", chars[0]), 16).ok()?;
+                let g = u8::from_str_radix(&format!("{0}{0}", chars[1]), 16).ok()?;
+                let b = u8::from_str_radix(&format!("{0}{0}", chars[2]), 16).ok()?;
+                let a = u8::from_str_radix(&format!("{0}{0}", chars[3]), 16).ok()?;
+                Some((r, g, b, a))
+            }
+            6 => {
+                let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
+                let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
+                let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
+                Some((r, g, b, 255))
+            }
+            8 => {
+                let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
+                let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
+                let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
+                let a = u8::from_str_radix(&hex[6..8], 16).ok()?;
+                Some((r, g, b, a))
+            }
+            _ => None,
+        };
+    }
+
+    // rgb() / rgba()  — modern space-separated and legacy comma-separated
+    if s.starts_with("rgb") {
+        let inner = s
+            .trim_start_matches("rgba(")
+            .trim_start_matches("rgb(")
+            .trim_end_matches(')');
+        let (channel_part, alpha_part) = if let Some(pos) = inner.find('/') {
+            (&inner[..pos], Some(inner[pos + 1..].trim()))
+        } else {
+            (inner, None)
+        };
+        let channels: Vec<&str> = if channel_part.contains(',') {
+            channel_part.split(',').map(str::trim).collect()
+        } else {
+            channel_part.split_whitespace().collect()
+        };
+        if channels.len() >= 3 {
+            let r = parse_color_channel(channels[0])?;
+            let g = parse_color_channel(channels[1])?;
+            let b = parse_color_channel(channels[2])?;
+            let a = alpha_part
+                .map(parse_alpha)
+                .or_else(|| channels.get(3).map(|s| parse_alpha(s)))
+                .unwrap_or(255);
+            return Some((r, g, b, a));
+        }
+    }
+
+    // hsl() / hsla()
+    if s.starts_with("hsl") {
+        let inner = s
+            .trim_start_matches("hsla(")
+            .trim_start_matches("hsl(")
+            .trim_end_matches(')');
+        let (channel_part, alpha_part) = if let Some(pos) = inner.find('/') {
+            (&inner[..pos], Some(inner[pos + 1..].trim()))
+        } else {
+            (inner, None)
+        };
+        let parts: Vec<&str> = if channel_part.contains(',') {
+            channel_part.split(',').map(str::trim).collect()
+        } else {
+            channel_part.split_whitespace().collect()
+        };
+        if parts.len() >= 3 {
+            let h: f32 = parts[0].trim_end_matches("deg").trim().parse().ok()?;
+            let s_val: f32 = parts[1].trim_end_matches('%').trim().parse().ok()?;
+            let l_val: f32 = parts[2].trim_end_matches('%').trim().parse().ok()?;
+            let (r, g, b) = hsl_to_rgb_bytes(h, s_val / 100.0, l_val / 100.0);
+            let a = alpha_part
+                .map(parse_alpha)
+                .or_else(|| parts.get(3).map(|s| parse_alpha(s)))
+                .unwrap_or(255);
+            return Some((r, g, b, a));
+        }
+    }
+
+    None // Named colors, color() Level-4 function — leave for C# / Avalonia
+}
+
+fn parse_color_channel(s: &str) -> Option<u8> {
+    let s = s.trim();
+    if let Some(pct) = s.strip_suffix('%') {
+        let v: f32 = pct.trim().parse().ok()?;
+        Some((v.clamp(0.0, 100.0) / 100.0 * 255.0).round() as u8)
+    } else {
+        let v: f32 = s.parse().ok()?;
+        Some(v.clamp(0.0, 255.0).round() as u8)
+    }
+}
+
+fn parse_alpha(s: &str) -> u8 {
+    let s = s.trim();
+    if let Some(pct) = s.strip_suffix('%') {
+        let v: f32 = pct.trim().parse().unwrap_or(100.0);
+        (v.clamp(0.0, 100.0) / 100.0 * 255.0).round() as u8
+    } else {
+        let v: f32 = s.parse().unwrap_or(1.0);
+        if v <= 1.0 {
+            (v.clamp(0.0, 1.0) * 255.0).round() as u8
+        } else {
+            v.clamp(0.0, 255.0).round() as u8
+        }
+    }
+}
+
+fn hsl_to_rgb_bytes(h: f32, s: f32, l: f32) -> (u8, u8, u8) {
+    let h = ((h % 360.0) + 360.0) % 360.0;
+    let c = (1.0 - (2.0 * l - 1.0).abs()) * s;
+    let x = c * (1.0 - ((h / 60.0) % 2.0 - 1.0).abs());
+    let m = l - c / 2.0;
+    let (r1, g1, b1) = match h as u32 {
+        0..=59 => (c, x, 0.0_f32),
+        60..=119 => (x, c, 0.0),
+        120..=179 => (0.0, c, x),
+        180..=239 => (0.0, x, c),
+        240..=299 => (x, 0.0, c),
+        _ => (c, 0.0, x),
+    };
+    (
+        ((r1 + m) * 255.0).round().clamp(0.0, 255.0) as u8,
+        ((g1 + m) * 255.0).round().clamp(0.0, 255.0) as u8,
+        ((b1 + m) * 255.0).round().clamp(0.0, 255.0) as u8,
+    )
+}
+
+/// Normalize CSS font-weight keywords to their numeric equivalents.
+/// "bold" → "700", "normal" → "400", etc.  Numeric strings pass through unchanged.
+fn normalize_font_weight(css: &str) -> String {
+    match css.trim() {
+        "normal" => "400".to_string(),
+        "bold" => "700".to_string(),
+        "bolder" => "600".to_string(),
+        "lighter" => "300".to_string(),
+        s => s.to_string(),
+    }
+}
+
+/// Map a CSS font-family stack to the bundled font name used by Avalonia.
+/// Returns one of "NotoSans", "NotoSerif", or "FiraMono" — matching the
+/// fonts embedded at `fonts:ThaloraBrowser#<name>`.
+fn map_to_bundled_font(css_font_family: &str) -> String {
+    for segment in css_font_family.split(',') {
+        let name = segment.trim().trim_matches('"').trim_matches('\'').to_lowercase();
+        match name.as_str() {
+            // Monospace
+            "monospace" | "fira mono" | "fira code" | "courier new" | "courier" | "consolas"
+            | "menlo" | "monaco" | "source code pro" | "jetbrains mono" | "sf mono"
+            | "ubuntu mono" | "dejavu sans mono" | "liberation mono" | "lucida console"
+            | "ui-monospace" => return "FiraMono".to_string(),
+
+            // Serif
+            "serif" | "noto serif" | "times new roman" | "times" | "georgia" | "palatino"
+            | "palatino linotype" | "book antiqua" | "garamond" | "cambria" | "dejavu serif"
+            | "liberation serif" | "ui-serif" | "cursive" | "fantasy" => {
+                return "NotoSerif".to_string()
+            }
+
+            // Sans-serif (catch-all default)
+            "sans-serif" | "noto sans" | "arial" | "helvetica" | "helvetica neue" | "segoe ui"
+            | "open sans" | "roboto" | "lato" | "inter" | "source sans pro" | "source sans 3"
+            | "ubuntu" | "nunito" | "poppins" | "montserrat" | "raleway" | "pt sans"
+            | "verdana" | "tahoma" | "trebuchet ms" | "lucida grande" | "lucida sans"
+            | "dejavu sans" | "liberation sans" | "gill sans" | "franklin gothic medium"
+            | "-apple-system" | "system-ui" | "blinkmacsystemfont" | "ui-sans-serif"
+            | "ui-rounded" | "math" | "emoji" => return "NotoSans".to_string(),
+
+            _ => {}
+        }
+    }
+    "NotoSans".to_string()
+}
+
+/// Normalize a CSS length string to a bare pixel number string where possible.
+/// - `"16px"` → `"16"`, `"12pt"` → `"16"`, `"1rem"` → `"16"`
+/// - `"0"` passes through unchanged.
+/// - Context-dependent units (`em`, `%`, `auto`, `vw`, `vh`) pass through unchanged
+///   so C# can resolve them with the parent/viewport size it has at render time.
+fn normalize_length(css: &str) -> String {
+    let s = css.trim();
+    if s == "0" || s == "auto" || s == "none" || s.is_empty() {
+        return s.to_string();
+    }
+    // Leave context-dependent units for C#
+    if s.contains('%') || s.ends_with("em") || s.ends_with("vw") || s.ends_with("vh") {
+        return s.to_string();
+    }
+    // px → bare number
+    if let Some(num) = s.strip_suffix("px") {
+        if let Ok(v) = num.trim().parse::<f32>() {
+            return format_px(v);
+        }
+    }
+    // pt → px
+    if let Some(num) = s.strip_suffix("pt") {
+        if let Ok(v) = num.trim().parse::<f32>() {
+            return format_px(v * 4.0 / 3.0);
+        }
+    }
+    // rem → px (root = 16px)
+    if let Some(num) = s.strip_suffix("rem") {
+        if let Ok(v) = num.trim().parse::<f32>() {
+            return format_px(v * 16.0);
+        }
+    }
+    s.to_string()
+}
+
+fn format_px(px: f32) -> String {
+    if px.fract() == 0.0 {
+        format!("{}", px as i32)
+    } else {
+        // Up to 3 decimal places, trimming trailing zeros
+        let s = format!("{:.3}", px);
+        s.trim_end_matches('0').trim_end_matches('.').to_string()
+    }
+}
+
+/// Apply normalize_length to each side of a StyleBoxSides.
+fn normalize_box_sides(sides: StyleBoxSides) -> StyleBoxSides {
+    StyleBoxSides {
+        top: normalize_length(&sides.top),
+        right: normalize_length(&sides.right),
+        bottom: normalize_length(&sides.bottom),
+        left: normalize_length(&sides.left),
+    }
+}
+
+// ─── End normalization helpers ───────────────────────────────────────────────
+
 /// Convert ComputedStyles to ResolvedStyles (shared conversion logic)
 fn computed_to_resolved(styles: &ComputedStyles) -> ResolvedStyles {
     ResolvedStyles {
@@ -1648,45 +1964,45 @@ fn computed_to_resolved(styles: &ComputedStyles) -> ResolvedStyles {
         justify_content: styles.justify_content.clone(),
         align_items: styles.align_items.clone(),
         align_self: styles.align_self.clone(),
-        gap: styles.gap.clone(),
+        gap: styles.gap.as_deref().map(normalize_length),
         flex_grow: styles.flex_grow.clone(),
         flex_shrink: styles.flex_shrink.clone(),
-        flex_basis: styles.flex_basis.clone(),
+        flex_basis: styles.flex_basis.as_deref().map(normalize_length),
 
-        width: styles.width.clone(),
-        height: styles.height.clone(),
-        min_width: styles.min_width.clone(),
-        min_height: styles.min_height.clone(),
-        max_width: styles.max_width.clone(),
-        max_height: styles.max_height.clone(),
+        width: styles.width.as_deref().map(normalize_length),
+        height: styles.height.as_deref().map(normalize_length),
+        min_width: styles.min_width.as_deref().map(normalize_length),
+        min_height: styles.min_height.as_deref().map(normalize_length),
+        max_width: styles.max_width.as_deref().map(normalize_length),
+        max_height: styles.max_height.as_deref().map(normalize_length),
 
-        margin: styles.margin.as_ref().map(|m| StyleBoxSides {
+        margin: styles.margin.as_ref().map(|m| normalize_box_sides(StyleBoxSides {
             top: m.top.clone(),
             right: m.right.clone(),
             bottom: m.bottom.clone(),
             left: m.left.clone(),
-        }),
-        padding: styles.padding.as_ref().map(|p| StyleBoxSides {
+        })),
+        padding: styles.padding.as_ref().map(|p| normalize_box_sides(StyleBoxSides {
             top: p.top.clone(),
             right: p.right.clone(),
             bottom: p.bottom.clone(),
             left: p.left.clone(),
-        }),
+        })),
 
-        font_size: styles.font_size.clone(),
-        font_family: styles.font_family.clone(),
-        font_weight: styles.font_weight.clone(),
+        font_size: styles.font_size.as_deref().map(normalize_length),
+        font_family: styles.font_family.as_deref().map(map_to_bundled_font),
+        font_weight: styles.font_weight.as_deref().map(normalize_font_weight),
         font_style: styles.font_style.clone(),
-        line_height: styles.line_height.clone(),
+        line_height: styles.line_height.as_deref().map(normalize_length),
         text_align: styles.text_align.clone(),
         text_decoration: styles.text_decoration.clone(),
         text_transform: styles.text_transform.clone(),
         white_space: styles.white_space.clone(),
-        letter_spacing: styles.letter_spacing.clone(),
-        word_spacing: styles.word_spacing.clone(),
+        letter_spacing: styles.letter_spacing.as_deref().map(normalize_length),
+        word_spacing: styles.word_spacing.as_deref().map(normalize_length),
 
-        color: styles.color.clone(),
-        background_color: styles.background_color.clone(),
+        color: styles.color.as_deref().map(normalize_color),
+        background_color: styles.background_color.as_deref().map(normalize_color),
 
         // Merge border shorthand + per-side overrides into StyleBoxSides.
         // Shorthand `border` sets all sides; `border-top/right/bottom/left` override individually.
@@ -1702,7 +2018,7 @@ fn computed_to_resolved(styles: &ComputedStyles) -> ResolvedStyles {
                     .as_ref()
                     .map(|b| b.width.clone())
                     .unwrap_or_default();
-                Some(StyleBoxSides {
+                Some(normalize_box_sides(StyleBoxSides {
                     top: styles
                         .border_top
                         .as_ref()
@@ -1723,7 +2039,7 @@ fn computed_to_resolved(styles: &ComputedStyles) -> ResolvedStyles {
                         .as_ref()
                         .map(|b| b.width.clone())
                         .unwrap_or(default_w),
-                })
+                }))
             } else {
                 None
             }
@@ -1743,7 +2059,7 @@ fn computed_to_resolved(styles: &ComputedStyles) -> ResolvedStyles {
             .flatten()
             .filter(|c| !c.is_empty())
             .collect();
-            colors.first().map(|c| c.to_string())
+            colors.first().map(|c| normalize_color(c))
         },
         // For border style: same approach — pick the first non-empty style.
         border_style: {
@@ -1760,7 +2076,7 @@ fn computed_to_resolved(styles: &ComputedStyles) -> ResolvedStyles {
             .collect();
             border_styles.first().map(|s| s.to_string())
         },
-        border_radius: styles.border_radius.clone(),
+        border_radius: styles.border_radius.as_deref().map(normalize_length),
 
         opacity: styles.opacity,
         overflow: styles.overflow.clone(),
@@ -1768,16 +2084,17 @@ fn computed_to_resolved(styles: &ComputedStyles) -> ResolvedStyles {
         z_index: styles.z_index,
         list_style_type: styles.list_style_type.clone(),
         cursor: styles.cursor.clone(),
+        float: styles.float.clone(),
         grid_template_columns: styles.grid_template_columns.clone(),
         grid_template_rows: styles.grid_template_rows.clone(),
         grid_template_areas: styles.grid_template_areas.clone(),
         grid_area: styles.grid_area.clone(),
 
         // Positioning offsets from the `other` HashMap (not promoted to direct fields)
-        top: styles.other.get("top").cloned(),
-        right: styles.other.get("right").cloned(),
-        bottom: styles.other.get("bottom").cloned(),
-        left: styles.other.get("left").cloned(),
+        top: styles.other.get("top").map(|v| normalize_length(v)),
+        right: styles.other.get("right").map(|v| normalize_length(v)),
+        bottom: styles.other.get("bottom").map(|v| normalize_length(v)),
+        left: styles.other.get("left").map(|v| normalize_length(v)),
     }
 }
 
@@ -2694,6 +3011,15 @@ fn is_block_element(tag: &str) -> bool {
             | "ol"
             | "li"
             | "table"
+            | "tbody"
+            | "thead"
+            | "tfoot"
+            | "caption"
+            | "center"
+            | "dl"
+            | "dt"
+            | "dd"
+            | "menu"
             | "form"
             | "figure"
             | "figcaption"

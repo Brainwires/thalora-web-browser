@@ -21,6 +21,7 @@ public class WebContentControl : UserControl
 {
     private readonly ScrollViewer _scrollViewer;
     private readonly StackPanel _contentPanel;
+    private readonly Canvas _overlayCanvas;
     private readonly ImageCache _imageCache;
     private bool _isRendering;
     private bool _renderPending;
@@ -149,7 +150,20 @@ public class WebContentControl : UserControl
             VerticalAlignment = VerticalAlignment.Stretch,
         };
 
-        Content = _scrollViewer;
+        // Canvas overlay for position:absolute/fixed elements.
+        // IsHitTestVisible=false so it doesn't intercept scroll events.
+        _overlayCanvas = new Canvas
+        {
+            IsHitTestVisible = false,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Stretch,
+        };
+
+        // Panel layers: ScrollViewer (content) + Canvas (positioned elements overlay)
+        Content = new Panel
+        {
+            Children = { _scrollViewer, _overlayCanvas },
+        };
 
         // Show placeholder
         ShowPlaceholder();
@@ -207,12 +221,9 @@ public class WebContentControl : UserControl
             Console.Error.WriteLine($"[WebContentControl] Computing styled tree: {viewportW}x{viewportH}, HTML length: {HtmlContent?.Length ?? 0}");
 #endif
 
-            // Show loading indicator for fresh navigations (new HTML content),
-            // but not for resize re-renders of the same page.
-            // This fires right as the HTML arrives and before the styled tree is built.
-            bool isFreshNavigation = HtmlContent != _lastRenderedHtml;
-            if (isFreshNavigation)
-                ShowLoading();
+            // Track which HTML we last rendered to avoid redundant re-renders on resize.
+            // Do NOT clear existing content here — keep Phase 1 content visible while
+            // Phase 2 JS re-render computes. Clearing creates a blank screen for 30-60s.
             _lastRenderedHtml = HtmlContent;
 
             // Get the styled tree from Rust (HTML parsed, CSS resolved, no positions)
@@ -278,6 +289,24 @@ public class WebContentControl : UserControl
                 _contentPanel.Children.Clear();
                 if (controlTree != null)
                     _contentPanel.Children.Add(controlTree);
+
+                // Place positioned elements on the overlay canvas.
+                // fixed → relative to viewport; absolute → relative to viewport (approximation).
+                _overlayCanvas.Children.Clear();
+                foreach (var entry in builder.PositionedElements)
+                {
+                    // Resolve right/bottom as left/top when left/top are missing
+                    double canvasLeft = entry.Left;
+                    double canvasTop = entry.Top;
+                    if (entry.Right.HasValue && entry.Left == 0)
+                        canvasLeft = Math.Max(0, Bounds.Width - (entry.Right.Value + (entry.Control.Width is double w and not double.NaN ? w : 0)));
+                    if (entry.Bottom.HasValue && entry.Top == 0)
+                        canvasTop = Math.Max(0, Bounds.Height - (entry.Bottom.Value + (entry.Control.Height is double h and not double.NaN ? h : 0)));
+
+                    Canvas.SetLeft(entry.Control, canvasLeft);
+                    Canvas.SetTop(entry.Control, canvasTop);
+                    _overlayCanvas.Children.Add(entry.Control);
+                }
 
                 if (wasEmpty)
                     _scrollViewer.Offset = default;
@@ -359,6 +388,7 @@ public class WebContentControl : UserControl
 
     private void ShowPlaceholder()
     {
+        _overlayCanvas.Children.Clear();
         _contentPanel.Children.Clear();
         _contentPanel.Children.Add(new TextBlock
         {

@@ -96,6 +96,12 @@ pub fn csp_allows_eval() -> bool {
 
 /// Check if an image URL is allowed by img-src.
 pub fn csp_allows_image(url: &str) -> bool {
+    // Relative URLs (no scheme) are always same-origin — always allowed.
+    // This covers paths like "/static/images/..." and "//cdn.example.com/..."
+    if !url.starts_with("http://") && !url.starts_with("https://") && !url.starts_with("data:") {
+        return true;
+    }
+
     let guard = match CSP_STATE.lock() {
         Ok(g) => g,
         Err(_) => return true,

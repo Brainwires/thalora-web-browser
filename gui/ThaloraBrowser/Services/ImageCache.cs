@@ -75,8 +75,13 @@ public sealed class ImageCache : IDisposable
                 return null;
             }
 
-            var stream = await response.Content.ReadAsStreamAsync();
-            var bitmap = new Bitmap(stream);
+            var bytes = await response.Content.ReadAsByteArrayAsync();
+            var bitmap = LoadBitmapFromBytes(bytes);
+            if (bitmap == null)
+            {
+                Console.Error.WriteLine($"[ImageCache] Failed to decode image '{absoluteUrl}'");
+                return null;
+            }
 
             // Evict old entries if at capacity
             if (_cache.Count >= _maxEntries)
@@ -127,16 +132,70 @@ public sealed class ImageCache : IDisposable
 
     internal static string? ResolveUrl(string url, string? baseUrl)
     {
-        if (Uri.TryCreate(url, UriKind.Absolute, out var absolute))
+        // Protocol-relative URLs (//host/path) must be handled FIRST.
+        // On macOS/Linux, Uri.TryCreate("//host/path", UriKind.Absolute, ...) can succeed
+        // with scheme="file" (UNC path interpretation), producing "file://host/path".
+        // We must intercept these before the general absolute-URI check.
+        if (url.StartsWith("//", StringComparison.Ordinal))
+        {
+            string scheme = "https"; // default
+            if (baseUrl != null && Uri.TryCreate(baseUrl, UriKind.Absolute, out var bu)
+                && (bu.Scheme == "http" || bu.Scheme == "https"))
+                scheme = bu.Scheme;
+            var fullUrl = scheme + ":" + url;
+            if (Uri.TryCreate(fullUrl, UriKind.Absolute, out var schemeResolved))
+                return schemeResolved.ToString();
+        }
+
+        if (Uri.TryCreate(url, UriKind.Absolute, out var absolute)
+            && (absolute.Scheme == "http" || absolute.Scheme == "https" || absolute.Scheme == "data"))
             return absolute.ToString();
 
         if (baseUrl != null && Uri.TryCreate(baseUrl, UriKind.Absolute, out var baseUri))
         {
-            if (Uri.TryCreate(baseUri, url, out var resolved))
+            if (Uri.TryCreate(baseUri, url, out var resolved)
+                && (resolved.Scheme == "http" || resolved.Scheme == "https"))
                 return resolved.ToString();
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Decode image bytes to an Avalonia Bitmap using SkiaSharp as a fallback decoder.
+    /// SkiaSharp handles formats Avalonia can't (e.g. 8-bit gray+alpha PNGs from Wikimedia).
+    /// </summary>
+    private static Bitmap? LoadBitmapFromBytes(byte[] bytes)
+    {
+        // First try Avalonia's native decoder (fast, handles most common formats)
+        try
+        {
+            using var ms = new System.IO.MemoryStream(bytes);
+            return new Bitmap(ms);
+        }
+        catch
+        {
+            // Fall through to SkiaSharp
+        }
+
+        // SkiaSharp handles edge cases: gray+alpha, 16-bit, CMYK, etc.
+        try
+        {
+            using var skBitmap = SkiaSharp.SKBitmap.Decode(bytes);
+            if (skBitmap == null) return null;
+
+            // Convert to RGBA8888 so Avalonia can display it
+            using var converted = skBitmap.Copy(SkiaSharp.SKColorType.Rgba8888);
+            using var skImage = SkiaSharp.SKImage.FromBitmap(converted);
+            using var encoded = skImage.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100);
+            using var pngStream = new System.IO.MemoryStream(encoded.ToArray());
+            return new Bitmap(pngStream);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[ImageCache] SkiaSharp decode failed: {ex.Message}");
+            return null;
+        }
     }
 
     private void EvictOldest()

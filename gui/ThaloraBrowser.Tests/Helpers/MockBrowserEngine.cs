@@ -37,6 +37,15 @@ public class MockBrowserEngine : IThaloraBrowserEngine
         return Task.FromResult(NavigateResult);
     }
 
+    public Task<string?> NavigateStaticAsync(string url)
+    {
+        NavigateCallCount++;
+        LastNavigatedUrl = url;
+        return Task.FromResult(NavigateResult);
+    }
+
+    public Task<bool> ExecutePageScriptsAsync() => Task.FromResult(true);
+
     public Task<string?> GetCurrentUrlAsync() => Task.FromResult(CurrentUrl);
     public Task<string?> GetPageHtmlAsync() => Task.FromResult(PageHtml);
 
