@@ -75,12 +75,19 @@ pub struct StyledElement {
     pub children: Vec<StyledElement>,
 }
 
-/// Resolved CSS styles as strings.
+/// Resolved CSS styles — pre-normalized for efficient C# consumption.
 ///
-/// All values are CSS strings (e.g., "16px", "#ff0000", "bold", "auto", "50%").
-/// The C# side is responsible for parsing these into Avalonia-specific types.
-/// This keeps the Rust side simple — it only resolves specificity and inheritance,
-/// not the actual numeric/color values.
+/// Value contracts (set by `normalize_*` helpers in `page_layout.rs`):
+/// - **Colors** (`color`, `background_color`, `border_color`): always `#rrggbb` or
+///   `#rrggbbaa` hex.  Named colors and the CSS `color()` Level-4 function are left
+///   as-is; Avalonia `Color.TryParse` handles them natively.
+/// - **Lengths** (`width`, `height`, margins, paddings, font-size, …): `px`, `pt`, and
+///   `rem` units are resolved to a bare pixel number string (e.g. `"16"` not `"16px"`).
+///   Context-dependent units (`em`, `%`, `vw`, `vh`, `auto`) are passed through
+///   unchanged so C# can resolve them with parent/viewport information it has.
+/// - **font-weight**: always a numeric string — `"700"` not `"bold"`.
+/// - **font-family**: resolved to a bundled font name: `"NotoSans"`, `"NotoSerif"`,
+///   or `"FiraMono"` (matching the `fonts:ThaloraBrowser#<name>` Avalonia URI).
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ResolvedStyles {
     // --- Display & Layout ---

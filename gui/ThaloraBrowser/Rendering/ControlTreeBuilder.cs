@@ -328,7 +328,7 @@ public partial class ControlTreeBuilder
                         Text = linkText,
                         Foreground = linkColor,
                         FontSize = fontSize,
-                        FontFamily = StyleParser.MapToBundledFontFamily(styles.FontFamily ?? linkStyles.FontFamily),
+                        FontFamily = StyleParser.ResolveFontFamily(styles.FontFamily ?? linkStyles.FontFamily),
                         FontWeight = StyleParser.ParseFontWeight(styles.FontWeight ?? linkStyles.FontWeight),
                         FontStyle = StyleParser.ParseFontStyle(styles.FontStyle ?? linkStyles.FontStyle),
                         TextWrapping = TextWrapping.NoWrap,

@@ -413,6 +413,34 @@ public partial class ControlTreeBuilder
                             childControl, child, fontSize, listItemIndex);
                     }
 
+                    // align-self: override parent's align-items for this specific child
+                    if (isFlex && child.Styles.AlignSelf is { } selfAlign
+                        && selfAlign != "auto")
+                    {
+                        if (isRow)
+                        {
+                            childControl.VerticalAlignment = selfAlign switch
+                            {
+                                "flex-start" or "start" => VerticalAlignment.Top,
+                                "flex-end" or "end" => VerticalAlignment.Bottom,
+                                "center" => VerticalAlignment.Center,
+                                "stretch" => VerticalAlignment.Stretch,
+                                _ => childControl.VerticalAlignment,
+                            };
+                        }
+                        else
+                        {
+                            childControl.HorizontalAlignment = selfAlign switch
+                            {
+                                "flex-start" or "start" => HorizontalAlignment.Left,
+                                "flex-end" or "end" => HorizontalAlignment.Right,
+                                "center" => HorizontalAlignment.Center,
+                                "stretch" => HorizontalAlignment.Stretch,
+                                _ => childControl.HorizontalAlignment,
+                            };
+                        }
+                    }
+
                     if (isHorizFlexGrid)
                     {
                         // Add gap column before this item (if not first)

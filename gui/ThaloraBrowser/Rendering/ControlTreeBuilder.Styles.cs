@@ -168,7 +168,7 @@ public partial class ControlTreeBuilder
     private static void ApplyTextProperties(SelectableTextBlock textBlock, ResolvedStyles styles, double fontSize)
     {
         textBlock.FontSize = fontSize;
-        textBlock.FontFamily = StyleParser.MapToBundledFontFamily(styles.FontFamily);
+        textBlock.FontFamily = StyleParser.ResolveFontFamily(styles.FontFamily);
         textBlock.FontWeight = StyleParser.ParseFontWeight(styles.FontWeight);
         textBlock.FontStyle = StyleParser.ParseFontStyle(styles.FontStyle);
         textBlock.TextAlignment = StyleParser.ParseTextAlignment(styles.TextAlign);
