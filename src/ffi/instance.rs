@@ -9,7 +9,7 @@ use std::rc::Rc;
 use std::sync::Mutex;
 
 #[cfg(unix)]
-use libc;
+extern crate libc;
 
 use crate::engine::HeadlessWebBrowser;
 use crate::engine::browser::types::NavigationMode;
