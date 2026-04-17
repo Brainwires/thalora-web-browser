@@ -33,10 +33,9 @@ impl McpServerService {
 
 impl ServerHandler for McpServerService {
     fn get_info(&self) -> ServerInfo {
-        ServerInfo::new(ServerCapabilities::default()).with_server_info(Implementation::new(
-            "thalora-mcp-server",
-            env!("CARGO_PKG_VERSION"),
-        ))
+        ServerInfo::new(ServerCapabilities::builder().enable_tools().build()).with_server_info(
+            Implementation::new("thalora-mcp-server", env!("CARGO_PKG_VERSION")),
+        )
     }
 
     async fn list_tools(
