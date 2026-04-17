@@ -301,7 +301,10 @@ impl HeadlessWebBrowser {
 
         // Capture the JS-modified DOM
         let original_len = self.current_content.len();
-        match self.execute_javascript("document.documentElement.outerHTML").await {
+        match self
+            .execute_javascript("document.documentElement.outerHTML")
+            .await
+        {
             Ok(html) if html.len() > 100 => {
                 let full_html = if html.starts_with("<!") {
                     html

@@ -11,8 +11,7 @@ use anyhow::{Context, Result};
 
 pub fn run(args: &[String]) -> Result<()> {
     let reference = parse_flag(args, "--ref");
-    let out = parse_flag(args, "--out")
-        .unwrap_or_else(|| "/tmp/thalora-compare.png".to_string());
+    let out = parse_flag(args, "--out").unwrap_or_else(|| "/tmp/thalora-compare.png".to_string());
 
     // Reuse gui_screenshot to capture
     let mut screenshot_args = args.to_vec();

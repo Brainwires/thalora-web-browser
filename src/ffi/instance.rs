@@ -139,14 +139,18 @@ fn install_crash_handlers() {
         // Write a short message using write() — the only safe I/O in a signal handler.
         let msg: &[u8] = match sig {
             libc::SIGSEGV => b"[thalora] Caught SIGSEGV - exiting cleanly\n",
-            libc::SIGBUS  => b"[thalora] Caught SIGBUS - exiting cleanly\n",
+            libc::SIGBUS => b"[thalora] Caught SIGBUS - exiting cleanly\n",
             libc::SIGABRT => b"[thalora] Caught SIGABRT - exiting cleanly\n",
-            _             => b"[thalora] Caught fatal signal - exiting cleanly\n",
+            _ => b"[thalora] Caught fatal signal - exiting cleanly\n",
         };
-        unsafe { libc::write(2, msg.as_ptr() as *const libc::c_void, msg.len()); }
+        unsafe {
+            libc::write(2, msg.as_ptr() as *const libc::c_void, msg.len());
+        }
         // Exit with 0 so macOS CrashReporter stays silent.
         // The BrowserController PID-watcher detects any exit and relaunches.
-        unsafe { libc::_exit(0); }
+        unsafe {
+            libc::_exit(0);
+        }
     }
 
     let signals = [libc::SIGSEGV, libc::SIGBUS, libc::SIGABRT];

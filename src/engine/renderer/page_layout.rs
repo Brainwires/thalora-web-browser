@@ -1496,12 +1496,38 @@ fn build_styled_element_from_dom(
             let sib_tag = el.name.local.as_ref();
             matches!(
                 sib_tag,
-                "div" | "p" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6"
-                    | "ul" | "ol" | "li" | "dl" | "dt" | "dd"
-                    | "article" | "aside" | "footer" | "header" | "main"
-                    | "nav" | "section" | "blockquote" | "pre" | "figure"
-                    | "figcaption" | "details" | "summary" | "hr"
-                    | "table" | "form" | "fieldset" | "address"
+                "div"
+                    | "p"
+                    | "h1"
+                    | "h2"
+                    | "h3"
+                    | "h4"
+                    | "h5"
+                    | "h6"
+                    | "ul"
+                    | "ol"
+                    | "li"
+                    | "dl"
+                    | "dt"
+                    | "dd"
+                    | "article"
+                    | "aside"
+                    | "footer"
+                    | "header"
+                    | "main"
+                    | "nav"
+                    | "section"
+                    | "blockquote"
+                    | "pre"
+                    | "figure"
+                    | "figcaption"
+                    | "details"
+                    | "summary"
+                    | "hr"
+                    | "table"
+                    | "form"
+                    | "fieldset"
+                    | "address"
             )
         }
         _ => true,
@@ -1867,7 +1893,11 @@ fn normalize_font_weight(css: &str) -> String {
 /// fonts embedded at `fonts:ThaloraBrowser#<name>`.
 fn map_to_bundled_font(css_font_family: &str) -> String {
     for segment in css_font_family.split(',') {
-        let name = segment.trim().trim_matches('"').trim_matches('\'').to_lowercase();
+        let name = segment
+            .trim()
+            .trim_matches('"')
+            .trim_matches('\'')
+            .to_lowercase();
         match name.as_str() {
             // Monospace
             "monospace" | "fira mono" | "fira code" | "courier new" | "courier" | "consolas"
@@ -1879,17 +1909,44 @@ fn map_to_bundled_font(css_font_family: &str) -> String {
             "serif" | "noto serif" | "times new roman" | "times" | "georgia" | "palatino"
             | "palatino linotype" | "book antiqua" | "garamond" | "cambria" | "dejavu serif"
             | "liberation serif" | "ui-serif" | "cursive" | "fantasy" => {
-                return "NotoSerif".to_string()
+                return "NotoSerif".to_string();
             }
 
             // Sans-serif (catch-all default)
-            "sans-serif" | "noto sans" | "arial" | "helvetica" | "helvetica neue" | "segoe ui"
-            | "open sans" | "roboto" | "lato" | "inter" | "source sans pro" | "source sans 3"
-            | "ubuntu" | "nunito" | "poppins" | "montserrat" | "raleway" | "pt sans"
-            | "verdana" | "tahoma" | "trebuchet ms" | "lucida grande" | "lucida sans"
-            | "dejavu sans" | "liberation sans" | "gill sans" | "franklin gothic medium"
-            | "-apple-system" | "system-ui" | "blinkmacsystemfont" | "ui-sans-serif"
-            | "ui-rounded" | "math" | "emoji" => return "NotoSans".to_string(),
+            "sans-serif"
+            | "noto sans"
+            | "arial"
+            | "helvetica"
+            | "helvetica neue"
+            | "segoe ui"
+            | "open sans"
+            | "roboto"
+            | "lato"
+            | "inter"
+            | "source sans pro"
+            | "source sans 3"
+            | "ubuntu"
+            | "nunito"
+            | "poppins"
+            | "montserrat"
+            | "raleway"
+            | "pt sans"
+            | "verdana"
+            | "tahoma"
+            | "trebuchet ms"
+            | "lucida grande"
+            | "lucida sans"
+            | "dejavu sans"
+            | "liberation sans"
+            | "gill sans"
+            | "franklin gothic medium"
+            | "-apple-system"
+            | "system-ui"
+            | "blinkmacsystemfont"
+            | "ui-sans-serif"
+            | "ui-rounded"
+            | "math"
+            | "emoji" => return "NotoSans".to_string(),
 
             _ => {}
         }
@@ -1976,18 +2033,22 @@ fn computed_to_resolved(styles: &ComputedStyles) -> ResolvedStyles {
         max_width: styles.max_width.as_deref().map(normalize_length),
         max_height: styles.max_height.as_deref().map(normalize_length),
 
-        margin: styles.margin.as_ref().map(|m| normalize_box_sides(StyleBoxSides {
-            top: m.top.clone(),
-            right: m.right.clone(),
-            bottom: m.bottom.clone(),
-            left: m.left.clone(),
-        })),
-        padding: styles.padding.as_ref().map(|p| normalize_box_sides(StyleBoxSides {
-            top: p.top.clone(),
-            right: p.right.clone(),
-            bottom: p.bottom.clone(),
-            left: p.left.clone(),
-        })),
+        margin: styles.margin.as_ref().map(|m| {
+            normalize_box_sides(StyleBoxSides {
+                top: m.top.clone(),
+                right: m.right.clone(),
+                bottom: m.bottom.clone(),
+                left: m.left.clone(),
+            })
+        }),
+        padding: styles.padding.as_ref().map(|p| {
+            normalize_box_sides(StyleBoxSides {
+                top: p.top.clone(),
+                right: p.right.clone(),
+                bottom: p.bottom.clone(),
+                left: p.left.clone(),
+            })
+        }),
 
         font_size: styles.font_size.as_deref().map(normalize_length),
         font_family: styles.font_family.as_deref().map(map_to_bundled_font),

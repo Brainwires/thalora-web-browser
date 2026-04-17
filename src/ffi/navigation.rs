@@ -140,7 +140,13 @@ pub extern "C" fn thalora_execute_page_scripts(instance: *mut ThalorInstance) ->
     }));
 
     match result {
-        Ok(Ok(changed)) => if changed { 1 } else { 0 },
+        Ok(Ok(changed)) => {
+            if changed {
+                1
+            } else {
+                0
+            }
+        }
         Ok(Err(e)) => {
             inst.set_error(format!("Script execution failed: {}", e));
             -1

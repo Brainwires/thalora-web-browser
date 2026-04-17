@@ -59,7 +59,9 @@ fn print_help() {
     println!("    --no-kill                  Leave browser running after screenshot");
     println!("  gui-compare [URL]            Screenshot + open side-by-side with reference");
     println!("    --ref PATH                 Reference image to compare against (e.g. chrome.png)");
-    println!("    --out PATH                 Thalora output path (default: /tmp/thalora-compare.png)");
+    println!(
+        "    --out PATH                 Thalora output path (default: /tmp/thalora-compare.png)"
+    );
     println!();
     println!("BUILD & TEST TASKS:");
     println!("  build-wasm       Build WASM targets (bundler, nodejs, web) via wasm-pack");

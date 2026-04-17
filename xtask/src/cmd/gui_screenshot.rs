@@ -25,7 +25,8 @@ pub fn run(args: &[String]) -> Result<()> {
 
     let port = parse_flag(args, "--port").unwrap_or_else(|| "9222".to_string());
     let delay = parse_flag(args, "--delay").unwrap_or_else(|| "2000".to_string());
-    let out = parse_flag(args, "--out").unwrap_or_else(|| "/tmp/thalora-screenshot.png".to_string());
+    let out =
+        parse_flag(args, "--out").unwrap_or_else(|| "/tmp/thalora-screenshot.png".to_string());
     let no_kill = args.iter().any(|a| a == "--no-kill");
     let no_build = args.iter().any(|a| a == "--no-build");
 
@@ -123,7 +124,10 @@ fn parse_flag(args: &[String], flag: &str) -> Option<String> {
 fn kill_existing(port: &str) {
     // Best-effort: find and kill any process listening on the control port
     let _ = Command::new("sh")
-        .args(["-c", &format!("lsof -ti tcp:{port} | xargs kill -9 2>/dev/null; true")])
+        .args([
+            "-c",
+            &format!("lsof -ti tcp:{port} | xargs kill -9 2>/dev/null; true"),
+        ])
         .status();
     sleep(Duration::from_millis(500));
 }

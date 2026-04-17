@@ -362,8 +362,12 @@ struct VfsPersistV2 {
 
 /// Serialize a VfsMap to bytes using the v2 format.
 fn serialize_vfs_map(map: &VfsMap) -> io::Result<Vec<u8>> {
-    let entries: Vec<(PathBuf, VfsEntry)> = map.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
-    let persist = VfsPersistV2 { version: 2, entries };
+    let entries: Vec<(PathBuf, VfsEntry)> =
+        map.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+    let persist = VfsPersistV2 {
+        version: 2,
+        entries,
+    };
     bincode::serialize(&persist).map_err(io::Error::other)
 }
 
@@ -371,13 +375,14 @@ fn serialize_vfs_map(map: &VfsMap) -> io::Result<Vec<u8>> {
 fn deserialize_vfs_map(bytes: &[u8]) -> io::Result<VfsMap> {
     // Try v2 first
     if let Ok(v2) = bincode::deserialize::<VfsPersistV2>(bytes)
-        && v2.version == 2 {
-            let mut map = HashMap::new();
-            for (k, v) in v2.entries {
-                map.insert(k, v);
-            }
-            return Ok(map);
+        && v2.version == 2
+    {
+        let mut map = HashMap::new();
+        for (k, v) in v2.entries {
+            map.insert(k, v);
         }
+        return Ok(map);
+    }
     // Fall back to v1
     let v1: VfsPersistV1 =
         bincode::deserialize(bytes).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
@@ -638,15 +643,18 @@ fn check_quota(
 
     // Check max_file_size
     if let Some(max) = vfs.max_file_size
-        && new_data_len > max {
-            return Err(quota_error("file size exceeds maximum allowed"));
-        }
+        && new_data_len > max
+    {
+        return Err(quota_error("file size exceeds maximum allowed"));
+    }
 
     // Check max_files (only if this is a new entry)
     if let Some(max) = vfs.max_files
-        && !map.contains_key(path) && map.len() as u64 >= max {
-            return Err(quota_error("maximum number of files exceeded"));
-        }
+        && !map.contains_key(path)
+        && map.len() as u64 >= max
+    {
+        return Err(quota_error("maximum number of files exceeded"));
+    }
 
     // Check total quota
     if let Some(quota) = vfs.quota {
@@ -813,14 +821,14 @@ pub mod fs {
         // Check parent exists
         if let Some(parent) = p.parent()
             && !parent.as_os_str().is_empty()
-                && parent.as_os_str() != "/"
-                && !is_dir_in_map(&map, parent)
-            {
-                return Err(io::Error::new(
-                    io::ErrorKind::NotFound,
-                    "parent directory does not exist",
-                ));
-            }
+            && parent.as_os_str() != "/"
+            && !is_dir_in_map(&map, parent)
+        {
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                "parent directory does not exist",
+            ));
+        }
         if map.contains_key(&p) {
             return Err(io::Error::new(
                 io::ErrorKind::AlreadyExists,
@@ -850,9 +858,7 @@ pub mod fs {
         // Check if directory has children
         let has_children = map.keys().any(|k| k != &p && k.starts_with(&p));
         if has_children {
-            return Err(io::Error::other(
-                "directory not empty",
-            ));
+            return Err(io::Error::other("directory not empty"));
         }
         map.remove(&p);
         Ok(())
@@ -997,9 +1003,7 @@ pub mod fs {
 
         for (old_path, entry) in &to_rename {
             map.remove(old_path);
-            let relative = old_path
-                .strip_prefix(&fromp)
-                .unwrap_or(Path::new(""));
+            let relative = old_path.strip_prefix(&fromp).unwrap_or(Path::new(""));
             let new_path = if relative.as_os_str().is_empty() {
                 top.clone()
             } else {
@@ -1225,7 +1229,11 @@ impl File {
                 }
             }
         }
-        Ok(Self { path: p, pos: 0, map })
+        Ok(Self {
+            path: p,
+            pos: 0,
+            map,
+        })
     }
 
     pub fn create<P: AsRef<Path>>(path: P) -> io::Result<Self> {
@@ -1239,7 +1247,11 @@ impl File {
             fs::ensure_parent_dirs(&mut m, &p);
             m.insert(p.clone(), VfsEntry::new_file(Vec::new()));
         }
-        Ok(Self { path: p, pos: 0, map })
+        Ok(Self {
+            path: p,
+            pos: 0,
+            map,
+        })
     }
 }
 
@@ -1272,29 +1284,25 @@ impl Seek for File {
                 io::Error::new(io::ErrorKind::InvalidInput, "seek offset too large")
             })?,
             SeekFrom::End(off) => {
-                let len = i64::try_from(entry.data.len()).map_err(|_| {
-                    io::Error::new(io::ErrorKind::InvalidInput, "file too large")
-                })?;
-                len.checked_add(off).ok_or_else(|| {
-                    io::Error::new(io::ErrorKind::InvalidInput, "seek overflow")
-                })?
+                let len = i64::try_from(entry.data.len())
+                    .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "file too large"))?;
+                len.checked_add(off)
+                    .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "seek overflow"))?
             }
             SeekFrom::Current(off) => {
                 let pos = i64::try_from(self.pos).map_err(|_| {
                     io::Error::new(io::ErrorKind::InvalidInput, "position too large")
                 })?;
-                pos.checked_add(off).ok_or_else(|| {
-                    io::Error::new(io::ErrorKind::InvalidInput, "seek overflow")
-                })?
+                pos.checked_add(off)
+                    .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "seek overflow"))?
             }
         };
         if new < 0 {
             return Err(io::Error::new(io::ErrorKind::InvalidInput, "invalid seek"));
         }
         // SECURITY: Safe conversion since we've verified new >= 0
-        self.pos = usize::try_from(new).map_err(|_| {
-            io::Error::new(io::ErrorKind::InvalidInput, "seek result too large")
-        })?;
+        self.pos = usize::try_from(new)
+            .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "seek result too large"))?;
         Ok(self.pos as u64)
     }
 }
@@ -1389,10 +1397,11 @@ impl OpenOptions {
                 map.insert(p.clone(), VfsEntry::new_file(Vec::new()));
             }
             if self.truncate
-                && let Some(entry) = map.get_mut(&p) {
-                    entry.data.clear();
-                    entry.modified = now_millis();
-                }
+                && let Some(entry) = map.get_mut(&p)
+            {
+                entry.data.clear();
+                entry.modified = now_millis();
+            }
             match map.get(&p) {
                 Some(entry) if entry.is_dir => {
                     return Err(io::Error::other("is a directory"));
