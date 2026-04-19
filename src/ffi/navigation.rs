@@ -4,12 +4,12 @@
 //! blocking on the internal tokio runtime to provide sync C FFI.
 
 use std::ffi::c_char;
-use std::panic;
 use std::ptr;
 use std::time::Instant;
 
 use super::instance::{
-    ThalorInstance, c_str_to_rust_safe, instance_ref, instance_ref_const, rust_string_to_c,
+    ThalorInstance, c_str_to_rust_safe, instance_ref, instance_ref_const, on_large_stack,
+    rust_string_to_c,
 };
 use crate::engine::browser::types::NavigationMode;
 
@@ -20,44 +20,44 @@ pub extern "C" fn thalora_navigate(
     instance: *mut ThalorInstance,
     url: *const c_char,
 ) -> *mut c_char {
-    let inst = match instance_ref(instance) {
-        Some(i) => i,
-        None => return ptr::null_mut(),
-    };
-    inst.clear_error();
+    if instance_ref(instance).is_none() {
+        return ptr::null_mut();
+    }
 
     let url_str = match c_str_to_rust_safe(url) {
-        Some(s) => s,
+        Some(s) => s.to_owned(),
         None => {
-            inst.set_error("Invalid or null URL string".into());
+            if let Some(inst) = instance_ref(instance) {
+                inst.set_error("Invalid or null URL string".into());
+            }
             return ptr::null_mut();
         }
     };
 
-    // Wrap in catch_unwind to prevent Rust panics from crossing the FFI boundary
-    // (undefined behavior). thalora_compute_styled_tree already does this.
-    let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
-        match inst
+    let inst_addr = instance as usize;
+    let outcome = on_large_stack("thalora-navigate", move || {
+        let instance = inst_addr as *mut ThalorInstance;
+        let inst = instance_ref(instance).ok_or_else(|| "Instance gone".to_string())?;
+        inst.clear_error();
+        let result = inst
             .browser
             .lock()
-            .map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))
-        {
-            Ok(mut browser) => inst
-                .runtime
-                .block_on(browser.navigate_to_with_js_option(url_str, true, true)),
-            Err(e) => Err(e),
-        }
-    }));
+            .map_err(|e| format!("Lock poisoned: {}", e))
+            .and_then(|mut browser| {
+                inst.runtime
+                    .block_on(browser.navigate_to_with_js_option(&url_str, true, true))
+                    .map_err(|e| format!("Navigation failed: {}", e))
+            });
+        result
+    });
 
-    match result {
-        Ok(Ok(html)) => rust_string_to_c(html),
-        Ok(Err(e)) => {
-            inst.set_error(format!("Navigation failed: {}", e));
-            ptr::null_mut()
-        }
-        Err(_) => {
-            eprintln!("[ERROR] FFI thalora_navigate panicked! Returning null.");
-            inst.set_error("Navigation panicked (internal error)".into());
+    match outcome.and_then(|r| r) {
+        Ok(html) => rust_string_to_c(html),
+        Err(msg) => {
+            eprintln!("[ERROR] FFI thalora_navigate: {}", msg);
+            if let Some(inst) = instance_ref(instance) {
+                inst.set_error(msg);
+            }
             ptr::null_mut()
         }
     }
@@ -74,42 +74,42 @@ pub extern "C" fn thalora_navigate_static(
     instance: *mut ThalorInstance,
     url: *const c_char,
 ) -> *mut c_char {
-    let inst = match instance_ref(instance) {
-        Some(i) => i,
-        None => return ptr::null_mut(),
-    };
-    inst.clear_error();
+    if instance_ref(instance).is_none() {
+        return ptr::null_mut();
+    }
 
     let url_str = match c_str_to_rust_safe(url) {
-        Some(s) => s,
+        Some(s) => s.to_owned(),
         None => {
-            inst.set_error("Invalid or null URL string".into());
+            if let Some(inst) = instance_ref(instance) {
+                inst.set_error("Invalid or null URL string".into());
+            }
             return ptr::null_mut();
         }
     };
 
-    let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
-        match inst
-            .browser
+    let inst_addr = instance as usize;
+    let outcome = on_large_stack("thalora-navigate-static", move || {
+        let instance = inst_addr as *mut ThalorInstance;
+        let inst = instance_ref(instance).ok_or_else(|| "Instance gone".to_string())?;
+        inst.clear_error();
+        inst.browser
             .lock()
-            .map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))
-        {
-            Ok(mut browser) => inst
-                .runtime
-                .block_on(browser.navigate_to_with_js_option(url_str, true, false)),
-            Err(e) => Err(e),
-        }
-    }));
+            .map_err(|e| format!("Lock poisoned: {}", e))
+            .and_then(|mut browser| {
+                inst.runtime
+                    .block_on(browser.navigate_to_with_js_option(&url_str, true, false))
+                    .map_err(|e| format!("Navigation failed: {}", e))
+            })
+    });
 
-    match result {
-        Ok(Ok(html)) => rust_string_to_c(html),
-        Ok(Err(e)) => {
-            inst.set_error(format!("Navigation failed: {}", e));
-            ptr::null_mut()
-        }
-        Err(_) => {
-            eprintln!("[ERROR] FFI thalora_navigate_static panicked! Returning null.");
-            inst.set_error("Navigation panicked (internal error)".into());
+    match outcome.and_then(|r| r) {
+        Ok(html) => rust_string_to_c(html),
+        Err(msg) => {
+            eprintln!("[ERROR] FFI thalora_navigate_static: {}", msg);
+            if let Some(inst) = instance_ref(instance) {
+                inst.set_error(msg);
+            }
             ptr::null_mut()
         }
     }
@@ -120,40 +120,33 @@ pub extern "C" fn thalora_navigate_static(
 /// Returns 1 if the DOM was modified, 0 if no change, -1 on error.
 #[unsafe(no_mangle)]
 pub extern "C" fn thalora_execute_page_scripts(instance: *mut ThalorInstance) -> i32 {
-    let inst = match instance_ref(instance) {
-        Some(i) => i,
-        None => return -1,
-    };
-    inst.clear_error();
+    if instance_ref(instance).is_none() {
+        return -1;
+    }
 
-    let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
-        match inst
-            .browser
+    let inst_addr = instance as usize;
+    let outcome = on_large_stack("thalora-execute-scripts", move || {
+        let instance = inst_addr as *mut ThalorInstance;
+        let inst = instance_ref(instance).ok_or_else(|| "Instance gone".to_string())?;
+        inst.clear_error();
+        inst.browser
             .lock()
-            .map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))
-        {
-            Ok(mut browser) => inst
-                .runtime
-                .block_on(browser.execute_current_page_scripts()),
-            Err(e) => Err(e),
-        }
-    }));
+            .map_err(|e| format!("Lock poisoned: {}", e))
+            .and_then(|mut browser| {
+                inst.runtime
+                    .block_on(browser.execute_current_page_scripts())
+                    .map_err(|e| format!("Script execution failed: {}", e))
+            })
+    });
 
-    match result {
-        Ok(Ok(changed)) => {
-            if changed {
-                1
-            } else {
-                0
+    match outcome.and_then(|r| r) {
+        Ok(true) => 1,
+        Ok(false) => 0,
+        Err(msg) => {
+            eprintln!("[ERROR] FFI thalora_execute_page_scripts: {}", msg);
+            if let Some(inst) = instance_ref(instance) {
+                inst.set_error(msg);
             }
-        }
-        Ok(Err(e)) => {
-            inst.set_error(format!("Script execution failed: {}", e));
-            -1
-        }
-        Err(_) => {
-            eprintln!("[ERROR] FFI thalora_execute_page_scripts panicked! Returning -1.");
-            inst.set_error("Script execution panicked (internal error)".into());
             -1
         }
     }
@@ -213,37 +206,38 @@ pub extern "C" fn thalora_get_page_html(instance: *mut ThalorInstance) -> *mut c
 /// Returns 0 on success, -1 on error (check `thalora_last_error`).
 #[unsafe(no_mangle)]
 pub extern "C" fn thalora_go_back(instance: *mut ThalorInstance) -> i32 {
-    let inst = match instance_ref(instance) {
-        Some(i) => i,
-        None => return -1,
-    };
-    inst.clear_error();
+    if instance_ref(instance).is_none() {
+        return -1;
+    }
 
-    // Wrap in catch_unwind to prevent Rust panics from crossing the FFI boundary
-    let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
-        match inst
-            .browser
+    let inst_addr = instance as usize;
+    let outcome = on_large_stack("thalora-go-back", move || {
+        let instance = inst_addr as *mut ThalorInstance;
+        let inst = instance_ref(instance).ok_or_else(|| "Instance gone".to_string())?;
+        inst.clear_error();
+        inst.browser
             .lock()
-            .map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))
-        {
-            Ok(mut browser) => inst.runtime.block_on(browser.go_back()),
-            Err(e) => Err(e),
-        }
-    }));
+            .map_err(|e| format!("Lock poisoned: {}", e))
+            .and_then(|mut browser| {
+                inst.runtime
+                    .block_on(browser.go_back())
+                    .map_err(|e| format!("Go back failed: {}", e))
+            })
+    });
 
-    match result {
-        Ok(Ok(Some(_))) => 0,
-        Ok(Ok(None)) => {
-            inst.set_error("Already at beginning of history".into());
+    match outcome.and_then(|r| r) {
+        Ok(Some(_)) => 0,
+        Ok(None) => {
+            if let Some(inst) = instance_ref(instance) {
+                inst.set_error("Already at beginning of history".into());
+            }
             -1
         }
-        Ok(Err(e)) => {
-            inst.set_error(format!("Go back failed: {}", e));
-            -1
-        }
-        Err(_) => {
-            eprintln!("[ERROR] FFI thalora_go_back panicked! Returning -1.");
-            inst.set_error("Go back panicked (internal error)".into());
+        Err(msg) => {
+            eprintln!("[ERROR] FFI thalora_go_back: {}", msg);
+            if let Some(inst) = instance_ref(instance) {
+                inst.set_error(msg);
+            }
             -1
         }
     }
@@ -253,37 +247,38 @@ pub extern "C" fn thalora_go_back(instance: *mut ThalorInstance) -> i32 {
 /// Returns 0 on success, -1 on error (check `thalora_last_error`).
 #[unsafe(no_mangle)]
 pub extern "C" fn thalora_go_forward(instance: *mut ThalorInstance) -> i32 {
-    let inst = match instance_ref(instance) {
-        Some(i) => i,
-        None => return -1,
-    };
-    inst.clear_error();
+    if instance_ref(instance).is_none() {
+        return -1;
+    }
 
-    // Wrap in catch_unwind to prevent Rust panics from crossing the FFI boundary
-    let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
-        match inst
-            .browser
+    let inst_addr = instance as usize;
+    let outcome = on_large_stack("thalora-go-forward", move || {
+        let instance = inst_addr as *mut ThalorInstance;
+        let inst = instance_ref(instance).ok_or_else(|| "Instance gone".to_string())?;
+        inst.clear_error();
+        inst.browser
             .lock()
-            .map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))
-        {
-            Ok(mut browser) => inst.runtime.block_on(browser.go_forward()),
-            Err(e) => Err(e),
-        }
-    }));
+            .map_err(|e| format!("Lock poisoned: {}", e))
+            .and_then(|mut browser| {
+                inst.runtime
+                    .block_on(browser.go_forward())
+                    .map_err(|e| format!("Go forward failed: {}", e))
+            })
+    });
 
-    match result {
-        Ok(Ok(Some(_))) => 0,
-        Ok(Ok(None)) => {
-            inst.set_error("Already at end of history".into());
+    match outcome.and_then(|r| r) {
+        Ok(Some(_)) => 0,
+        Ok(None) => {
+            if let Some(inst) = instance_ref(instance) {
+                inst.set_error("Already at end of history".into());
+            }
             -1
         }
-        Ok(Err(e)) => {
-            inst.set_error(format!("Go forward failed: {}", e));
-            -1
-        }
-        Err(_) => {
-            eprintln!("[ERROR] FFI thalora_go_forward panicked! Returning -1.");
-            inst.set_error("Go forward panicked (internal error)".into());
+        Err(msg) => {
+            eprintln!("[ERROR] FFI thalora_go_forward: {}", msg);
+            if let Some(inst) = instance_ref(instance) {
+                inst.set_error(msg);
+            }
             -1
         }
     }
@@ -293,25 +288,32 @@ pub extern "C" fn thalora_go_forward(instance: *mut ThalorInstance) -> i32 {
 /// The caller must free the returned string with `thalora_free_string`.
 #[unsafe(no_mangle)]
 pub extern "C" fn thalora_reload(instance: *mut ThalorInstance) -> *mut c_char {
-    let inst = match instance_ref(instance) {
-        Some(i) => i,
-        None => return ptr::null_mut(),
-    };
-    inst.clear_error();
+    if instance_ref(instance).is_none() {
+        return ptr::null_mut();
+    }
 
-    let result = match inst
-        .browser
-        .lock()
-        .map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))
-    {
-        Ok(mut browser) => inst.runtime.block_on(browser.reload()),
-        Err(e) => Err(e),
-    };
+    let inst_addr = instance as usize;
+    let outcome = on_large_stack("thalora-reload", move || {
+        let instance = inst_addr as *mut ThalorInstance;
+        let inst = instance_ref(instance).ok_or_else(|| "Instance gone".to_string())?;
+        inst.clear_error();
+        inst.browser
+            .lock()
+            .map_err(|e| format!("Lock poisoned: {}", e))
+            .and_then(|mut browser| {
+                inst.runtime
+                    .block_on(browser.reload())
+                    .map_err(|e| format!("Reload failed: {}", e))
+            })
+    });
 
-    match result {
+    match outcome.and_then(|r| r) {
         Ok(html) => rust_string_to_c(html),
-        Err(e) => {
-            inst.set_error(format!("Reload failed: {}", e));
+        Err(msg) => {
+            eprintln!("[ERROR] FFI thalora_reload: {}", msg);
+            if let Some(inst) = instance_ref(instance) {
+                inst.set_error(msg);
+            }
             ptr::null_mut()
         }
     }
@@ -460,52 +462,48 @@ pub extern "C" fn thalora_compute_styled_tree(
 
     let compute_start = Instant::now();
 
-    // Wrap in catch_unwind to prevent Rust panics from crossing the FFI boundary
-    // (undefined behavior). Note: catch_unwind does NOT catch stack overflows —
-    // that's handled by MAX_RECURSION_DEPTH in build_styled_element_from_dom().
-    let compute_result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
+    // The CSS cascade + selector matching + style-tree walk on large pages (GitHub
+    // has ~18k rules; Google's `compile_selectors` alone takes ~1s) recurse deeply
+    // enough to blow the .NET ThreadPool worker's ~512 KB stack. Run on a 16 MB
+    // stack via the shared helper — catch_unwind can't recover stack overflows.
+    let worker_result = on_large_stack("thalora-styled-tree", move || {
         crate::engine::renderer::compute_styled_tree_with_css(
             &content,
             viewport_w,
             viewport_h,
             &external_css,
         )
-    }));
-
-    match compute_result {
-        Ok(Ok(styled_tree)) => {
+        .map_err(|e| format!("Styled tree computation failed: {}", e))
+        .and_then(|styled_tree| {
             eprintln!(
                 "[TIMING] FFI compute_styled_tree_with_css: {}ms",
                 compute_start.elapsed().as_millis()
             );
-
             let serialize_start = Instant::now();
-            match serde_json::to_string(&styled_tree) {
-                Ok(json) => {
+            serde_json::to_string(&styled_tree)
+                .map(|json| {
                     eprintln!(
                         "[TIMING] FFI serde_json::to_string: {}ms ({} bytes output)",
                         serialize_start.elapsed().as_millis(),
                         json.len()
                     );
-                    eprintln!(
-                        "[TIMING] FFI Total styled tree: {}ms",
-                        ffi_start.elapsed().as_millis()
-                    );
-                    rust_string_to_c(json)
-                }
-                Err(e) => {
-                    inst.set_error(format!("Failed to serialize styled tree: {}", e));
-                    ptr::null_mut()
-                }
-            }
+                    json
+                })
+                .map_err(|e| format!("Failed to serialize styled tree: {}", e))
+        })
+    });
+
+    match worker_result.and_then(|r| r) {
+        Ok(json) => {
+            eprintln!(
+                "[TIMING] FFI Total styled tree: {}ms",
+                ffi_start.elapsed().as_millis()
+            );
+            rust_string_to_c(json)
         }
-        Ok(Err(e)) => {
-            inst.set_error(format!("Styled tree computation failed: {}", e));
-            ptr::null_mut()
-        }
-        Err(_) => {
-            eprintln!("[ERROR] FFI compute_styled_tree_with_css panicked! Returning null.");
-            inst.set_error("Styled tree computation panicked (internal error)".into());
+        Err(msg) => {
+            eprintln!("[ERROR] FFI thalora_compute_styled_tree: {}", msg);
+            inst.set_error(msg);
             ptr::null_mut()
         }
     }

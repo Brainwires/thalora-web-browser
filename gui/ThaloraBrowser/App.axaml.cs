@@ -70,6 +70,12 @@ public partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
+        // Tell the CSS engine which color scheme the OS/app is using so pages
+        // that respond to `@media (prefers-color-scheme: dark)` render correctly.
+        // Update again whenever the user or OS changes the theme at runtime.
+        SyncPrefersDarkFromTheme();
+        this.ActualThemeVariantChanged += (_, _) => SyncPrefersDarkFromTheme();
+
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             var vm = new MainWindowViewModel(InitialUrl);
@@ -127,6 +133,16 @@ public partial class App : Application
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    /// <summary>
+    /// Push the current Avalonia ActualThemeVariant into the Rust CSS engine
+    /// so `prefers-color-scheme` media queries match the OS theme.
+    /// </summary>
+    private void SyncPrefersDarkFromTheme()
+    {
+        bool dark = ActualThemeVariant == Avalonia.Styling.ThemeVariant.Dark;
+        ThaloraNative.thalora_set_prefers_dark(dark ? 1 : 0);
     }
 
     /// <summary>

@@ -10,6 +10,7 @@ mod media;
 mod parsing;
 pub mod types;
 
+pub use media::{prefers_dark, set_prefers_dark};
 pub use types::{
     BorderStyles, BoxModel, CompiledRule, ComputedStyles, CssProcessor, FontFaceEntry, ParsedRule,
     RuleIndex,

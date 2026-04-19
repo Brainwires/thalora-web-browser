@@ -1,5 +1,24 @@
 use super::types::CssProcessor;
 use lightningcss::rules::supports::SupportsCondition;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+/// Global flag tracking whether the host OS/application prefers dark color scheme.
+/// Set by `set_prefers_dark()` from the FFI layer at startup (and on theme change),
+/// then read by `prefers-color-scheme` media query evaluation. Defaults to light
+/// (false) so headless/test paths get deterministic behavior.
+static PREFERS_DARK: AtomicBool = AtomicBool::new(false);
+
+/// Update the global `prefers-color-scheme` hint. The GUI calls this from
+/// `thalora_set_prefers_dark` to match the OS theme so pages that respond to
+/// `@media (prefers-color-scheme: dark)` render correctly.
+pub fn set_prefers_dark(dark: bool) {
+    PREFERS_DARK.store(dark, Ordering::Relaxed);
+}
+
+/// Read the current `prefers-color-scheme` hint.
+pub fn prefers_dark() -> bool {
+    PREFERS_DARK.load(Ordering::Relaxed)
+}
 
 impl CssProcessor {
     /// Evaluate a media query string against the current viewport
@@ -118,8 +137,11 @@ impl CssProcessor {
                 true
             }
             "prefers-color-scheme" => {
-                // Default to light mode
-                value_str == "light"
+                if prefers_dark() {
+                    value_str == "dark"
+                } else {
+                    value_str == "light"
+                }
             }
             "prefers-reduced-motion" => value_str == "no-preference",
             "prefers-contrast" => value_str == "no-preference",
@@ -245,6 +267,11 @@ impl CssProcessor {
         Self::parse_media_length(expr)
     }
 
+    #[cfg(test)]
+    fn test_only_evaluate_feature(&self, feature: &str) -> bool {
+        self.evaluate_media_feature(feature)
+    }
+
     /// Evaluate an `@supports` condition.
     /// A headless browser that uses lightningcss for parsing can claim support for any
     /// property/value that lightningcss successfully parses. For `not`, `and`, `or`
@@ -275,5 +302,27 @@ impl CssProcessor {
                 false
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::engine::renderer::css::CssProcessor;
+
+    #[test]
+    fn prefers_color_scheme_reflects_global_toggle() {
+        let p = CssProcessor::new();
+
+        set_prefers_dark(false);
+        assert!(p.test_only_evaluate_feature("prefers-color-scheme: light"));
+        assert!(!p.test_only_evaluate_feature("prefers-color-scheme: dark"));
+
+        set_prefers_dark(true);
+        assert!(p.test_only_evaluate_feature("prefers-color-scheme: dark"));
+        assert!(!p.test_only_evaluate_feature("prefers-color-scheme: light"));
+
+        // Reset for other tests
+        set_prefers_dark(false);
     }
 }

@@ -244,6 +244,34 @@ public class WebContentControl : UserControl
                 Console.Error.WriteLine($"[WebContentControl] Styled tree JSON received: {styledTreeJson.Length} chars");
 #endif
 
+                // Snapshot user-typed text, caret, and selection from form inputs before
+                // the rebuild throws away the old TextBox instances. Also track which
+                // TextBox was focused so we can restore focus. Restored after the new
+                // tree is built so values persist across post-load/JS rebuilds.
+                Dictionary<string, PreservedInputState>? preservedInputs = null;
+                string? focusedInputId = null;
+                if (_elementActions != null)
+                {
+                    foreach (var actions in _elementActions.GetAll())
+                    {
+                        if (actions.Control is Avalonia.Controls.TextBox oldTb
+                            && !string.IsNullOrEmpty(oldTb.Text))
+                        {
+                            (preservedInputs ??= new Dictionary<string, PreservedInputState>())[actions.ElementId] =
+                                new PreservedInputState(
+                                    oldTb.Text,
+                                    oldTb.CaretIndex,
+                                    oldTb.SelectionStart,
+                                    oldTb.SelectionEnd,
+                                    actions.Tag,
+                                    actions.Name,
+                                    actions.HtmlId);
+                        }
+                        if (actions.Control is Avalonia.Controls.TextBox tb && tb.IsFocused)
+                            focusedInputId = actions.ElementId;
+                    }
+                }
+
                 // Clear stale state before rebuilding — if BuildFromJson throws,
                 // we don't want leftover selectors/actions from the previous page.
                 _elementSelectors = null;
@@ -275,6 +303,54 @@ public class WebContentControl : UserControl
 
                 // Store element action registry for programmatic interaction
                 _elementActions = builder.ElementActions;
+
+                // Restore preserved input text + caret + selection. Try the old element_id
+                // first (stable when the DOM structure didn't change), then fall back to
+                // matching on (tag, name, id) — which survives JS inserting a node above
+                // the input and shifting element_ids. Missed matches just leave the new
+                // input empty, no worse than skipping restoration entirely.
+                if (preservedInputs != null)
+                {
+                    foreach (var kvp in preservedInputs)
+                    {
+                        var s = kvp.Value;
+                        Avalonia.Controls.TextBox? newTb = null;
+                        if (_elementActions.TryGet(kvp.Key, out var actions)
+                            && actions?.Control is Avalonia.Controls.TextBox tb1
+                            && actions.Tag == s.Tag)
+                        {
+                            newTb = tb1;
+                        }
+                        else if (!string.IsNullOrEmpty(s.Name) || !string.IsNullOrEmpty(s.HtmlId))
+                        {
+                            foreach (var cand in _elementActions.GetAll())
+                            {
+                                if (cand.Control is Avalonia.Controls.TextBox tb2
+                                    && cand.Tag == s.Tag
+                                    && cand.Name == s.Name
+                                    && cand.HtmlId == s.HtmlId)
+                                {
+                                    newTb = tb2;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (newTb != null)
+                        {
+                            newTb.Text = s.Text;
+                            // Clamp indices in case the text length differs from the snapshot
+                            // (e.g., the page's own JS pre-filled or cleared the value).
+                            int len = newTb.Text?.Length ?? 0;
+                            newTb.CaretIndex = Math.Clamp(s.CaretIndex, 0, len);
+                            newTb.SelectionStart = Math.Clamp(s.SelectionStart, 0, len);
+                            newTb.SelectionEnd = Math.Clamp(s.SelectionEnd, 0, len);
+                        }
+                    }
+                }
+
+                // Restore focus (must happen after the control is attached to the visual
+                // tree, which is why we defer it below the panel-add step).
 
                 // Apply canvas background (CSS propagation from html/body)
                 if (builder.CanvasBackground != null)
@@ -310,6 +386,16 @@ public class WebContentControl : UserControl
 
                 if (wasEmpty)
                     _scrollViewer.Offset = default;
+
+                // Restore focus now that the new control tree is attached to the visual
+                // tree (Focus() only works on attached controls). Dispatcher.Post gives
+                // the layout pass a chance to complete before focusing.
+                if (focusedInputId != null
+                    && _elementActions.TryGet(focusedInputId, out var focusActions)
+                    && focusActions?.Control is Avalonia.Controls.TextBox focusTb)
+                {
+                    Avalonia.Threading.Dispatcher.UIThread.Post(() => focusTb.Focus());
+                }
             }
             else
             {
@@ -417,6 +503,21 @@ public class WebContentControl : UserControl
         // });
     }
 }
+
+/// <summary>
+/// Snapshot of a form TextBox's state preserved across control-tree rebuilds
+/// so that typed text, caret position, and selection survive reload / post-JS renders.
+/// The `Tag`/`Name`/`HtmlId` triple is a fallback key used when element_ids shift
+/// (e.g., JS inserted a node above the input before the rebuild).
+/// </summary>
+internal readonly record struct PreservedInputState(
+    string Text,
+    int CaretIndex,
+    int SelectionStart,
+    int SelectionEnd,
+    string Tag,
+    string? Name,
+    string? HtmlId);
 
 /// <summary>
 /// Event args for link click events.

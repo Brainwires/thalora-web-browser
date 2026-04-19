@@ -238,13 +238,13 @@ public partial class ControlTreeBuilder
         if (styles.Display == "contents" && element.Children.Count > 0)
         {
             if (element.Children.Count == 1)
-                return BuildControl(element.Children[0], fontSize, depth + 1);
+                return BuildControl(element.Children[0], fontSize, depth + 1, availableWidth);
 
             // Multiple children: wrap in a transparent StackPanel
             var panel = new StackPanel { Orientation = Orientation.Vertical };
             foreach (var child in element.Children)
             {
-                var childControl = BuildControl(child, fontSize, depth + 1);
+                var childControl = BuildControl(child, fontSize, depth + 1, availableWidth);
                 if (childControl != null)
                     panel.Children.Add(childControl);
             }
@@ -272,7 +272,7 @@ public partial class ControlTreeBuilder
                 return null; // Handled inline as line breaks
 
             case "input":
-                specialContent = BuildInputElement(element, fontSize);
+                specialContent = BuildInputElement(element, fontSize, availableWidth);
                 if (specialContent == null) return null; // hidden input
                 break;
 
@@ -285,7 +285,7 @@ public partial class ControlTreeBuilder
                 break;
 
             case "textarea":
-                specialContent = BuildTextareaElement(element, fontSize);
+                specialContent = BuildTextareaElement(element, fontSize, availableWidth);
                 break;
 
             case "svg":
@@ -515,10 +515,17 @@ public partial class ControlTreeBuilder
             regOnClick = () => DispatchDomEvent("click", element.Id);
         }
 
-        // Register in the element action registry if interactive
-        if (hasHoverStyles || isLink)
+        // Register in the element action registry if interactive, or if this is a form
+        // element (input/textarea/select/button) so the control interface can focus/type into it.
+        bool isFormElement = element.Tag is "input" or "textarea" or "select" or "button";
+        if (hasHoverStyles || isLink || isFormElement)
         {
             var textContent = CollectInlineText(element);
+            var attrs = element.Attributes;
+            string? nameAttr = null;
+            string? idAttr = null;
+            attrs?.TryGetValue("name", out nameAttr);
+            attrs?.TryGetValue("id", out idAttr);
             _elementActions.Register(new ElementActionRegistry.ElementActions
             {
                 ElementId = element.Id,
@@ -530,6 +537,9 @@ public partial class ControlTreeBuilder
                 OnHover = regOnHover,
                 OnUnhover = regOnUnhover,
                 OnClick = regOnClick,
+                Control = isFormElement ? specialContent : null,
+                Name = nameAttr,
+                HtmlId = idAttr,
             });
         }
 
@@ -609,6 +619,18 @@ public partial class ControlTreeBuilder
         }
         if (width.HasValue)
             border.Width = width.Value;
+
+        // Block-level flex/grid/block containers with no explicit width fill their parent's
+        // content box in CSS. Without Stretch, the Border shrinks to content width, which
+        // collapses the Star-column sizing inside flex Grids (the measure pass has no
+        // concrete bound to divide). This matches CSS default for block-level containers.
+        bool isBlockLevelContainer = styles.Display is "block" or "flex" or "grid";
+        if (!width.HasValue
+            && isBlockLevelContainer
+            && border.HorizontalAlignment != HorizontalAlignment.Stretch)
+        {
+            border.HorizontalAlignment = HorizontalAlignment.Stretch;
+        }
 
         var height = IsPercentage(styles.Height) ? null : Len(styles.Height, fontSize);
         if (height.HasValue)

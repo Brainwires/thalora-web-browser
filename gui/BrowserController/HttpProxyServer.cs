@@ -35,6 +35,11 @@ public sealed class HttpProxyServer : IAsyncDisposable
         "/hover-element",
         "/unhover-element",
         "/click-element",
+        "/focus-element",
+        "/type-into",
+        "/key-press",
+        "/reload",
+        "/bounds",
         "/elements",
         "/find-element",
     };

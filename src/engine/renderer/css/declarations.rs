@@ -121,14 +121,27 @@ impl CssProcessor {
                             styles.flex_basis = Some("auto".to_string());
                         }
                         1 => {
-                            styles.flex_grow = Some(parts[0].to_string());
-                            styles.flex_shrink = Some("1".to_string());
-                            styles.flex_basis = Some("0%".to_string());
+                            // Per CSS spec: a single <length-percentage> sets flex-basis,
+                            // while a single <number> sets flex-grow.
+                            if Self::is_flex_basis_value(parts[0]) {
+                                styles.flex_grow = Some("1".to_string());
+                                styles.flex_shrink = Some("1".to_string());
+                                styles.flex_basis = Some(parts[0].to_string());
+                            } else {
+                                styles.flex_grow = Some(parts[0].to_string());
+                                styles.flex_shrink = Some("1".to_string());
+                                styles.flex_basis = Some("0%".to_string());
+                            }
                         }
                         2 => {
                             styles.flex_grow = Some(parts[0].to_string());
-                            styles.flex_shrink = Some(parts[1].to_string());
-                            styles.flex_basis = Some("0%".to_string());
+                            if Self::is_flex_basis_value(parts[1]) {
+                                styles.flex_shrink = Some("1".to_string());
+                                styles.flex_basis = Some(parts[1].to_string());
+                            } else {
+                                styles.flex_shrink = Some(parts[1].to_string());
+                                styles.flex_basis = Some("0%".to_string());
+                            }
                         }
                         _ => {
                             styles.flex_grow = Some(parts[0].to_string());
@@ -812,6 +825,27 @@ impl CssProcessor {
             },
             _ => BoxModel::default(),
         }
+    }
+
+    /// Return true if a single token inside a `flex:` shorthand should be interpreted as
+    /// `flex-basis` (a <length-percentage>) rather than `flex-grow`/`flex-shrink` (a <number>).
+    /// Per CSS spec: `flex: 100%` sets flex-basis, `flex: 2` sets flex-grow. Keywords
+    /// "content"/"auto" are also valid flex-basis values here.
+    pub(crate) fn is_flex_basis_value(token: &str) -> bool {
+        let t = token.trim();
+        if t.is_empty() {
+            return false;
+        }
+        if t == "auto" || t == "content" {
+            return true;
+        }
+        if t.ends_with('%') {
+            return true;
+        }
+        const LENGTH_UNITS: &[&str] = &[
+            "px", "em", "rem", "vw", "vh", "vmin", "vmax", "pt", "pc", "cm", "mm", "in", "ch", "ex",
+        ];
+        LENGTH_UNITS.iter().any(|u| t.ends_with(u))
     }
 
     /// Parse a CSS border shorthand value into a BorderStyles struct.

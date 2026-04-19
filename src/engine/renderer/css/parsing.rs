@@ -110,14 +110,28 @@ impl CssProcessor {
                                 styles.flex_basis = Some("auto".to_string());
                             }
                             1 => {
-                                styles.flex_grow = Some(parts[0].to_string());
-                                styles.flex_shrink = Some("1".to_string());
-                                styles.flex_basis = Some("0%".to_string());
+                                // Per CSS spec: a single <length-percentage> sets flex-basis,
+                                // while a single <number> sets flex-grow.
+                                if Self::is_flex_basis_value(parts[0]) {
+                                    styles.flex_grow = Some("1".to_string());
+                                    styles.flex_shrink = Some("1".to_string());
+                                    styles.flex_basis = Some(parts[0].to_string());
+                                } else {
+                                    styles.flex_grow = Some(parts[0].to_string());
+                                    styles.flex_shrink = Some("1".to_string());
+                                    styles.flex_basis = Some("0%".to_string());
+                                }
                             }
                             2 => {
+                                // Second value may be <number> (flex-shrink) or <length-percentage> (flex-basis).
                                 styles.flex_grow = Some(parts[0].to_string());
-                                styles.flex_shrink = Some(parts[1].to_string());
-                                styles.flex_basis = Some("0%".to_string());
+                                if Self::is_flex_basis_value(parts[1]) {
+                                    styles.flex_shrink = Some("1".to_string());
+                                    styles.flex_basis = Some(parts[1].to_string());
+                                } else {
+                                    styles.flex_shrink = Some(parts[1].to_string());
+                                    styles.flex_basis = Some("0%".to_string());
+                                }
                             }
                             _ => {
                                 styles.flex_grow = Some(parts[0].to_string());

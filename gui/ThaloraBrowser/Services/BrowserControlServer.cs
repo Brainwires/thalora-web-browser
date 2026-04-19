@@ -151,6 +151,38 @@ public class BrowserControlServer : IDisposable
                         await RespondError(response, 405, "POST required");
                     break;
 
+                case "/focus-element":
+                    if (request.HttpMethod == "POST")
+                        await HandleFocusElement(request, response);
+                    else
+                        await RespondError(response, 405, "POST required");
+                    break;
+
+                case "/type-into":
+                    if (request.HttpMethod == "POST")
+                        await HandleTypeInto(request, response);
+                    else
+                        await RespondError(response, 405, "POST required");
+                    break;
+
+                case "/key-press":
+                    if (request.HttpMethod == "POST")
+                        await HandleKeyPress(request, response);
+                    else
+                        await RespondError(response, 405, "POST required");
+                    break;
+
+                case "/reload":
+                    await HandleReload(response);
+                    break;
+
+                case "/bounds":
+                    if (request.HttpMethod == "POST")
+                        await HandleBounds(request, response);
+                    else
+                        await RespondError(response, 405, "POST required");
+                    break;
+
                 case "/elements":
                     await HandleElements(response);
                     break;
@@ -669,6 +701,219 @@ public class BrowserControlServer : IDisposable
             href = actions.Href,
             is_link = actions.IsLink,
         });
+    }
+
+    /// <summary>
+    /// Report the Avalonia visual bounds of a registered element (diagnostic).
+    /// Body: {"element_id": "..."}
+    /// </summary>
+    private async Task HandleBounds(HttpListenerRequest request, HttpListenerResponse response)
+    {
+        var registry = _webContent?.ElementActions;
+        if (registry == null)
+        {
+            await RespondError(response, 503, "No rendered content or element registry");
+            return;
+        }
+
+        var body = await ReadBody(request);
+        var data = JsonSerializer.Deserialize<JsonElement>(body);
+        if (!data.TryGetProperty("element_id", out var idProp))
+        {
+            await RespondError(response, 400, "Missing 'element_id' field");
+            return;
+        }
+        var elementId = idProp.GetString() ?? "";
+        if (!registry.TryGet(elementId, out var actions) || actions?.Control == null)
+        {
+            await RespondError(response, 404, $"No control for element '{elementId}'");
+            return;
+        }
+
+        double x = 0, y = 0, w = 0, h = 0;
+        bool inTree = false;
+        await Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            var c = actions.Control!;
+            var b = c.Bounds;
+            w = b.Width; h = b.Height;
+            // Walk up to compute absolute offset relative to WebContentControl
+            inTree = c.GetVisualRoot() != null;
+            var pt = c.TranslatePoint(new Avalonia.Point(0, 0), _webContent!);
+            if (pt.HasValue) { x = pt.Value.X; y = pt.Value.Y; }
+        });
+
+        await RespondJson(response, new { element_id = elementId, tag = actions.Tag, x, y, width = w, height = h, in_visual_tree = inTree });
+    }
+
+    /// <summary>
+    /// Reload the current page.
+    /// </summary>
+    private async Task HandleReload(HttpListenerResponse response)
+    {
+        if (_viewModel?.ActiveTab == null)
+        {
+            await RespondError(response, 503, "UI not ready");
+            return;
+        }
+
+        try
+        {
+            await Dispatcher.UIThread.InvokeAsync(async () => await _viewModel.ActiveTab.ReloadAsync());
+            await RespondJson(response, new { status = "reloaded" });
+        }
+        catch (Exception ex)
+        {
+            await RespondError(response, 500, $"Reload failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Focus a form element by ID. Body: {"element_id": "..."}
+    /// </summary>
+    private async Task HandleFocusElement(HttpListenerRequest request, HttpListenerResponse response)
+    {
+        var registry = _webContent?.ElementActions;
+        if (registry == null)
+        {
+            await RespondError(response, 503, "No rendered content or element registry");
+            return;
+        }
+
+        var body = await ReadBody(request);
+        var data = JsonSerializer.Deserialize<JsonElement>(body);
+        if (!data.TryGetProperty("element_id", out var idProp))
+        {
+            await RespondError(response, 400, "Missing 'element_id' field");
+            return;
+        }
+        var elementId = idProp.GetString() ?? "";
+
+        if (!registry.TryGet(elementId, out var actions) || actions == null || actions.Control == null)
+        {
+            await RespondError(response, 404, $"No focusable control for element '{elementId}'");
+            return;
+        }
+
+        bool focused = false;
+        await Dispatcher.UIThread.InvokeAsync(() => focused = actions.Control.Focus());
+
+        await RespondJson(response, new { status = focused ? "focused" : "focus_failed", element_id = elementId, tag = actions.Tag });
+    }
+
+    /// <summary>
+    /// Focus a form element and set its text content. Body: {"element_id": "...", "text": "..."}
+    /// </summary>
+    private async Task HandleTypeInto(HttpListenerRequest request, HttpListenerResponse response)
+    {
+        var registry = _webContent?.ElementActions;
+        if (registry == null)
+        {
+            await RespondError(response, 503, "No rendered content or element registry");
+            return;
+        }
+
+        var body = await ReadBody(request);
+        var data = JsonSerializer.Deserialize<JsonElement>(body);
+        if (!data.TryGetProperty("element_id", out var idProp))
+        {
+            await RespondError(response, 400, "Missing 'element_id' field");
+            return;
+        }
+        var elementId = idProp.GetString() ?? "";
+        var text = data.TryGetProperty("text", out var textProp) ? (textProp.GetString() ?? "") : "";
+
+        if (!registry.TryGet(elementId, out var actions) || actions == null || actions.Control == null)
+        {
+            await RespondError(response, 404, $"No control for element '{elementId}'");
+            return;
+        }
+
+        string result = "ok";
+        await Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            actions.Control.Focus();
+            if (actions.Control is Avalonia.Controls.TextBox tb)
+                tb.Text = text;
+            else
+                result = "not_text_input";
+        });
+
+        await RespondJson(response, new { status = result, element_id = elementId, tag = actions.Tag, text });
+    }
+
+    /// <summary>
+    /// Synthesize a key press on the currently-focused (or a specified) control.
+    /// Body: {"key": "Enter"|"Tab"|"Escape"|..., "element_id": "..." (optional), "modifiers": ["Shift","Ctrl"] (optional)}
+    /// </summary>
+    private async Task HandleKeyPress(HttpListenerRequest request, HttpListenerResponse response)
+    {
+        var body = await ReadBody(request);
+        var data = JsonSerializer.Deserialize<JsonElement>(body);
+        if (!data.TryGetProperty("key", out var keyProp))
+        {
+            await RespondError(response, 400, "Missing 'key' field");
+            return;
+        }
+        var keyName = keyProp.GetString() ?? "";
+        if (!Enum.TryParse<Avalonia.Input.Key>(keyName, ignoreCase: true, out var key))
+        {
+            await RespondError(response, 400, $"Unknown key '{keyName}'");
+            return;
+        }
+
+        var modifiers = Avalonia.Input.KeyModifiers.None;
+        if (data.TryGetProperty("modifiers", out var modsProp) && modsProp.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var m in modsProp.EnumerateArray())
+            {
+                if (Enum.TryParse<Avalonia.Input.KeyModifiers>(m.GetString(), ignoreCase: true, out var km))
+                    modifiers |= km;
+            }
+        }
+
+        Avalonia.Controls.Control? target = null;
+        if (data.TryGetProperty("element_id", out var idProp))
+        {
+            var registry = _webContent?.ElementActions;
+            var elementId = idProp.GetString() ?? "";
+            if (registry != null && registry.TryGet(elementId, out var actions) && actions?.Control != null)
+                target = actions.Control;
+        }
+
+        bool dispatched = false;
+        await Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            Avalonia.Controls.Control? control = target;
+            if (control == null && _webContent != null)
+            {
+                var window = _webContent.GetVisualRoot() as Avalonia.Controls.TopLevel;
+                control = window?.FocusManager?.GetFocusedElement() as Avalonia.Controls.Control;
+            }
+            if (control == null) return;
+            if (target != null) target.Focus();
+
+            var down = new Avalonia.Input.KeyEventArgs
+            {
+                RoutedEvent = Avalonia.Input.InputElement.KeyDownEvent,
+                Key = key,
+                KeyModifiers = modifiers,
+                Source = control,
+            };
+            control.RaiseEvent(down);
+
+            var up = new Avalonia.Input.KeyEventArgs
+            {
+                RoutedEvent = Avalonia.Input.InputElement.KeyUpEvent,
+                Key = key,
+                KeyModifiers = modifiers,
+                Source = control,
+            };
+            control.RaiseEvent(up);
+            dispatched = true;
+        });
+
+        await RespondJson(response, new { status = dispatched ? "dispatched" : "no_focused_control", key = keyName, modifiers = modifiers.ToString() });
     }
 
     /// <summary>

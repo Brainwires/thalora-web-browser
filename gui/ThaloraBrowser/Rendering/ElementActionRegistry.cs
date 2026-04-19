@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Avalonia.Controls;
 
 namespace ThaloraBrowser.Rendering;
 
@@ -23,6 +24,12 @@ public class ElementActionRegistry
         public Action? OnHover { get; init; }
         public Action? OnUnhover { get; init; }
         public Action? OnClick { get; init; }
+        /// <summary>The Avalonia control, when one is constructed (form inputs, buttons, selects).</summary>
+        public Control? Control { get; init; }
+        /// <summary>HTML `name` attribute, used as a stable identifier across DOM rebuilds.</summary>
+        public string? Name { get; init; }
+        /// <summary>HTML `id` attribute, used as a stable identifier across DOM rebuilds.</summary>
+        public string? HtmlId { get; init; }
     }
 
     private readonly ConcurrentDictionary<string, ElementActions> _elements = new();
@@ -78,4 +85,9 @@ public class ElementActionRegistry
     /// Total number of registered elements.
     /// </summary>
     public int Count => _elements.Count;
+
+    /// <summary>
+    /// Enumerate all registered elements (interactive and non-interactive).
+    /// </summary>
+    public IEnumerable<ElementActions> GetAll() => _elements.Values;
 }

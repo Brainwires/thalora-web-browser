@@ -96,4 +96,9 @@ internal static partial class ThaloraNative
 
     [LibraryImport(LibName)]
     internal static partial int thalora_set_navigation_mode(IntPtr inst, int mode);
+
+    // --- Global preferences (no instance required; affects CSS @media evaluation) ---
+
+    [LibraryImport(LibName)]
+    internal static partial void thalora_set_prefers_dark(int dark);
 }

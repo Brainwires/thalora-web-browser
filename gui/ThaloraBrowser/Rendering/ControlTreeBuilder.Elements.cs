@@ -459,7 +459,7 @@ public partial class ControlTreeBuilder
     /// <summary>
     /// Build an &lt;input&gt; element. Maps to various Avalonia controls based on type attribute.
     /// </summary>
-    private Control? BuildInputElement(StyledElement element, double fontSize)
+    private Control? BuildInputElement(StyledElement element, double fontSize, double availableWidth = 0)
     {
         var inputType = GetAttr(element, "type")?.ToLowerInvariant() ?? "text";
         var placeholder = GetAttr(element, "placeholder");
@@ -552,7 +552,15 @@ public partial class ControlTreeBuilder
                     MinWidth = 120,
                     Background = textBg,
                     Foreground = textFg,
+                    ClipToBounds = true,
                 };
+                // Backstop: without a hard MaxWidth, a TextBox inside a flex Star column
+                // whose Grid didn't receive a bounded measure expands to viewport width
+                // (the TextBox's own Stretch + MinWidth then render far outside siblings).
+                // Cap at the enclosing container's width so overflow is at least contained.
+                if (availableWidth > 0)
+                    textBox.MaxWidth = availableWidth;
+                ApplyTextBoxStateResources(textBox, textBg, textFg);
 
                 return textBox;
             }
@@ -665,7 +673,7 @@ public partial class ControlTreeBuilder
     /// <summary>
     /// Build a &lt;textarea&gt; element → Avalonia TextBox with AcceptsReturn.
     /// </summary>
-    private Control BuildTextareaElement(StyledElement element, double fontSize)
+    private Control BuildTextareaElement(StyledElement element, double fontSize, double availableWidth = 0)
     {
         var styles = element.Styles;
         var text = CollectInlineText(element);
@@ -686,7 +694,13 @@ public partial class ControlTreeBuilder
             BorderThickness = new Thickness(0),
             Background = areaBg,
             Foreground = areaFg,
+            ClipToBounds = true,
         };
+        // Backstop: see BuildInputElement — cap at the enclosing container's width so
+        // an unbounded flex Star-column measure can't let the textarea span the viewport.
+        if (availableWidth > 0)
+            textBox.MaxWidth = availableWidth;
+        ApplyTextBoxStateResources(textBox, areaBg, areaFg);
 
         return textBox;
     }
@@ -712,8 +726,10 @@ public partial class ControlTreeBuilder
     /// <summary>
     /// Build a placeholder panel for inline &lt;svg&gt; elements.
     /// Uses the SVG's declared width/height for sizing.
+    /// Always returns a non-null Panel; existing callers pass the result straight to
+    /// control collections that can't take nulls.
     /// </summary>
-    private Control? BuildInlineSvgPlaceholder(StyledElement element, double fontSize)
+    private Control BuildInlineSvgPlaceholder(StyledElement element, double fontSize)
     {
         var styles = element.Styles;
         var w = Len(styles.Width, fontSize) ?? 24;

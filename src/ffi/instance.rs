@@ -39,6 +39,40 @@ impl ThalorInstance {
     }
 }
 
+/// Run a unit of FFI work on a dedicated thread with a 16 MB stack and
+/// panic-catching so a stack overflow or panic can't take down the process.
+///
+/// Why: the .NET ThreadPool worker that drives our FFI calls has a ~512 KB
+/// stack on macOS. The Boa JS engine and CSS selector matcher on real-world
+/// pages (Google, GitHub) recurse deeply enough to overflow that stack. This
+/// helper moves the work onto a fresh thread with a much larger stack.
+///
+/// `catch_unwind` does NOT catch stack overflows — the large stack is what
+/// prevents the overflow; `catch_unwind` only catches normal panics.
+///
+/// Returns `Ok(T)` on success or `Err(msg)` describing spawn / join / panic /
+/// inner failures so callers can surface a diagnostic via `set_error`.
+pub(crate) fn on_large_stack<F, T>(name: &'static str, f: F) -> Result<T, String>
+where
+    F: FnOnce() -> T + Send + 'static,
+    T: Send + 'static,
+{
+    let handle = std::thread::Builder::new()
+        .name(name.into())
+        .stack_size(16 * 1024 * 1024)
+        .spawn(move || std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)))
+        .map_err(|e| format!("Failed to spawn FFI worker '{}': {}", name, e))?;
+
+    match handle.join() {
+        Ok(Ok(value)) => Ok(value),
+        Ok(Err(_)) => Err(format!("FFI worker '{}' panicked", name)),
+        Err(_) => Err(format!(
+            "FFI worker '{}' aborted (likely stack overflow)",
+            name
+        )),
+    }
+}
+
 /// Helper: convert a Rust String into a heap-allocated C string.
 /// The caller must free it with `thalora_free_string`.
 pub(crate) fn rust_string_to_c(s: String) -> *mut c_char {
@@ -276,4 +310,13 @@ pub extern "C" fn thalora_last_error(instance: *const ThalorInstance) -> *const 
 pub extern "C" fn thalora_free_string(ptr: *mut c_char) {
     // Reclaim the CString (no-op if null)
     let _ = reclaim_c_string(ptr);
+}
+
+/// Tell the CSS engine whether the OS/app currently prefers a dark color scheme.
+/// Pages that use `@media (prefers-color-scheme: dark)` will match those rules
+/// when `dark` is 1; otherwise the default light branch is used. Process-global;
+/// safe to call on any thread. Passing 0 reverts to light.
+#[unsafe(no_mangle)]
+pub extern "C" fn thalora_set_prefers_dark(dark: i32) {
+    crate::engine::renderer::css::set_prefers_dark(dark != 0);
 }

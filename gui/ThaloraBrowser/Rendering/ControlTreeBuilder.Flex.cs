@@ -166,6 +166,9 @@ public partial class ControlTreeBuilder
                         gridWidth = IsPercentage(styles.MaxWidth) ? null : Len(styles.MaxWidth, fontSize);
                     if (gridWidth.HasValue)
                         grid.Width = gridWidth.Value;
+                    // Otherwise leave the Grid unsized; HorizontalAlignment.Stretch plus
+                    // the flex-Border's Stretch (see WrapInBorder) lets the parent's
+                    // bounded measure propagate, which is what Star-column sizing needs.
 
                     // Apply cross-axis alignment
                     if (styles.AlignItems == "center")

@@ -378,6 +378,28 @@ public partial class ControlTreeBuilder
     }
 
     /// <summary>
+    /// Override the Fluent theme's per-state resources on a TextBox so focus/pointer-over
+    /// don't swap in the theme's dark default background (the app runs under the Dark
+    /// variant, which would otherwise paint focused inputs black on light web pages).
+    /// </summary>
+    private static void ApplyTextBoxStateResources(TextBox textBox, IBrush background, IBrush foreground)
+    {
+        var r = textBox.Resources;
+        r["TextControlBackground"] = background;
+        r["TextControlBackgroundPointerOver"] = background;
+        r["TextControlBackgroundFocused"] = background;
+        r["TextControlBackgroundDisabled"] = background;
+        r["TextControlForeground"] = foreground;
+        r["TextControlForegroundPointerOver"] = foreground;
+        r["TextControlForegroundFocused"] = foreground;
+        r["TextControlForegroundDisabled"] = foreground;
+        r["TextControlBorderBrush"] = Brushes.Transparent;
+        r["TextControlBorderBrushPointerOver"] = Brushes.Transparent;
+        r["TextControlBorderBrushFocused"] = Brushes.Transparent;
+        r["TextControlBorderBrushDisabled"] = Brushes.Transparent;
+    }
+
+    /// <summary>
     /// Recursively collect all text content from an inline element tree.
     /// Used for building link text from nested inline elements.
     /// </summary>
