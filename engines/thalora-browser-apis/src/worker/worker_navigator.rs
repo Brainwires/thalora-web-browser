@@ -33,11 +33,12 @@ struct WorkerNavigatorData {
 
 impl WorkerNavigatorData {
     fn new() -> Self {
+        let (language, languages) = crate::browser::navigator::locale::detect();
         Self {
             user_agent: "Thalora/1.0 (Boa JavaScript Engine)".to_string(),
             platform: Self::detect_platform(),
-            language: "en-US".to_string(),
-            languages: vec!["en-US".to_string(), "en".to_string()],
+            language,
+            languages,
             online: true, // In workers, assume online unless explicitly set
             hardware_concurrency: Self::detect_hardware_concurrency(),
         }
@@ -228,7 +229,7 @@ fn get_languages(this: &JsValue, _: &[JsValue], context: &mut Context) -> JsResu
     let languages = if let Some(data) = this_obj.downcast_ref::<WorkerNavigatorData>() {
         data.languages.clone()
     } else {
-        vec!["en-US".to_string(), "en".to_string()]
+        crate::browser::navigator::locale::detect().1
     };
 
     // Create JavaScript array from languages

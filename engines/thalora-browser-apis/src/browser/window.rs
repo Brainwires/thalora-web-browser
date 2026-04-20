@@ -627,24 +627,27 @@ fn get_navigator(this: &JsValue, _args: &[JsValue], context: &mut Context) -> Js
             context,
         )?;
 
-        // Add language property
+        // Add language / languages properties from the host OS locale.
+        let (os_language, os_languages) = crate::browser::navigator::locale::detect();
+
         navigator.define_property_or_throw(
             js_string!("language"),
             PropertyDescriptorBuilder::new()
                 .configurable(false)
                 .enumerable(true)
                 .writable(false)
-                .value(JsString::from("en-US"))
+                .value(JsString::from(os_language.as_str()))
                 .build(),
             context,
         )?;
 
         // Add languages array property
         use boa_engine::builtins::array::Array;
-        let languages_array = Array::create_array_from_list(
-            [JsString::from("en-US").into(), JsString::from("en").into()],
-            context,
-        );
+        let languages_values: Vec<JsValue> = os_languages
+            .iter()
+            .map(|l| JsString::from(l.as_str()).into())
+            .collect();
+        let languages_array = Array::create_array_from_list(languages_values, context);
         navigator.define_property_or_throw(
             js_string!("languages"),
             PropertyDescriptorBuilder::new()

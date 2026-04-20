@@ -11,6 +11,8 @@ use crate::browser::clipboard;
 use crate::browser::permissions;
 use crate::browser::vibration;
 use crate::worker::service_worker_container::ServiceWorkerContainer;
+
+pub mod locale;
 use boa_engine::builtins::{BuiltInConstructor, BuiltInObject, IntrinsicObject};
 use boa_engine::context::intrinsics::StandardConstructor;
 use boa_engine::{
@@ -83,6 +85,8 @@ impl Navigator {
         // Use shared USER_AGENT constant - single source of truth!
         use thalora_constants::USER_AGENT;
 
+        let (language, languages) = locale::detect();
+
         Self {
             // NavigatorID - Chrome 120.0 on Windows 10 (WHATWG compliant)
             user_agent: USER_AGENT.to_string(),
@@ -95,9 +99,9 @@ impl Navigator {
             vendor: "Google Inc.".to_string(),  // Chrome has Google Inc. as vendor
             vendor_sub: "".to_string(),
 
-            // NavigatorLanguage
-            language: "en-US".to_string(),
-            languages: vec!["en-US".to_string(), "en".to_string()],
+            // NavigatorLanguage - read from the host OS locale at construction time.
+            language,
+            languages,
 
             // NavigatorOnLine
             on_line: true,
@@ -127,6 +131,8 @@ impl Navigator {
 
 impl IntrinsicObject for Navigator {
     fn init(realm: &Realm) {
+        let (os_language, _os_languages) = locale::detect();
+
         let _locks_getter_func = BuiltInBuilder::callable(realm, Self::locks_getter)
             .name(js_string!("get locks"))
             .build();
@@ -168,8 +174,8 @@ impl IntrinsicObject for Navigator {
             .property(js_string!("vendor"), js_string!("Google Inc."), Attribute::READONLY | Attribute::NON_ENUMERABLE)
             .property(js_string!("vendorSub"), js_string!(""), Attribute::READONLY | Attribute::NON_ENUMERABLE)
 
-            // NavigatorLanguage properties
-            .property(js_string!("language"), js_string!("en-US"), Attribute::READONLY | Attribute::NON_ENUMERABLE)
+            // NavigatorLanguage properties (reflect host OS locale)
+            .property(js_string!("language"), js_string!(os_language.clone()), Attribute::READONLY | Attribute::NON_ENUMERABLE)
             .accessor(
                 js_string!("languages"),
                 Some(languages_getter_func),
@@ -327,15 +333,15 @@ impl Navigator {
     }
 
     /// `navigator.languages` getter - returns array of language preferences
+    ///
+    /// Sourced from the host OS locale (see [`locale::detect`]). Always
+    /// contains at least one entry.
     fn languages_getter(
         _this: &JsValue,
         _args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        let languages = vec![
-            JsValue::from(js_string!("en-US")),
-            JsValue::from(js_string!("en")),
-        ];
+        let (_, languages) = locale::detect();
 
         let array = boa_engine::builtins::array::Array::array_create(
             languages.len() as u64,
@@ -344,7 +350,7 @@ impl Navigator {
         )?;
 
         for (i, lang) in languages.into_iter().enumerate() {
-            array.create_data_property_or_throw(i, lang, context)?;
+            array.create_data_property_or_throw(i, JsValue::from(js_string!(lang)), context)?;
         }
 
         Ok(JsValue::from(array))

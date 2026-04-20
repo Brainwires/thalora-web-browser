@@ -111,16 +111,25 @@ fn test_navigator_properties() {
         .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("MacIntel")));
 
-    // Test language property
+    // Test language property — must be a non-empty BCP-47-shaped string.
+    // Actual value is sourced from the host OS locale, so we can't assert
+    // a specific tag here.
     let result = context
         .eval(Source::from_bytes("typeof window.navigator.language"))
         .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("string")));
 
     let result = context
-        .eval(Source::from_bytes("window.navigator.language"))
+        .eval(Source::from_bytes("window.navigator.language.length > 0"))
         .unwrap();
-    assert_eq!(result, JsValue::from(JsString::from("en-US")));
+    assert_eq!(result, JsValue::from(true));
+
+    let result = context
+        .eval(Source::from_bytes(
+            "/^[A-Za-z]{2,3}(-[A-Za-z0-9]+)*$/.test(window.navigator.language)",
+        ))
+        .unwrap();
+    assert_eq!(result, JsValue::from(true));
 
     // Test cookieEnabled property
     let result = context
@@ -163,20 +172,28 @@ fn test_navigator_language_properties() {
         .unwrap();
     assert_eq!(result, JsValue::from(true));
 
+    // languages is sourced from the host OS locale (see navigator::locale::detect).
+    // Invariants: non-empty, first entry equals navigator.language,
+    // second entry (if present) is the base language subtag of the first.
     let result = context
-        .eval(Source::from_bytes("window.navigator.languages.length"))
+        .eval(Source::from_bytes("window.navigator.languages.length >= 1"))
         .unwrap();
-    assert_eq!(result, JsValue::from(2));
+    assert_eq!(result, JsValue::from(true));
 
     let result = context
-        .eval(Source::from_bytes("window.navigator.languages[0]"))
+        .eval(Source::from_bytes(
+            "window.navigator.languages[0] === window.navigator.language",
+        ))
         .unwrap();
-    assert_eq!(result, JsValue::from(JsString::from("en-US")));
+    assert_eq!(result, JsValue::from(true));
 
     let result = context
-        .eval(Source::from_bytes("window.navigator.languages[1]"))
+        .eval(Source::from_bytes(
+            "window.navigator.languages.length < 2 || \
+             window.navigator.languages[1] === window.navigator.language.split('-')[0]",
+        ))
         .unwrap();
-    assert_eq!(result, JsValue::from(JsString::from("en")));
+    assert_eq!(result, JsValue::from(true));
 }
 
 #[test]
