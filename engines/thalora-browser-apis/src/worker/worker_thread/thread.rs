@@ -1,6 +1,6 @@
 //! WorkerThread implementation - main worker thread struct
 
-use boa_engine::{Context, JsNativeError, JsResult};
+use boa_engine::{Context, JsNativeError, JsResult, builtins::IntrinsicObject};
 use crossbeam_channel::{Receiver, Sender, TryRecvError, unbounded};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -111,6 +111,23 @@ impl WorkerThread {
 
         // Create a new JavaScript context for this worker
         let mut context = Context::default();
+
+        // Install browsing-context state (origin + is_worker=true) so OPFS and
+        // FileSystemSyncAccessHandle can detect the worker realm and resolve
+        // the active origin.
+        crate::realm_ext::install(&mut context, config.origin.clone(), true);
+
+        // Initialize the FileSystem* prototypes inside the worker realm so
+        // OPFS handles handed out via `navigator.storage.getDirectory()` have
+        // working method tables.
+        crate::file::file_system::FileSystemHandle::init(context.realm());
+        crate::file::file_system::FileSystemFileHandle::init(context.realm());
+        crate::file::file_system::FileSystemDirectoryHandle::init(context.realm());
+        crate::file::file_system::writable_stream::FileSystemWritableFileStream::init(
+            context.realm(),
+        );
+        crate::file::file_system::sync_access::FileSystemSyncAccessHandle::init(context.realm());
+        crate::storage::storage_manager::StorageManager::init(context.realm());
 
         // Initialize the worker global scope
         let scope_type = WorkerGlobalScopeType::Dedicated;
@@ -338,6 +355,7 @@ mod tests {
             script_url: "console.log('Hello from worker');".to_string(),
             worker_type: WorkerType::Classic,
             stack_size: Some(2 * 1024 * 1024),
+            origin: "thalora://test".to_string(),
         };
 
         let worker = WorkerThread::spawn(config);

@@ -253,22 +253,33 @@ impl StorageManager {
     }
 
     /// `navigator.storage.getDirectory()`
-    /// Returns the origin private file system directory
+    /// Returns a `FileSystemDirectoryHandle` rooted at the current origin's
+    /// Origin Private File System.
     fn get_directory(
         _this: &JsValue,
         _args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        // This would return a FileSystemDirectoryHandle when File System API is implemented
-        // For now, return a rejected promise
-        let (promise, resolvers) = JsPromise::new_pending(context);
-        let error_value = JsNativeError::error()
-            .with_message("File System API not yet implemented")
-            .into_opaque(context);
-        resolvers
-            .reject
-            .call(&JsValue::undefined(), &[error_value.into()], context)?;
+        let origin = crate::realm_ext::current_origin(context);
+        let backend = crate::file::file_system::opfs_backend::OpfsBackend::for_origin(&origin);
 
+        let dir_handle = crate::file::file_system::FileSystemDirectoryHandle::new_opfs_root(
+            backend,
+        );
+        let dir_obj = JsObject::from_proto_and_data_with_shared_shape(
+            context.root_shape(),
+            context
+                .intrinsics()
+                .constructors()
+                .file_system_directory_handle()
+                .prototype(),
+            dir_handle,
+        );
+
+        let (promise, resolvers) = JsPromise::new_pending(context);
+        resolvers
+            .resolve
+            .call(&JsValue::undefined(), &[dir_obj.into()], context)?;
         Ok(JsValue::from(promise))
     }
 }

@@ -93,6 +93,8 @@ pub mod audit;
 // CSP shared state for cross-crate enforcement
 pub mod csp;
 
+pub mod realm_ext;
+
 /// Initialize all browser APIs in a Boa context
 pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()> {
     use boa_engine::builtins::{BuiltInObject, IntrinsicObject};
@@ -200,8 +202,15 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     file::blob::Blob::init(&realm);
     file::file::File::init(&realm);
     file::file_reader::FileReader::init(&realm);
+    file::file_system::FileSystemHandle::init(&realm);
     file::file_system::FileSystemFileHandle::init(&realm);
     file::file_system::FileSystemDirectoryHandle::init(&realm);
+    file::file_system::writable_stream::FileSystemWritableFileStream::init(&realm);
+    file::file_system::sync_access::FileSystemSyncAccessHandle::init(&realm);
+
+    // Install the realm-scoped browsing context so OPFS can resolve the
+    // active origin (set per page navigation; defaults to "thalora://local").
+    realm_ext::install(context, "thalora://local".to_string(), false);
 
     // Initialize Crypto API
     crypto::crypto::Crypto::init(context);
@@ -1993,6 +2002,58 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         false,
         context,
     )?;
+
+    // Register File System / OPFS constructors as globals so user code and
+    // audit checks can do `typeof FileSystemDirectoryHandle === 'function'`.
+    use boa_engine::property::Attribute as _Attr;
+    fn install_global_ctor(
+        name: &'static str,
+        ctor: boa_engine::JsObject,
+        global: &boa_engine::JsObject,
+        context: &mut boa_engine::Context,
+    ) -> boa_engine::JsResult<()> {
+        global.define_property_or_throw(
+            boa_engine::js_string!(name),
+            PropertyDescriptor::builder()
+                .value(ctor)
+                .writable(true)
+                .enumerable(false)
+                .configurable(true),
+            context,
+        )?;
+        Ok(())
+    }
+    install_global_ctor(
+        "FileSystemHandle",
+        file::file_system::FileSystemHandle::get(context.intrinsics()),
+        &global_object,
+        context,
+    )?;
+    install_global_ctor(
+        "FileSystemFileHandle",
+        file::file_system::FileSystemFileHandle::get(context.intrinsics()),
+        &global_object,
+        context,
+    )?;
+    install_global_ctor(
+        "FileSystemDirectoryHandle",
+        file::file_system::FileSystemDirectoryHandle::get(context.intrinsics()),
+        &global_object,
+        context,
+    )?;
+    install_global_ctor(
+        "FileSystemWritableFileStream",
+        file::file_system::writable_stream::FileSystemWritableFileStream::get(context.intrinsics()),
+        &global_object,
+        context,
+    )?;
+    install_global_ctor(
+        "FileSystemSyncAccessHandle",
+        file::file_system::sync_access::FileSystemSyncAccessHandle::get(context.intrinsics()),
+        &global_object,
+        context,
+    )?;
+    let _ = _Attr::default;
 
     // Register XMLHttpRequest as global
     global_object.define_property_or_throw(

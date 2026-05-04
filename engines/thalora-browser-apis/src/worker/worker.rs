@@ -62,13 +62,14 @@ impl Default for WorkerOptions {
 
 impl Worker {
     /// Create a new Worker instance
-    pub fn new(script_url: String, options: WorkerOptions) -> JsResult<Self> {
+    pub fn new(script_url: String, options: WorkerOptions, origin: String) -> JsResult<Self> {
         // Create worker configuration
         let config = WorkerConfig {
             name: options.name.clone(),
             script_url: script_url.clone(),
             worker_type: options.worker_type,
             stack_size: Some(2 * 1024 * 1024),
+            origin,
         };
 
         // Spawn the worker thread
@@ -242,8 +243,9 @@ fn worker_constructor(args: &[JsValue], context: &mut Context) -> JsResult<JsVal
         WorkerOptions::default()
     };
 
-    // Create the worker
-    let worker = Worker::new(script_url_str, options)?;
+    // Create the worker (inherit origin from the parent realm — same-origin per spec)
+    let parent_origin = crate::realm_ext::current_origin(context);
+    let worker = Worker::new(script_url_str, options, parent_origin)?;
 
     // Create the JavaScript object
     let worker_obj = worker.create_js_object(context)?;

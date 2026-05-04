@@ -31,6 +31,7 @@ mod worker_message_tests {
             script_url: script.to_string(),
             worker_type: WorkerType::Classic,
             stack_size: Some(2 * 1024 * 1024),
+            origin: "thalora://test".to_string(),
         };
 
         let mut worker = WorkerThread::spawn(config).expect("Worker should spawn");
@@ -65,6 +66,7 @@ mod worker_message_tests {
             script_url: script.to_string(),
             worker_type: WorkerType::Classic,
             stack_size: Some(2 * 1024 * 1024),
+            origin: "thalora://test".to_string(),
         };
 
         let mut worker = WorkerThread::spawn(config).expect("Worker should spawn");
@@ -116,6 +118,7 @@ mod worker_message_tests {
             script_url: script.to_string(),
             worker_type: WorkerType::Classic,
             stack_size: Some(2 * 1024 * 1024),
+            origin: "thalora://test".to_string(),
         };
 
         let mut worker = WorkerThread::spawn(config).expect("Worker should spawn");
@@ -178,6 +181,7 @@ mod worker_message_tests {
             script_url: script.to_string(),
             worker_type: WorkerType::Classic,
             stack_size: Some(2 * 1024 * 1024),
+            origin: "thalora://test".to_string(),
         };
 
         let mut worker = WorkerThread::spawn(config).expect("Worker should spawn");
@@ -233,6 +237,7 @@ mod worker_message_tests {
             script_url: script.to_string(),
             worker_type: WorkerType::Classic,
             stack_size: Some(2 * 1024 * 1024),
+            origin: "thalora://test".to_string(),
         };
 
         let mut worker = WorkerThread::spawn(config).expect("Worker should spawn");
@@ -294,6 +299,7 @@ mod worker_message_tests {
             script_url: script.to_string(),
             worker_type: WorkerType::Classic,
             stack_size: Some(2 * 1024 * 1024),
+            origin: "thalora://test".to_string(),
         };
 
         let mut worker = WorkerThread::spawn(config).expect("Worker should spawn");
@@ -352,6 +358,7 @@ mod worker_message_tests {
             script_url: script.to_string(),
             worker_type: WorkerType::Classic,
             stack_size: Some(2 * 1024 * 1024),
+            origin: "thalora://test".to_string(),
         };
 
         let mut worker = WorkerThread::spawn(config).expect("Worker should spawn");
@@ -403,6 +410,7 @@ mod worker_message_tests {
             script_url: script.to_string(),
             worker_type: WorkerType::Classic,
             stack_size: Some(2 * 1024 * 1024),
+            origin: "thalora://test".to_string(),
         };
 
         let mut worker = WorkerThread::spawn(config).expect("Worker should spawn");

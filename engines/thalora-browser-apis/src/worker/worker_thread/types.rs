@@ -74,6 +74,9 @@ pub struct WorkerConfig {
     pub script_url: String,
     /// Maximum stack size for the worker thread
     pub stack_size: Option<usize>,
+    /// Origin the worker inherits from its parent realm. Used to scope OPFS
+    /// (`navigator.storage.getDirectory()`) inside the worker.
+    pub origin: String,
 }
 
 impl Default for WorkerConfig {
@@ -83,6 +86,7 @@ impl Default for WorkerConfig {
             worker_type: WorkerType::Classic,
             script_url: String::new(),
             stack_size: Some(2 * 1024 * 1024), // 2MB default stack
+            origin: "thalora://local".to_string(),
         }
     }
 }

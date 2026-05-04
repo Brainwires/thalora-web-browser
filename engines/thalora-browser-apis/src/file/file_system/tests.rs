@@ -3,27 +3,31 @@
 use crate::{Context, JsString, JsValue, Source};
 
 #[test]
-fn test_file_system_constructors_not_exposed() {
+fn test_file_system_constructors_not_directly_constructible() {
     let mut context = Context::default();
     crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
-    // FileSystemHandle constructor should not be exposed globally
-    let result = context.eval(Source::from_bytes("new FileSystemHandle()"));
-    assert!(result.is_err());
-    let error_message = result.unwrap_err().to_string();
-    assert!(error_message.contains("FileSystemHandle is not defined"));
-
-    // FileSystemFileHandle constructor should not be exposed globally
-    let result = context.eval(Source::from_bytes("new FileSystemFileHandle()"));
-    assert!(result.is_err());
-    let error_message = result.unwrap_err().to_string();
-    assert!(error_message.contains("FileSystemFileHandle is not defined"));
-
-    // FileSystemDirectoryHandle constructor should not be exposed globally
-    let result = context.eval(Source::from_bytes("new FileSystemDirectoryHandle()"));
-    assert!(result.is_err());
-    let error_message = result.unwrap_err().to_string();
-    assert!(error_message.contains("FileSystemDirectoryHandle is not defined"));
+    // Per WHATWG File System spec these constructors are exposed globally but
+    // calling them directly throws. They are obtained from
+    // `navigator.storage.getDirectory()` or the picker functions.
+    for ctor in [
+        "FileSystemHandle",
+        "FileSystemFileHandle",
+        "FileSystemDirectoryHandle",
+        "FileSystemWritableFileStream",
+        "FileSystemSyncAccessHandle",
+    ] {
+        let typeof_expr = format!("typeof {ctor}");
+        let result = context.eval(Source::from_bytes(&typeof_expr)).unwrap();
+        assert_eq!(
+            result,
+            JsValue::from(JsString::from("function")),
+            "{ctor} should be exposed as a constructor"
+        );
+        let new_expr = format!("new {ctor}()");
+        let result = context.eval(Source::from_bytes(&new_expr));
+        assert!(result.is_err(), "{ctor} should not be directly constructible");
+    }
 }
 
 #[test]
@@ -220,3 +224,217 @@ fn test_file_system_handle_common_methods() {
     // Note: In a real async environment, we would need to wait for the promise
     // This test just verifies the structure is set up correctly
 }
+
+// =============================================================================
+// OPFS-specific tests
+// =============================================================================
+
+use crate::file::file_system::opfs_backend::OpfsBackend;
+use std::path::PathBuf;
+
+fn unique_origin() -> String {
+    format!(
+        "thalora-test://{}-{}",
+        std::process::id(),
+        uuid::Uuid::new_v4().simple()
+    )
+}
+
+fn cleanup_origin(origin: &str) {
+    let backend = OpfsBackend::for_origin(origin);
+    let _ = std::fs::remove_dir_all(backend.root_path());
+}
+
+#[test]
+fn opfs_get_directory_resolves_to_directory_handle() {
+    let origin = unique_origin();
+    let mut context = Context::default();
+    crate::initialize_browser_apis(&mut context).expect("init");
+    crate::realm_ext::set_active_origin(&mut context, origin.clone());
+
+    context.eval(Source::from_bytes(r#"let kind = null; navigator.storage.getDirectory().then(d => { kind = d.kind; });"#)).expect("eval");
+    for _ in 0..30 { context.run_jobs().ok(); }
+    let kind = context.eval(Source::from_bytes("kind")).unwrap();
+    assert_eq!(kind, JsValue::from(JsString::from("directory")));
+    cleanup_origin(&origin);
+}
+
+#[test]
+fn opfs_round_trip_string_write_and_read() {
+    let origin = unique_origin();
+    let mut context = Context::default();
+    crate::initialize_browser_apis(&mut context).expect("init");
+    crate::realm_ext::set_active_origin(&mut context, origin.clone());
+
+    let script = r#"
+        let outcome = "pending";
+        (async () => {
+            const root = await navigator.storage.getDirectory();
+            const fh = await root.getFileHandle("hello.txt", { create: true });
+            const w = await fh.createWritable();
+            await w.write("hello opfs");
+            await w.close();
+            const f = await fh.getFile();
+            outcome = await f.text();
+        })().catch(e => { outcome = "error:" + (e && e.message); });
+    "#;
+    context.eval(Source::from_bytes(script)).expect("eval");
+    for _ in 0..50 { context.run_jobs().ok(); }
+    let outcome = context.eval(Source::from_bytes("outcome")).unwrap();
+    assert_eq!(outcome, JsValue::from(JsString::from("hello opfs")));
+
+    let backend = OpfsBackend::for_origin(&origin);
+    let bytes = backend.read_bytes(&PathBuf::from("/hello.txt")).unwrap();
+    assert_eq!(bytes, b"hello opfs");
+    cleanup_origin(&origin);
+}
+
+#[test]
+fn opfs_get_file_handle_create_false_throws_not_found() {
+    let origin = unique_origin();
+    let mut context = Context::default();
+    crate::initialize_browser_apis(&mut context).expect("init");
+    crate::realm_ext::set_active_origin(&mut context, origin.clone());
+
+    let script = r#"
+        let errName = "none";
+        (async () => {
+            const root = await navigator.storage.getDirectory();
+            try { await root.getFileHandle("does-not-exist.txt", { create: false }); errName = "no-error"; }
+            catch (e) { errName = e && e.name; }
+        })();
+    "#;
+    context.eval(Source::from_bytes(script)).expect("eval");
+    for _ in 0..30 { context.run_jobs().ok(); }
+    let err_name = context.eval(Source::from_bytes("errName")).unwrap();
+    assert_eq!(err_name, JsValue::from(JsString::from("NotFoundError")));
+    cleanup_origin(&origin);
+}
+
+#[test]
+fn opfs_directory_async_iteration() {
+    let origin = unique_origin();
+    let mut context = Context::default();
+    crate::initialize_browser_apis(&mut context).expect("init");
+    crate::realm_ext::set_active_origin(&mut context, origin.clone());
+
+    let script = r#"
+        let names = [];
+        (async () => {
+            const root = await navigator.storage.getDirectory();
+            await root.getFileHandle("a.txt", {create:true});
+            await root.getFileHandle("b.txt", {create:true});
+            for await (const k of root.keys()) names.push(k);
+        })();
+    "#;
+    context.eval(Source::from_bytes(script)).expect("eval");
+    for _ in 0..50 { context.run_jobs().ok(); }
+    let len = context.eval(Source::from_bytes("names.length")).unwrap();
+    assert_eq!(len, JsValue::from(2_i32));
+    cleanup_origin(&origin);
+}
+
+#[test]
+fn opfs_persistence_across_contexts() {
+    let origin = unique_origin();
+    {
+        let mut context = Context::default();
+        crate::initialize_browser_apis(&mut context).expect("init");
+        crate::realm_ext::set_active_origin(&mut context, origin.clone());
+        let script = r#"(async () => {
+            const root = await navigator.storage.getDirectory();
+            const fh = await root.getFileHandle("persist.txt", { create: true });
+            const w = await fh.createWritable();
+            await w.write("survives"); await w.close();
+        })();"#;
+        context.eval(Source::from_bytes(script)).expect("eval");
+        for _ in 0..30 { context.run_jobs().ok(); }
+    }
+    let mut context2 = Context::default();
+    crate::initialize_browser_apis(&mut context2).expect("init2");
+    crate::realm_ext::set_active_origin(&mut context2, origin.clone());
+    let script = r#"
+        let txt = "pending";
+        (async () => {
+            const root = await navigator.storage.getDirectory();
+            const fh = await root.getFileHandle("persist.txt", { create: false });
+            const f = await fh.getFile();
+            txt = await f.text();
+        })();
+    "#;
+    context2.eval(Source::from_bytes(script)).expect("eval");
+    for _ in 0..30 { context2.run_jobs().ok(); }
+    let txt = context2.eval(Source::from_bytes("txt")).unwrap();
+    assert_eq!(txt, JsValue::from(JsString::from("survives")));
+    cleanup_origin(&origin);
+}
+
+#[test]
+fn opfs_query_permission_returns_granted() {
+    let origin = unique_origin();
+    let mut context = Context::default();
+    crate::initialize_browser_apis(&mut context).expect("init");
+    crate::realm_ext::set_active_origin(&mut context, origin.clone());
+
+    let script = r#"
+        let state = "pending";
+        (async () => {
+            const root = await navigator.storage.getDirectory();
+            state = await root.queryPermission({ mode: "readwrite" });
+        })();
+    "#;
+    context.eval(Source::from_bytes(script)).expect("eval");
+    for _ in 0..30 { context.run_jobs().ok(); }
+    let state = context.eval(Source::from_bytes("state")).unwrap();
+    assert_eq!(state, JsValue::from(JsString::from("granted")));
+    cleanup_origin(&origin);
+}
+
+#[test]
+fn opfs_create_sync_access_handle_blocked_on_main_thread() {
+    let origin = unique_origin();
+    let mut context = Context::default();
+    crate::initialize_browser_apis(&mut context).expect("init");
+    crate::realm_ext::set_active_origin(&mut context, origin.clone());
+
+    let script = r#"
+        let errName = "none";
+        (async () => {
+            const root = await navigator.storage.getDirectory();
+            const fh = await root.getFileHandle("sah.bin", { create: true });
+            try { await fh.createSyncAccessHandle(); errName = "no-error"; }
+            catch (e) { errName = e && e.name; }
+        })();
+    "#;
+    context.eval(Source::from_bytes(script)).expect("eval");
+    for _ in 0..30 { context.run_jobs().ok(); }
+    let err_name = context.eval(Source::from_bytes("errName")).unwrap();
+    assert_eq!(err_name, JsValue::from(JsString::from("InvalidStateError")));
+    cleanup_origin(&origin);
+}
+
+#[test]
+fn opfs_remove_entry_non_empty_requires_recursive() {
+    let origin = unique_origin();
+    let mut context = Context::default();
+    crate::initialize_browser_apis(&mut context).expect("init");
+    crate::realm_ext::set_active_origin(&mut context, origin.clone());
+
+    let script = r#"
+        let errName = "pending";
+        (async () => {
+            const root = await navigator.storage.getDirectory();
+            const sub = await root.getDirectoryHandle("subdir", { create: true });
+            await sub.getFileHandle("inside.txt", { create: true });
+            try { await root.removeEntry("subdir"); errName = "no-error"; }
+            catch (e) { errName = e && e.name; }
+            await root.removeEntry("subdir", { recursive: true });
+        })();
+    "#;
+    context.eval(Source::from_bytes(script)).expect("eval");
+    for _ in 0..50 { context.run_jobs().ok(); }
+    let err_name = context.eval(Source::from_bytes("errName")).unwrap();
+    assert_eq!(err_name, JsValue::from(JsString::from("InvalidModificationError")));
+    cleanup_origin(&origin);
+}
+

@@ -17,6 +17,7 @@ mod worker_thread_tests {
             script_url: "".to_string(),
             worker_type: WorkerType::Classic,
             stack_size: Some(2 * 1024 * 1024),
+            origin: "thalora://test".to_string(),
         };
 
         let worker = WorkerThread::spawn(config);
@@ -53,6 +54,7 @@ mod worker_thread_tests {
             script_url: "var x = 42;".to_string(),
             worker_type: WorkerType::Classic,
             stack_size: Some(2 * 1024 * 1024),
+            origin: "thalora://test".to_string(),
         };
 
         let worker = WorkerThread::spawn(config);
@@ -102,6 +104,7 @@ mod worker_thread_tests {
             script_url: script.to_string(),
             worker_type: WorkerType::Classic,
             stack_size: Some(2 * 1024 * 1024),
+            origin: "thalora://test".to_string(),
         };
 
         let worker = WorkerThread::spawn(config);
@@ -136,6 +139,7 @@ mod worker_thread_tests {
             script_url: script.to_string(),
             worker_type: WorkerType::Classic,
             stack_size: Some(2 * 1024 * 1024),
+            origin: "thalora://test".to_string(),
         };
 
         let worker = WorkerThread::spawn(config);
@@ -167,6 +171,7 @@ mod worker_thread_tests {
             script_url: script.to_string(),
             worker_type: WorkerType::Classic,
             stack_size: Some(2 * 1024 * 1024),
+            origin: "thalora://test".to_string(),
         };
 
         let worker = WorkerThread::spawn(config);
@@ -190,6 +195,7 @@ mod worker_thread_tests {
             script_url: "".to_string(),
             worker_type: WorkerType::Classic,
             stack_size: Some(2 * 1024 * 1024),
+            origin: "thalora://test".to_string(),
         };
 
         let worker = WorkerThread::spawn(config);
@@ -218,6 +224,7 @@ mod worker_thread_tests {
             script_url: "".to_string(),
             worker_type: WorkerType::Classic,
             stack_size: Some(2 * 1024 * 1024),
+            origin: "thalora://test".to_string(),
         };
 
         let worker = WorkerThread::spawn(config);
@@ -274,6 +281,7 @@ mod worker_thread_tests {
             script_url: data_url,
             worker_type: WorkerType::Classic,
             stack_size: Some(2 * 1024 * 1024),
+            origin: "thalora://test".to_string(),
         };
 
         let worker = WorkerThread::spawn(config);
@@ -304,6 +312,7 @@ mod worker_thread_tests {
             script_url: "".to_string(),
             worker_type: WorkerType::Classic,
             stack_size: Some(2 * 1024 * 1024),
+            origin: "thalora://test".to_string(),
         };
 
         let worker = WorkerThread::spawn(config);
@@ -334,6 +343,7 @@ mod worker_thread_tests {
                 script_url: format!("var workerId = {};", i),
                 worker_type: WorkerType::Classic,
                 stack_size: Some(2 * 1024 * 1024),
+                origin: "thalora://test".to_string(),
             };
 
             let worker = WorkerThread::spawn(config);
@@ -369,6 +379,7 @@ mod worker_thread_tests {
             script_url: script.to_string(),
             worker_type: WorkerType::Classic,
             stack_size: Some(2 * 1024 * 1024),
+            origin: "thalora://test".to_string(),
         };
 
         let worker = WorkerThread::spawn(config);
@@ -398,6 +409,7 @@ mod worker_thread_tests {
             script_url: script.to_string(),
             worker_type: WorkerType::Classic,
             stack_size: Some(2 * 1024 * 1024),
+            origin: "thalora://test".to_string(),
         };
 
         let worker = WorkerThread::spawn(config);
@@ -426,6 +438,7 @@ mod worker_thread_tests {
             script_url: script.to_string(),
             worker_type: WorkerType::Classic,
             stack_size: Some(2 * 1024 * 1024),
+            origin: "thalora://test".to_string(),
         };
 
         let worker = WorkerThread::spawn(config);
@@ -455,6 +468,7 @@ mod worker_thread_tests {
             script_url: "".to_string(),
             worker_type: WorkerType::Classic,
             stack_size: Some(2 * 1024 * 1024),
+            origin: "thalora://test".to_string(),
         };
 
         let config2 = WorkerConfig {
@@ -462,6 +476,7 @@ mod worker_thread_tests {
             script_url: "".to_string(),
             worker_type: WorkerType::Classic,
             stack_size: Some(2 * 1024 * 1024),
+            origin: "thalora://test".to_string(),
         };
 
         let worker1 = WorkerThread::spawn(config1).unwrap();

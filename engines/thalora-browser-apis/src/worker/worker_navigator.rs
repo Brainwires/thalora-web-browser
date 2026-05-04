@@ -158,6 +158,26 @@ impl WorkerNavigator {
             context,
         )?;
 
+        // Expose `navigator.storage` so OPFS is reachable inside workers.
+        let storage_obj =
+            crate::storage::storage_manager::StorageManager::create_storage_manager();
+        let storage_proto = context
+            .intrinsics()
+            .constructors()
+            .storage_manager()
+            .prototype();
+        storage_obj.set_prototype(Some(storage_proto));
+        navigator_obj_upcast.define_property_or_throw(
+            js_string!("storage"),
+            boa_engine::property::PropertyDescriptorBuilder::new()
+                .value(JsValue::from(storage_obj))
+                .writable(true)
+                .enumerable(false)
+                .configurable(true)
+                .build(),
+            context,
+        )?;
+
         Ok(navigator_obj_upcast)
     }
 }

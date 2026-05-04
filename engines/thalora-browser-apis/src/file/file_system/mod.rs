@@ -1,18 +1,21 @@
 //! File System API implementation.
 //!
-//! This module implements the WHATWG File System API, providing access to a sandboxed
-//! file system that allows web applications to read and write files with user permission.
+//! This module implements the WHATWG File System API and the Origin Private
+//! File System (OPFS) reachable from `navigator.storage.getDirectory()`. The
+//! existing file-picker entry points (`showOpenFilePicker` etc.) and the
+//! legacy permission model are preserved for backwards compatibility.
 //!
-//! ## Security Model
+//! ## OPFS architecture
 //!
-//! The File System API uses a permission model that defaults to DENIED for all operations.
-//! Permissions must be explicitly granted through the MCP client before JavaScript code
-//! can access the file system.
+//! Each origin gets an isolated directory under
+//! `<data_local_dir>/thalora/opfs/<slug>` managed by [`opfs_backend::OpfsBackend`].
+//! Handles obtained from `navigator.storage.getDirectory()` carry an
+//! `is_opfs: true` flag plus an `Arc<OpfsBackend>` reference and use real disk
+//! I/O via that backend. Permission checks are short-circuited to `"granted"`
+//! for OPFS handles since access is implicitly authorised by same-origin policy.
 //!
-//! - `queryPermission()` returns the current permission state (default: "denied")
-//! - `requestPermission()` returns "denied" unless permission was previously granted
-//! - Permissions are tracked per-origin and per-path
-//! - Use `FileSystemPermissions::grant_permission()` to grant access from MCP client
+//! Non-OPFS handles (returned from the picker functions) retain the legacy
+//! `vfs`-backed code path.
 //!
 //! More information:
 //!  - [WHATWG File System Specification](https://fs.spec.whatwg.org/)
@@ -31,9 +34,23 @@ use boa_engine::{
     js_string,
     object::JsPromise,
     property::PropertyDescriptor,
+    realm::Realm,
     string::StaticJsStrings,
+    symbol::JsSymbol,
 };
 use boa_gc::{Finalize, Trace, Tracer};
+
+pub mod errors;
+pub mod iterators;
+pub mod opfs_backend;
+pub mod sync_access;
+pub mod writable_stream;
+
+use errors::{names, reject_with};
+use iterators::IteratorKind;
+use opfs_backend::OpfsBackend;
+use sync_access::FileSystemSyncAccessHandle;
+use writable_stream::FileSystemWritableFileStream;
 
 // =============================================================================
 // PERMISSION MANAGEMENT SYSTEM
@@ -96,21 +113,9 @@ pub struct PermissionEntry {
     pub mcp_granted: bool,
 }
 
-/// Global file system permission store.
-///
-/// # Security
-///
-/// This store manages permissions for the File System API. By default, all
-/// permissions are DENIED. The MCP client must explicitly grant permissions
-/// before JavaScript code can access the file system.
-///
-/// Permissions are keyed by (origin, path, mode) tuples.
 #[derive(Debug)]
 pub struct FileSystemPermissions {
-    /// Permission entries keyed by (origin, normalized_path, mode)
-    entries: RwLock<HashMap<(String, PathBuf, PermissionMode), PermissionEntry>>,
-    /// Default permission state for new requests
-    default_state: PermissionState,
+    permissions: Arc<RwLock<HashMap<(String, PathBuf, PermissionMode), PermissionEntry>>>,
 }
 
 impl Default for FileSystemPermissions {
@@ -120,196 +125,150 @@ impl Default for FileSystemPermissions {
 }
 
 impl FileSystemPermissions {
-    /// Create a new permission store with default-deny policy
     pub fn new() -> Self {
         Self {
-            entries: RwLock::new(HashMap::new()),
-            default_state: PermissionState::Denied,
+            permissions: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
-    /// Query the current permission state for a path and mode.
-    /// Returns `Denied` by default if no permission has been set.
     pub fn query(&self, origin: &str, path: &Path, mode: PermissionMode) -> PermissionState {
         let normalized_path = Self::normalize_path(path);
-        let key = (origin.to_string(), normalized_path.clone(), mode);
-
-        let entries = self.entries.read().unwrap();
-
-        // Check exact match
-        if let Some(entry) = entries.get(&key) {
-            return entry.state;
-        }
-
-        // Check if a parent directory has been granted access
-        for ((e_origin, e_path, e_mode), entry) in entries.iter() {
-            if e_origin == origin
-                && e_mode == &mode
-                && normalized_path.starts_with(e_path)
-                && entry.state == PermissionState::Granted
-            {
-                return PermissionState::Granted;
-            }
-        }
-
-        // Check if read permission grants read for readwrite request
-        if mode == PermissionMode::ReadWrite {
-            let read_key = (origin.to_string(), normalized_path, PermissionMode::Read);
-            if let Some(entry) = entries.get(&read_key)
-                && entry.state == PermissionState::Granted
-            {
-                // Read permission doesn't automatically grant write
-                return PermissionState::Denied;
-            }
-        }
-
-        self.default_state
+        let key = (origin.to_string(), normalized_path, mode);
+        let permissions = self.permissions.read().unwrap();
+        permissions
+            .get(&key)
+            .map(|entry| entry.state)
+            .unwrap_or(PermissionState::Denied)
     }
 
-    /// Request permission for a path.
-    ///
-    /// # Security
-    ///
-    /// This method does NOT automatically grant permissions. It returns the
-    /// current state, which defaults to `Denied`. For permissions to be granted,
-    /// the MCP client must call `grant_permission()` first.
     pub fn request(&self, origin: &str, path: &Path, mode: PermissionMode) -> PermissionState {
-        // In a headless browser context, we cannot prompt the user.
-        // Return the current state, which defaults to Denied.
         self.query(origin, path, mode)
     }
 
-    /// Grant permission for a path. This should ONLY be called by the MCP client
-    /// after explicit user/client consent.
-    ///
-    /// # Security
-    ///
-    /// This method grants access to the file system. It should only be called
-    /// from trusted MCP client code, never from JavaScript.
     pub fn grant_permission(&self, origin: &str, path: &Path, mode: PermissionMode) {
         let normalized_path = Self::normalize_path(path);
         let key = (origin.to_string(), normalized_path.clone(), mode);
-
-        let entry = PermissionEntry {
-            origin: origin.to_string(),
-            path: normalized_path,
-            mode,
-            state: PermissionState::Granted,
-            mcp_granted: true,
-        };
-
-        let mut entries = self.entries.write().unwrap();
-        entries.insert(key, entry);
+        let mut permissions = self.permissions.write().unwrap();
+        permissions.insert(
+            key,
+            PermissionEntry {
+                origin: origin.to_string(),
+                path: normalized_path,
+                mode,
+                state: PermissionState::Granted,
+                mcp_granted: true,
+            },
+        );
     }
 
-    /// Revoke permission for a path.
     pub fn revoke_permission(&self, origin: &str, path: &Path, mode: PermissionMode) {
         let normalized_path = Self::normalize_path(path);
-        let key = (origin.to_string(), normalized_path.clone(), mode);
-
-        let entry = PermissionEntry {
-            origin: origin.to_string(),
-            path: normalized_path,
-            mode,
-            state: PermissionState::Denied,
-            mcp_granted: false,
-        };
-
-        let mut entries = self.entries.write().unwrap();
-        entries.insert(key, entry);
+        let key = (origin.to_string(), normalized_path, mode);
+        let mut permissions = self.permissions.write().unwrap();
+        permissions.remove(&key);
     }
 
-    /// Clear all permissions (useful for session cleanup)
     pub fn clear_all(&self) {
-        let mut entries = self.entries.write().unwrap();
-        entries.clear();
+        let mut permissions = self.permissions.write().unwrap();
+        permissions.clear();
     }
 
-    /// Clear permissions for a specific origin
     pub fn clear_origin(&self, origin: &str) {
-        let mut entries = self.entries.write().unwrap();
-        entries.retain(|(o, _, _), _| o != origin);
+        let mut permissions = self.permissions.write().unwrap();
+        permissions.retain(|key, _| key.0 != origin);
     }
 
-    /// List all granted permissions (for debugging/auditing)
     pub fn list_granted(&self) -> Vec<PermissionEntry> {
-        let entries = self.entries.read().unwrap();
-        entries
+        let permissions = self.permissions.read().unwrap();
+        permissions
             .values()
-            .filter(|e| e.state == PermissionState::Granted)
+            .filter(|entry| entry.state == PermissionState::Granted)
             .cloned()
             .collect()
     }
 
-    /// Normalize a path by removing `.` and resolving `..` components.
-    /// This prevents path traversal attacks.
     fn normalize_path(path: &Path) -> PathBuf {
         let mut normalized = PathBuf::new();
-
         for component in path.components() {
             match component {
                 std::path::Component::Normal(c) => normalized.push(c),
                 std::path::Component::RootDir => normalized.push("/"),
-                std::path::Component::CurDir => {} // Skip `.`
                 std::path::Component::ParentDir => {
-                    // Only go up if we have components to remove
                     normalized.pop();
                 }
-                std::path::Component::Prefix(p) => normalized.push(p.as_os_str()),
+                _ => {}
             }
         }
-
-        // Ensure we have at least root
-        if normalized.as_os_str().is_empty() {
-            normalized.push("/");
-        }
-
         normalized
     }
 }
 
 /// Global permission store instance
-///
-/// # Security
-///
-/// This is the singleton permission store for the entire browser instance.
-/// All permission checks go through this store. The default state is DENIED.
 pub static PERMISSIONS: Lazy<FileSystemPermissions> = Lazy::new(FileSystemPermissions::new);
 
-/// Get the current origin for permission checks.
-/// In a headless browser context, this defaults to "thalora://local" for
-/// scripts without an explicit origin.
-fn get_current_origin() -> String {
-    // TODO: In future, extract origin from the current browsing context
-    // For now, use a safe default that requires explicit permission grants
-    "thalora://local".to_string()
+/// Get the current origin for permission checks. Reads from the realm context
+/// installed by `crate::realm_ext::install` (see `lib.rs` and the worker boot
+/// path); falls back to `"thalora://local"` for tests that don't initialise it.
+fn get_current_origin(context: &Context) -> String {
+    crate::realm_ext::current_origin(context)
 }
 
 // =============================================================================
 // FILE SYSTEM HANDLE DATA STRUCTURES
 // =============================================================================
 
-/// File handle data structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileData {
     pub name: String,
-    pub kind: String, // "file" or "directory"
+    pub kind: String,
     pub size: u64,
     pub last_modified: u64,
 }
 
-/// File System Handle representation
+/// Common state for all file system handles. Carries an OPFS backend reference
+/// and a virtual path when the handle was minted by `navigator.storage.getDirectory()`.
 #[derive(Debug, Trace, Finalize, JsData)]
 pub struct FileSystemHandle {
     pub(crate) name: String,
     pub(crate) kind: String,
     pub(crate) path: PathBuf,
+    pub(crate) is_opfs: bool,
+    #[unsafe_ignore_trace]
+    pub(crate) backend: Option<Arc<OpfsBackend>>,
+    pub(crate) virtual_path: PathBuf,
 }
 
 impl FileSystemHandle {
-    /// Create a new file system handle
+    /// Legacy constructor used by the picker functions (non-OPFS).
     pub fn new(name: String, kind: String, path: PathBuf) -> Self {
-        Self { name, kind, path }
+        Self {
+            name,
+            kind,
+            path,
+            is_opfs: false,
+            backend: None,
+            virtual_path: PathBuf::new(),
+        }
+    }
+
+    /// OPFS constructor: handle is rooted in an origin's OPFS tree.
+    pub fn new_opfs(
+        name: String,
+        kind: String,
+        backend: Arc<OpfsBackend>,
+        virtual_path: PathBuf,
+    ) -> Self {
+        let path = backend
+            .resolve(&virtual_path)
+            .unwrap_or_else(|_| backend.root_path().to_path_buf());
+        Self {
+            name,
+            kind,
+            path,
+            is_opfs: true,
+            backend: Some(backend),
+            virtual_path,
+        }
     }
 }
 
@@ -318,10 +277,15 @@ impl BuiltInObject for FileSystemHandle {
 }
 
 impl IntrinsicObject for FileSystemHandle {
-    fn init(realm: &boa_engine::realm::Realm) {
-        let _prototype = BuiltInBuilder::callable(realm, Self::constructor)
-            .name(Self::NAME)
-            .length(Self::CONSTRUCTOR_ARGUMENTS)
+    fn init(realm: &Realm) {
+        BuiltInBuilder::from_standard_constructor::<Self>(realm)
+            .method(Self::is_same_entry, js_string!("isSameEntry"), 1)
+            .method(Self::query_permission, js_string!("queryPermission"), 0)
+            .method(
+                Self::request_permission,
+                js_string!("requestPermission"),
+                0,
+            )
             .build();
     }
 
@@ -351,151 +315,156 @@ impl BuiltInConstructor for FileSystemHandle {
 }
 
 impl FileSystemHandle {
-    /// `FileSystemHandle.prototype.isSameEntry(other)`
-    ///
-    /// Compares two handles to see if they represent the same file system entry.
     pub(crate) fn is_same_entry(
         this: &JsValue,
         args: &[JsValue],
-        _context: &mut Context,
+        context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this
-            .as_object()
-            .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a FileSystemHandle"))?;
-
-        let this_handle = obj
-            .downcast_ref::<Self>()
-            .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a FileSystemHandle"))?;
-
+        let this_path = handle_path(this).ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a FileSystemHandle")
+        })?;
         let other = args.get_or_undefined(0);
         let other_obj = other.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("Argument is not a FileSystemHandle")
         })?;
-
-        let other_handle = other_obj.downcast_ref::<Self>().ok_or_else(|| {
+        let other_path = handle_path(&JsValue::from(other_obj.clone())).ok_or_else(|| {
             JsNativeError::typ().with_message("Argument is not a FileSystemHandle")
         })?;
 
-        Ok(JsValue::from(this_handle.path == other_handle.path))
+        let (promise, resolvers) = JsPromise::new_pending(context);
+        resolvers.resolve.call(
+            &JsValue::undefined(),
+            &[JsValue::from(this_path == other_path)],
+            context,
+        )?;
+        Ok(JsValue::from(promise))
     }
 
-    /// `FileSystemHandle.prototype.queryPermission(descriptor)`
-    ///
-    /// Queries the current permission state for the handle.
-    ///
-    /// # Security
-    ///
-    /// Returns "denied" by default. The MCP client must explicitly grant
-    /// permissions using `FileSystemPermissions::grant_permission()` before
-    /// this will return "granted".
-    ///
-    /// The descriptor can include:
-    /// - `mode`: "read" (default) or "readwrite"
     pub(crate) fn query_permission(
         this: &JsValue,
         args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this
-            .as_object()
-            .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a FileSystemHandle"))?;
+        let (is_opfs, path, _) = handle_meta(this).ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a FileSystemHandle")
+        })?;
 
-        let this_handle = obj
-            .downcast_ref::<Self>()
-            .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a FileSystemHandle"))?;
+        let mode = parse_permission_mode(args.first(), context);
 
-        // Parse permission mode from descriptor
-        let mode = if let Some(descriptor) = args.first() {
-            if let Some(obj) = descriptor.as_object() {
-                if let Ok(mode_val) = obj.get(js_string!("mode"), context) {
-                    if let Ok(mode_str) = mode_val.to_string(context) {
-                        PermissionMode::from_str(&mode_str.to_std_string_escaped())
-                    } else {
-                        PermissionMode::Read
-                    }
-                } else {
-                    PermissionMode::Read
-                }
-            } else {
-                PermissionMode::Read
-            }
+        let state = if is_opfs {
+            PermissionState::Granted
         } else {
-            PermissionMode::Read
+            let origin = get_current_origin(context);
+            PERMISSIONS.query(&origin, &path, mode)
         };
 
-        // Query permission from the global store
-        let origin = get_current_origin();
-        let state = PERMISSIONS.query(&origin, &this_handle.path, mode);
-
-        Ok(JsValue::from(JsString::from(state.as_str())))
+        let (promise, resolvers) = JsPromise::new_pending(context);
+        resolvers.resolve.call(
+            &JsValue::undefined(),
+            &[JsValue::from(JsString::from(state.as_str()))],
+            context,
+        )?;
+        Ok(JsValue::from(promise))
     }
 
-    /// `FileSystemHandle.prototype.requestPermission(descriptor)`
-    ///
-    /// Requests permission to access the handle.
-    ///
-    /// # Security
-    ///
-    /// In a headless browser context, this does NOT automatically grant permissions.
-    /// It returns the current permission state, which defaults to "denied".
-    /// The MCP client must call `FileSystemPermissions::grant_permission()` to
-    /// actually grant access.
-    ///
-    /// The descriptor can include:
-    /// - `mode`: "read" (default) or "readwrite"
     pub(crate) fn request_permission(
         this: &JsValue,
         args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this
-            .as_object()
-            .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a FileSystemHandle"))?;
+        let (is_opfs, path, _) = handle_meta(this).ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a FileSystemHandle")
+        })?;
+        let mode = parse_permission_mode(args.first(), context);
 
-        let this_handle = obj
-            .downcast_ref::<Self>()
-            .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a FileSystemHandle"))?;
-
-        // Parse permission mode from descriptor
-        let mode = if let Some(descriptor) = args.first() {
-            if let Some(obj) = descriptor.as_object() {
-                if let Ok(mode_val) = obj.get(js_string!("mode"), context) {
-                    if let Ok(mode_str) = mode_val.to_string(context) {
-                        PermissionMode::from_str(&mode_str.to_std_string_escaped())
-                    } else {
-                        PermissionMode::Read
-                    }
-                } else {
-                    PermissionMode::Read
-                }
-            } else {
-                PermissionMode::Read
-            }
+        let state = if is_opfs {
+            PermissionState::Granted
         } else {
-            PermissionMode::Read
+            let origin = get_current_origin(context);
+            PERMISSIONS.request(&origin, &path, mode)
         };
 
-        // Request permission from the global store
-        // In headless mode, this just returns current state (default: denied)
-        let origin = get_current_origin();
-        let state = PERMISSIONS.request(&origin, &this_handle.path, mode);
-
-        Ok(JsValue::from(JsString::from(state.as_str())))
+        let (promise, resolvers) = JsPromise::new_pending(context);
+        resolvers.resolve.call(
+            &JsValue::undefined(),
+            &[JsValue::from(JsString::from(state.as_str()))],
+            context,
+        )?;
+        Ok(JsValue::from(promise))
     }
 }
 
-/// File System File Handle
+fn parse_permission_mode(descriptor: Option<&JsValue>, context: &mut Context) -> PermissionMode {
+    let Some(descriptor) = descriptor else {
+        return PermissionMode::Read;
+    };
+    let Some(obj) = descriptor.as_object() else {
+        return PermissionMode::Read;
+    };
+    let Ok(mode_val) = obj.get(js_string!("mode"), context) else {
+        return PermissionMode::Read;
+    };
+    let Ok(mode_str) = mode_val.to_string(context) else {
+        return PermissionMode::Read;
+    };
+    PermissionMode::from_str(&mode_str.to_std_string_escaped())
+}
+
+/// Pull (`is_opfs`, `path`, `kind`) from any handle subtype.
+fn handle_meta(this: &JsValue) -> Option<(bool, PathBuf, String)> {
+    let obj = this.as_object()?;
+    if let Some(file) = obj.downcast_ref::<FileSystemFileHandle>() {
+        return Some((
+            file.handle.is_opfs,
+            file.handle.path.clone(),
+            file.handle.kind.clone(),
+        ));
+    }
+    if let Some(dir) = obj.downcast_ref::<FileSystemDirectoryHandle>() {
+        return Some((
+            dir.handle.is_opfs,
+            dir.handle.path.clone(),
+            dir.handle.kind.clone(),
+        ));
+    }
+    if let Some(base) = obj.downcast_ref::<FileSystemHandle>() {
+        return Some((base.is_opfs, base.path.clone(), base.kind.clone()));
+    }
+    None
+}
+
+fn handle_path(this: &JsValue) -> Option<PathBuf> {
+    handle_meta(this).map(|(_, p, _)| p)
+}
+
+// =============================================================================
+// FILE HANDLE
+// =============================================================================
+
 #[derive(Debug, Trace, Finalize, JsData)]
 pub struct FileSystemFileHandle {
     pub(crate) handle: FileSystemHandle,
 }
 
 impl FileSystemFileHandle {
-    /// Create a new file handle
+    /// Legacy non-OPFS constructor (used by pickers).
     pub fn new(name: String, path: PathBuf) -> Self {
         Self {
             handle: FileSystemHandle::new(name, "file".to_string(), path),
         }
+    }
+
+    /// OPFS-rooted constructor.
+    pub fn new_opfs(
+        name: String,
+        virtual_path: PathBuf,
+        backend: Arc<OpfsBackend>,
+        is_opfs: bool,
+    ) -> Self {
+        let mut handle =
+            FileSystemHandle::new_opfs(name, "file".to_string(), backend, virtual_path);
+        handle.is_opfs = is_opfs;
+        Self { handle }
     }
 }
 
@@ -504,10 +473,24 @@ impl BuiltInObject for FileSystemFileHandle {
 }
 
 impl IntrinsicObject for FileSystemFileHandle {
-    fn init(realm: &boa_engine::realm::Realm) {
-        let _prototype = BuiltInBuilder::callable(realm, Self::constructor)
-            .name(Self::NAME)
-            .length(Self::CONSTRUCTOR_ARGUMENTS)
+    fn init(realm: &Realm) {
+        BuiltInBuilder::from_standard_constructor::<Self>(realm)
+            .inherits(Some(realm.intrinsics().constructors().file_system_handle().prototype()))
+            .method(Self::is_same_entry_proxy, js_string!("isSameEntry"), 1)
+            .method(Self::query_permission_proxy, js_string!("queryPermission"), 0)
+            .method(
+                Self::request_permission_proxy,
+                js_string!("requestPermission"),
+                0,
+            )
+            .method(Self::get_file, js_string!("getFile"), 0)
+            .method(Self::create_writable, js_string!("createWritable"), 0)
+            .method(
+                Self::create_sync_access_handle,
+                js_string!("createSyncAccessHandle"),
+                0,
+            )
+            .property(js_string!("kind"), JsString::from("file"), boa_engine::property::Attribute::CONFIGURABLE)
             .build();
     }
 
@@ -537,9 +520,28 @@ impl BuiltInConstructor for FileSystemFileHandle {
 }
 
 impl FileSystemFileHandle {
-    /// `FileSystemFileHandle.prototype.getFile()`
-    ///
-    /// Returns a File object representing the file's contents.
+    fn is_same_entry_proxy(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
+        FileSystemHandle::is_same_entry(this, args, context)
+    }
+    fn query_permission_proxy(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
+        FileSystemHandle::query_permission(this, args, context)
+    }
+    fn request_permission_proxy(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
+        FileSystemHandle::request_permission(this, args, context)
+    }
+
     pub(crate) fn get_file(
         this: &JsValue,
         _args: &[JsValue],
@@ -548,65 +550,47 @@ impl FileSystemFileHandle {
         let obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("'this' is not a FileSystemFileHandle")
         })?;
+        let (name, bytes, last_modified) = {
+            let file_handle = obj.downcast_ref::<Self>().ok_or_else(|| {
+                JsNativeError::typ().with_message("'this' is not a FileSystemFileHandle")
+            })?;
 
-        let file_handle = obj.downcast_ref::<Self>().ok_or_else(|| {
-            JsNativeError::typ().with_message("'this' is not a FileSystemFileHandle")
-        })?;
-
-        // Read actual file content from VFS
-        let (file_content, file_size) = match vfs::fs::read(&file_handle.handle.path) {
-            Ok(content) => {
-                let size = content.len() as u64;
-                (content, size)
+            let name = file_handle.handle.name.clone();
+            if let Some(backend) = &file_handle.handle.backend {
+                match backend.read_bytes(&file_handle.handle.virtual_path) {
+                    Ok(bytes) => {
+                        let modified = backend
+                            .metadata(&file_handle.handle.virtual_path)
+                            .ok()
+                            .and_then(|m| m.modified().ok())
+                            .and_then(|t| {
+                                t.duration_since(std::time::UNIX_EPOCH).ok().map(|d| d.as_millis() as u64)
+                            })
+                            .unwrap_or(0);
+                        (name, bytes, modified)
+                    }
+                    Err(e) => {
+                        return reject_with(
+                            errors::map_io_error(&e),
+                            &format!("OPFS read failed: {e}"),
+                            context,
+                        );
+                    }
+                }
+            } else {
+                let bytes = vfs::fs::read(&file_handle.handle.path).unwrap_or_default();
+                (name, bytes, 0)
             }
-            Err(_) => (Vec::new(), 0),
         };
 
-        // Create a file-like object with real content
-        let file_obj = JsObject::with_object_proto(context.intrinsics());
+        let blob = crate::file::blob::BlobData::new(bytes, "application/octet-stream".to_string());
+        let file_data = crate::file::file::FileData::new(blob, name, Some(last_modified));
+        let file_obj = JsObject::from_proto_and_data_with_shared_shape(
+            context.root_shape(),
+            context.intrinsics().constructors().file().prototype(),
+            file_data,
+        );
 
-        // Add file properties with real values
-        file_obj.define_property_or_throw(
-            js_string!("name"),
-            PropertyDescriptor::builder()
-                .value(JsValue::from(JsString::from(
-                    file_handle.handle.name.clone(),
-                )))
-                .enumerable(true)
-                .build(),
-            context,
-        )?;
-
-        file_obj.define_property_or_throw(
-            js_string!("size"),
-            PropertyDescriptor::builder()
-                .value(JsValue::from(file_size as i32))
-                .enumerable(true)
-                .build(),
-            context,
-        )?;
-
-        file_obj.define_property_or_throw(
-            js_string!("type"),
-            PropertyDescriptor::builder()
-                .value(JsValue::from(JsString::from("text/plain")))
-                .enumerable(true)
-                .build(),
-            context,
-        )?;
-
-        // Add content as a property instead of a method for now
-        let content_str = String::from_utf8(file_content).unwrap_or_else(|_| String::from(""));
-        file_obj.define_property_or_throw(
-            js_string!("content"),
-            PropertyDescriptor::builder()
-                .value(JsValue::from(JsString::from(content_str)))
-                .enumerable(true)
-                .build(),
-            context,
-        )?;
-
-        // Create a resolved Promise
         let (promise, resolvers) = JsPromise::new_pending(context);
         resolvers
             .resolve
@@ -614,10 +598,59 @@ impl FileSystemFileHandle {
         Ok(JsValue::from(promise))
     }
 
-    /// `FileSystemFileHandle.prototype.createWritable(options)`
-    ///
-    /// Creates a writable stream for writing to the file.
     pub(crate) fn create_writable(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
+        let keep_existing = args
+            .get_or_undefined(0)
+            .as_object()
+            .and_then(|o| o.get(js_string!("keepExistingData"), context).ok())
+            .map(|v| v.to_boolean())
+            .unwrap_or(false);
+
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a FileSystemFileHandle")
+        })?;
+        let (backend, virtual_path) = {
+            let file_handle = obj.downcast_ref::<Self>().ok_or_else(|| {
+                JsNativeError::typ().with_message("'this' is not a FileSystemFileHandle")
+            })?;
+            match (&file_handle.handle.backend, &file_handle.handle.virtual_path) {
+                (Some(b), p) => (b.clone(), p.clone()),
+                _ => {
+                    return reject_with(
+                        names::INVALID_STATE,
+                        "createWritable is only supported on OPFS handles in this build",
+                        context,
+                    );
+                }
+            }
+        };
+
+        match FileSystemWritableFileStream::new(backend, virtual_path, keep_existing) {
+            Ok(stream) => {
+                let stream_obj = JsObject::from_proto_and_data_with_shared_shape(
+                    context.root_shape(),
+                    context
+                        .intrinsics()
+                        .constructors()
+                        .file_system_writable_file_stream()
+                        .prototype(),
+                    stream,
+                );
+                let (promise, resolvers) = JsPromise::new_pending(context);
+                resolvers
+                    .resolve
+                    .call(&JsValue::undefined(), &[stream_obj.into()], context)?;
+                Ok(JsValue::from(promise))
+            }
+            Err(e) => reject_with(errors::map_io_error(&e), &format!("{e}"), context),
+        }
+    }
+
+    pub(crate) fn create_sync_access_handle(
         this: &JsValue,
         _args: &[JsValue],
         context: &mut Context,
@@ -625,195 +658,97 @@ impl FileSystemFileHandle {
         let obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("'this' is not a FileSystemFileHandle")
         })?;
-
-        let file_handle = obj.downcast_ref::<Self>().ok_or_else(|| {
-            JsNativeError::typ().with_message("'this' is not a FileSystemFileHandle")
-        })?;
-
-        // Clone file path for the write function
-        let file_path = file_handle.handle.path.clone();
-
-        // Create a writable stream-like object with real VFS write capability
-        let writable_obj = JsObject::with_object_proto(context.intrinsics());
-
-        // Add simplified write functionality using a property to store content
-        // This will be written when the stream is closed
-        writable_obj.define_property_or_throw(
-            js_string!("__file_path"),
-            PropertyDescriptor::builder()
-                .value(JsValue::from(JsString::from(
-                    file_path.to_string_lossy().to_string(),
-                )))
-                .enumerable(false)
-                .build(),
-            context,
-        )?;
-
-        writable_obj.define_property_or_throw(
-            js_string!("__pending_content"),
-            PropertyDescriptor::builder()
-                .value(JsValue::from(JsString::from("")))
-                .enumerable(false)
-                .writable(true)
-                .build(),
-            context,
-        )?;
-
-        // Add a write method that stores content for later writing
-        let write_fn = BuiltInBuilder::callable(context.realm(), Self::writable_write)
-            .name(js_string!("write"))
-            .length(1)
-            .build();
-
-        writable_obj.define_property_or_throw(
-            js_string!("write"),
-            PropertyDescriptor::builder()
-                .value(write_fn)
-                .writable(true)
-                .enumerable(false)
-                .configurable(true)
-                .build(),
-            context,
-        )?;
-
-        // Add close method that writes content to VFS
-        let close_fn = BuiltInBuilder::callable(context.realm(), Self::writable_close)
-            .name(js_string!("close"))
-            .length(0)
-            .build();
-
-        writable_obj.define_property_or_throw(
-            js_string!("close"),
-            PropertyDescriptor::builder()
-                .value(close_fn)
-                .writable(true)
-                .enumerable(false)
-                .configurable(true)
-                .build(),
-            context,
-        )?;
-
-        // Create a resolved Promise
-        let (promise, resolvers) = JsPromise::new_pending(context);
-        resolvers
-            .resolve
-            .call(&JsValue::undefined(), &[writable_obj.into()], context)?;
-        Ok(JsValue::from(promise))
-    }
-
-    /// Write method for writable stream
-    pub(crate) fn writable_write(
-        this: &JsValue,
-        args: &[JsValue],
-        context: &mut Context,
-    ) -> JsResult<JsValue> {
-        let obj = this
-            .as_object()
-            .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a writable stream"))?;
-
-        if let Some(content_arg) = args.first() {
-            // Get current pending content
-            let current_content = obj.get(js_string!("__pending_content"), context)?;
-            let current_str = current_content.to_string(context)?;
-
-            // Append new content
-            let new_content = content_arg.to_string(context)?;
-            let combined_content = format!(
-                "{}{}",
-                current_str.to_std_string_escaped(),
-                new_content.to_std_string_escaped()
-            );
-
-            // Update the pending content
-            obj.set(
-                js_string!("__pending_content"),
-                JsValue::from(JsString::from(combined_content)),
-                true,
+        let (backend, virtual_path, is_opfs) = {
+            let file_handle = obj.downcast_ref::<Self>().ok_or_else(|| {
+                JsNativeError::typ().with_message("'this' is not a FileSystemFileHandle")
+            })?;
+            (
+                file_handle.handle.backend.clone(),
+                file_handle.handle.virtual_path.clone(),
+                file_handle.handle.is_opfs,
+            )
+        };
+        if !is_opfs || backend.is_none() {
+            return reject_with(
+                names::INVALID_STATE,
+                "createSyncAccessHandle is only available on OPFS handles",
                 context,
-            )?;
-
-            // Return a resolved Promise
-            let (promise, resolvers) = JsPromise::new_pending(context);
-            resolvers
-                .resolve
-                .call(&JsValue::undefined(), &[JsValue::undefined()], context)?;
-            Ok(JsValue::from(promise))
-        } else {
-            Err(JsNativeError::typ()
-                .with_message("Content argument required")
-                .into())
+            );
         }
-    }
-
-    /// Close method for writable stream that writes to VFS
-    pub(crate) fn writable_close(
-        this: &JsValue,
-        _args: &[JsValue],
-        context: &mut Context,
-    ) -> JsResult<JsValue> {
-        let obj = this
-            .as_object()
-            .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a writable stream"))?;
-
-        // Get the file path and pending content
-        let file_path_str = obj.get(js_string!("__file_path"), context)?;
-        let pending_content = obj.get(js_string!("__pending_content"), context)?;
-
-        let path_str = file_path_str.to_string(context)?.to_std_string_escaped();
-        let content_str = pending_content.to_string(context)?.to_std_string_escaped();
-
-        // Write the content to VFS
-        let file_path = PathBuf::from(path_str);
-        if vfs::fs::write(&file_path, content_str.as_bytes()).is_err() {
-            return Err(JsNativeError::typ()
-                .with_message("Failed to write file")
-                .into());
+        if !crate::realm_ext::is_worker(context) {
+            return reject_with(
+                names::INVALID_STATE,
+                "createSyncAccessHandle may only be called from a Worker",
+                context,
+            );
         }
-
-        // Return a resolved Promise
-        let (promise, resolvers) = JsPromise::new_pending(context);
-        resolvers
-            .resolve
-            .call(&JsValue::undefined(), &[JsValue::undefined()], context)?;
-        Ok(JsValue::from(promise))
+        match sync_access::FileSystemSyncAccessHandle::open(backend.unwrap(), virtual_path) {
+            Ok(handle) => {
+                let handle_obj = JsObject::from_proto_and_data_with_shared_shape(
+                    context.root_shape(),
+                    context
+                        .intrinsics()
+                        .constructors()
+                        .file_system_sync_access_handle()
+                        .prototype(),
+                    handle,
+                );
+                let (promise, resolvers) = JsPromise::new_pending(context);
+                resolvers
+                    .resolve
+                    .call(&JsValue::undefined(), &[handle_obj.into()], context)?;
+                Ok(JsValue::from(promise))
+            }
+            Err(sync_access::SyncOpenError::AlreadyLocked) => reject_with(
+                names::NO_MODIFICATION_ALLOWED,
+                "another sync access handle is already open for this file",
+                context,
+            ),
+            Err(sync_access::SyncOpenError::PathInvalid) => {
+                reject_with(names::SYNTAX, "invalid OPFS path", context)
+            }
+            Err(sync_access::SyncOpenError::Io(e)) => {
+                reject_with(errors::map_io_error(&e), &format!("{e}"), context)
+            }
+        }
     }
 }
 
-/// File System Directory Handle
-#[derive(Debug, JsData)]
+// =============================================================================
+// DIRECTORY HANDLE
+// =============================================================================
+
+#[derive(Debug, Trace, Finalize, JsData)]
 pub struct FileSystemDirectoryHandle {
     pub(crate) handle: FileSystemHandle,
-    #[allow(dead_code)]
-    pub(crate) entries: Arc<RwLock<HashMap<String, FileData>>>,
 }
-
-// Manual implementation of Trace and Finalize
-unsafe impl Trace for FileSystemDirectoryHandle {
-    unsafe fn trace(&self, tracer: &mut Tracer) {
-        unsafe {
-            self.handle.trace(tracer);
-            // Skip tracing entries as Arc<RwLock<...>> doesn't implement Trace
-        }
-    }
-
-    unsafe fn trace_non_roots(&self) {
-        // No implementation needed
-    }
-
-    fn run_finalizer(&self) {
-        // No implementation needed
-    }
-}
-
-impl Finalize for FileSystemDirectoryHandle {}
 
 impl FileSystemDirectoryHandle {
-    /// Create a new directory handle
     pub fn new(name: String, path: PathBuf) -> Self {
         Self {
             handle: FileSystemHandle::new(name, "directory".to_string(), path),
-            entries: Arc::new(RwLock::new(HashMap::new())),
         }
+    }
+
+    pub fn new_opfs(
+        name: String,
+        virtual_path: PathBuf,
+        backend: Arc<OpfsBackend>,
+        is_opfs: bool,
+    ) -> Self {
+        let mut handle =
+            FileSystemHandle::new_opfs(name, "directory".to_string(), backend, virtual_path);
+        handle.is_opfs = is_opfs;
+        Self { handle }
+    }
+
+    pub fn new_opfs_root(backend: Arc<OpfsBackend>) -> Self {
+        Self::new_opfs(String::new(), PathBuf::from("/"), backend, true)
+    }
+
+    /// Backend reference, if any (None for picker-style handles).
+    pub fn backend(&self) -> Option<&Arc<OpfsBackend>> {
+        self.handle.backend.as_ref()
     }
 }
 
@@ -822,10 +757,25 @@ impl BuiltInObject for FileSystemDirectoryHandle {
 }
 
 impl IntrinsicObject for FileSystemDirectoryHandle {
-    fn init(realm: &boa_engine::realm::Realm) {
-        let _prototype = BuiltInBuilder::callable(realm, Self::constructor)
-            .name(Self::NAME)
-            .length(Self::CONSTRUCTOR_ARGUMENTS)
+    fn init(realm: &Realm) {
+        BuiltInBuilder::from_standard_constructor::<Self>(realm)
+            .inherits(Some(realm.intrinsics().constructors().file_system_handle().prototype()))
+            .method(Self::is_same_entry_proxy, js_string!("isSameEntry"), 1)
+            .method(Self::query_permission_proxy, js_string!("queryPermission"), 0)
+            .method(
+                Self::request_permission_proxy,
+                js_string!("requestPermission"),
+                0,
+            )
+            .method(Self::get_file_handle, js_string!("getFileHandle"), 1)
+            .method(Self::get_directory_handle, js_string!("getDirectoryHandle"), 1)
+            .method(Self::remove_entry, js_string!("removeEntry"), 1)
+            .method(Self::resolve, js_string!("resolve"), 1)
+            .method(Self::keys, js_string!("keys"), 0)
+            .method(Self::values, js_string!("values"), 0)
+            .method(Self::entries, js_string!("entries"), 0)
+            .method(Self::async_iterator, JsSymbol::async_iterator(), 0)
+            .property(js_string!("kind"), JsString::from("directory"), boa_engine::property::Attribute::CONFIGURABLE)
             .build();
     }
 
@@ -855,126 +805,267 @@ impl BuiltInConstructor for FileSystemDirectoryHandle {
 }
 
 impl FileSystemDirectoryHandle {
-    /// `FileSystemDirectoryHandle.prototype.getFileHandle(name, options)`
-    ///
-    /// Gets a file handle for a file in this directory.
+    fn is_same_entry_proxy(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
+        FileSystemHandle::is_same_entry(this, args, context)
+    }
+    fn query_permission_proxy(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
+        FileSystemHandle::query_permission(this, args, context)
+    }
+    fn request_permission_proxy(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
+        FileSystemHandle::request_permission(this, args, context)
+    }
+
     pub(crate) fn get_file_handle(
         this: &JsValue,
         args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("'this' is not a FileSystemDirectoryHandle")
-        })?;
-
-        let dir_handle = obj.downcast_ref::<Self>().ok_or_else(|| {
-            JsNativeError::typ().with_message("'this' is not a FileSystemDirectoryHandle")
-        })?;
-
         let name = args
             .get_or_undefined(0)
             .to_string(context)?
             .to_std_string_escaped();
-        let file_path = dir_handle.handle.path.join(&name);
+        if !is_valid_name(&name) {
+            return Err(JsNativeError::typ()
+                .with_message("Invalid file name")
+                .into());
+        }
+        let create = args
+            .get_or_undefined(1)
+            .as_object()
+            .and_then(|o| o.get(js_string!("create"), context).ok())
+            .map(|v| v.to_boolean())
+            .unwrap_or(false);
 
-        let file_handle = FileSystemFileHandle::new(name, file_path);
-        let file_handle_obj = JsObject::from_proto_and_data_with_shared_shape(
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a FileSystemDirectoryHandle")
+        })?;
+        let (backend, virtual_path, is_opfs) = {
+            let dir = obj.downcast_ref::<Self>().ok_or_else(|| {
+                JsNativeError::typ().with_message("'this' is not a FileSystemDirectoryHandle")
+            })?;
+            match &dir.handle.backend {
+                Some(b) => (b.clone(), dir.handle.virtual_path.clone(), dir.handle.is_opfs),
+                None => {
+                    return legacy_get_file_handle(&dir.handle.path, &name, context);
+                }
+            }
+        };
+
+        let child_path = virtual_path.join(&name);
+        if backend.exists(&child_path) {
+            if backend.is_dir(&child_path) {
+                return reject_with(
+                    names::TYPE_MISMATCH,
+                    "expected file but found directory",
+                    context,
+                );
+            }
+        } else if !create {
+            return reject_with(
+                names::NOT_FOUND,
+                &format!("file '{name}' not found"),
+                context,
+            );
+        } else if let Err(e) = backend.write_bytes(&child_path, &[]) {
+            return reject_with(errors::map_io_error(&e), &format!("{e}"), context);
+        }
+
+        let handle = FileSystemFileHandle::new_opfs(name, child_path, backend, is_opfs);
+        let handle_obj = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
             context
                 .intrinsics()
                 .constructors()
                 .file_system_file_handle()
                 .prototype(),
-            file_handle,
+            handle,
         );
-
-        // Create a resolved Promise
         let (promise, resolvers) = JsPromise::new_pending(context);
         resolvers
             .resolve
-            .call(&JsValue::undefined(), &[file_handle_obj.into()], context)?;
+            .call(&JsValue::undefined(), &[handle_obj.into()], context)?;
         Ok(JsValue::from(promise))
     }
 
-    /// `FileSystemDirectoryHandle.prototype.getDirectoryHandle(name, options)`
-    ///
-    /// Gets a directory handle for a subdirectory.
     pub(crate) fn get_directory_handle(
         this: &JsValue,
         args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("'this' is not a FileSystemDirectoryHandle")
-        })?;
-
-        let dir_handle = obj.downcast_ref::<Self>().ok_or_else(|| {
-            JsNativeError::typ().with_message("'this' is not a FileSystemDirectoryHandle")
-        })?;
-
         let name = args
             .get_or_undefined(0)
             .to_string(context)?
             .to_std_string_escaped();
-        let subdir_path = dir_handle.handle.path.join(&name);
+        if !is_valid_name(&name) {
+            return Err(JsNativeError::typ()
+                .with_message("Invalid directory name")
+                .into());
+        }
+        let create = args
+            .get_or_undefined(1)
+            .as_object()
+            .and_then(|o| o.get(js_string!("create"), context).ok())
+            .map(|v| v.to_boolean())
+            .unwrap_or(false);
 
-        let subdir_handle = FileSystemDirectoryHandle::new(name, subdir_path);
-        let subdir_handle_obj = JsObject::from_proto_and_data_with_shared_shape(
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a FileSystemDirectoryHandle")
+        })?;
+        let (backend, virtual_path, is_opfs) = {
+            let dir = obj.downcast_ref::<Self>().ok_or_else(|| {
+                JsNativeError::typ().with_message("'this' is not a FileSystemDirectoryHandle")
+            })?;
+            match &dir.handle.backend {
+                Some(b) => (b.clone(), dir.handle.virtual_path.clone(), dir.handle.is_opfs),
+                None => {
+                    let subdir = dir.handle.path.join(&name);
+                    let _ = vfs::fs::write(subdir.join(".keep"), b"");
+                    let new_handle = Self::new(name.clone(), subdir);
+                    let handle_obj = JsObject::from_proto_and_data_with_shared_shape(
+                        context.root_shape(),
+                        context
+                            .intrinsics()
+                            .constructors()
+                            .file_system_directory_handle()
+                            .prototype(),
+                        new_handle,
+                    );
+                    let (promise, resolvers) = JsPromise::new_pending(context);
+                    resolvers
+                        .resolve
+                        .call(&JsValue::undefined(), &[handle_obj.into()], context)?;
+                    return Ok(JsValue::from(promise));
+                }
+            }
+        };
+
+        let child_path = virtual_path.join(&name);
+        if backend.exists(&child_path) {
+            if !backend.is_dir(&child_path) {
+                return reject_with(
+                    names::TYPE_MISMATCH,
+                    "expected directory but found file",
+                    context,
+                );
+            }
+        } else if !create {
+            return reject_with(
+                names::NOT_FOUND,
+                &format!("directory '{name}' not found"),
+                context,
+            );
+        } else if let Err(e) = backend.mkdir(&child_path) {
+            return reject_with(errors::map_io_error(&e), &format!("{e}"), context);
+        }
+
+        let handle = FileSystemDirectoryHandle::new_opfs(name, child_path, backend, is_opfs);
+        let handle_obj = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
             context
                 .intrinsics()
                 .constructors()
                 .file_system_directory_handle()
                 .prototype(),
-            subdir_handle,
+            handle,
         );
-
-        // Create a resolved Promise
         let (promise, resolvers) = JsPromise::new_pending(context);
         resolvers
             .resolve
-            .call(&JsValue::undefined(), &[subdir_handle_obj.into()], context)?;
+            .call(&JsValue::undefined(), &[handle_obj.into()], context)?;
         Ok(JsValue::from(promise))
     }
 
-    /// `FileSystemDirectoryHandle.prototype.removeEntry(name, options)`
-    ///
-    /// Removes a file or directory from this directory.
     pub(crate) fn remove_entry(
         this: &JsValue,
         args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("'this' is not a FileSystemDirectoryHandle")
-        })?;
-
-        let dir_handle = obj.downcast_ref::<Self>().ok_or_else(|| {
-            JsNativeError::typ().with_message("'this' is not a FileSystemDirectoryHandle")
-        })?;
-
         let name = args
             .get_or_undefined(0)
             .to_string(context)?
             .to_std_string_escaped();
-
-        // Remove from in-memory entries
-        {
-            let mut entries = dir_handle.entries.write().unwrap();
-            entries.remove(&name);
+        if !is_valid_name(&name) {
+            return Err(JsNativeError::typ()
+                .with_message("Invalid entry name")
+                .into());
         }
+        let recursive = args
+            .get_or_undefined(1)
+            .as_object()
+            .and_then(|o| o.get(js_string!("recursive"), context).ok())
+            .map(|v| v.to_boolean())
+            .unwrap_or(false);
 
-        // Create a resolved Promise
-        let (promise, resolvers) = JsPromise::new_pending(context);
-        resolvers
-            .resolve
-            .call(&JsValue::undefined(), &[JsValue::undefined()], context)?;
-        Ok(JsValue::from(promise))
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a FileSystemDirectoryHandle")
+        })?;
+        let (backend, virtual_path) = {
+            let dir = obj.downcast_ref::<Self>().ok_or_else(|| {
+                JsNativeError::typ().with_message("'this' is not a FileSystemDirectoryHandle")
+            })?;
+            match &dir.handle.backend {
+                Some(b) => (b.clone(), dir.handle.virtual_path.clone()),
+                None => {
+                    let (promise, resolvers) = JsPromise::new_pending(context);
+                    resolvers
+                        .resolve
+                        .call(&JsValue::undefined(), &[JsValue::undefined()], context)?;
+                    return Ok(JsValue::from(promise));
+                }
+            }
+        };
+
+        let child = virtual_path.join(&name);
+        if !backend.exists(&child) {
+            return reject_with(
+                names::NOT_FOUND,
+                &format!("entry '{name}' not found"),
+                context,
+            );
+        }
+        let result = if backend.is_dir(&child) {
+            if recursive {
+                backend.remove_dir_recursive(&child)
+            } else {
+                match backend.is_dir_empty(&child) {
+                    Ok(true) => backend.remove_dir(&child),
+                    Ok(false) => {
+                        return reject_with(
+                            names::INVALID_MODIFICATION,
+                            "directory is not empty",
+                            context,
+                        );
+                    }
+                    Err(e) => Err(e),
+                }
+            }
+        } else {
+            backend.remove_file(&child)
+        };
+        match result {
+            Ok(()) => {
+                let (promise, resolvers) = JsPromise::new_pending(context);
+                resolvers
+                    .resolve
+                    .call(&JsValue::undefined(), &[JsValue::undefined()], context)?;
+                Ok(JsValue::from(promise))
+            }
+            Err(e) => reject_with(errors::map_io_error(&e), &format!("{e}"), context),
+        }
     }
 
-    /// `FileSystemDirectoryHandle.prototype.resolve(possibleDescendant)`
-    ///
-    /// Returns an array of directory names from the parent handle to the specified child entry.
     pub(crate) fn resolve(
         this: &JsValue,
         args: &[JsValue],
@@ -983,32 +1074,171 @@ impl FileSystemDirectoryHandle {
         let obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("'this' is not a FileSystemDirectoryHandle")
         })?;
+        let parent_virtual = {
+            let dir = obj.downcast_ref::<Self>().ok_or_else(|| {
+                JsNativeError::typ().with_message("'this' is not a FileSystemDirectoryHandle")
+            })?;
+            dir.handle.virtual_path.clone()
+        };
 
-        let _dir_handle = obj.downcast_ref::<Self>().ok_or_else(|| {
-            JsNativeError::typ().with_message("'this' is not a FileSystemDirectoryHandle")
-        })?;
+        let other_val = args.get_or_undefined(0);
+        let other_path = handle_meta(other_val).map(|(_, _, _)| ()).and_then(|_| {
+            let other_obj = other_val.as_object()?;
+            if let Some(file) = other_obj.downcast_ref::<FileSystemFileHandle>() {
+                Some(file.handle.virtual_path.clone())
+            } else if let Some(dir) = other_obj.downcast_ref::<Self>() {
+                Some(dir.handle.virtual_path.clone())
+            } else {
+                None
+            }
+        });
 
-        let _other = args.get_or_undefined(0);
-
-        // For now, return null (not a descendant)
         let (promise, resolvers) = JsPromise::new_pending(context);
+        let result = match other_path {
+            Some(other) => match other.strip_prefix(&parent_virtual) {
+                Ok(rel) => {
+                    let arr =
+                        boa_engine::builtins::array::Array::array_create(0, None, context)?;
+                    let mut idx = 0u32;
+                    for comp in rel.components() {
+                        if let std::path::Component::Normal(s) = comp {
+                            arr.set(
+                                idx,
+                                JsValue::from(JsString::from(s.to_string_lossy().into_owned())),
+                                true,
+                                context,
+                            )?;
+                            idx += 1;
+                        }
+                    }
+                    JsValue::from(arr)
+                }
+                Err(_) => JsValue::null(),
+            },
+            None => JsValue::null(),
+        };
         resolvers
             .resolve
-            .call(&JsValue::undefined(), &[JsValue::null()], context)?;
+            .call(&JsValue::undefined(), &[result], context)?;
         Ok(JsValue::from(promise))
+    }
+
+    pub(crate) fn keys(
+        this: &JsValue,
+        _args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
+        Self::iterator_for_kind(this, IteratorKind::Keys, context)
+    }
+    pub(crate) fn values(
+        this: &JsValue,
+        _args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
+        Self::iterator_for_kind(this, IteratorKind::Values, context)
+    }
+    pub(crate) fn entries(
+        this: &JsValue,
+        _args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
+        Self::iterator_for_kind(this, IteratorKind::Entries, context)
+    }
+    pub(crate) fn async_iterator(
+        this: &JsValue,
+        _args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
+        Self::iterator_for_kind(this, IteratorKind::Entries, context)
+    }
+
+    fn iterator_for_kind(
+        this: &JsValue,
+        kind: IteratorKind,
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a FileSystemDirectoryHandle")
+        })?;
+        let dir = obj.downcast_ref::<Self>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a FileSystemDirectoryHandle")
+        })?;
+        // Clone enough to release the borrow before calling back into iterators::build_iterator,
+        // which takes &mut Context.
+        let snapshot_dir = FileSystemDirectoryHandle {
+            handle: FileSystemHandle {
+                name: dir.handle.name.clone(),
+                kind: dir.handle.kind.clone(),
+                path: dir.handle.path.clone(),
+                is_opfs: dir.handle.is_opfs,
+                backend: dir.handle.backend.clone(),
+                virtual_path: dir.handle.virtual_path.clone(),
+            },
+        };
+        drop(dir);
+        iterators::build_iterator(&snapshot_dir, kind, context)
     }
 }
 
-/// The global `window.showOpenFilePicker()` function
+fn is_valid_name(name: &str) -> bool {
+    !name.is_empty()
+        && name != "."
+        && name != ".."
+        && !name.contains('/')
+        && !name.contains('\\')
+        && !name.contains('\0')
+}
+
+impl FileSystemDirectoryHandle {
+    /// Expose the virtual path for iterator construction.
+    pub(crate) fn virtual_path_ref(&self) -> &Path {
+        &self.handle.virtual_path
+    }
+}
+
+// Backwards-compat: expose `backend` and `virtual_path` directly through `handle` so iterators
+// can read them with a single `.backend` / `.virtual_path` field access.
+impl std::ops::Deref for FileSystemDirectoryHandle {
+    type Target = FileSystemHandle;
+    fn deref(&self) -> &FileSystemHandle {
+        &self.handle
+    }
+}
+
+// Legacy non-OPFS getFileHandle (called when `backend` is None — picker pathway).
+fn legacy_get_file_handle(
+    parent: &Path,
+    name: &str,
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    let file_path = parent.join(name);
+    let new_handle = FileSystemFileHandle::new(name.to_string(), file_path);
+    let handle_obj = JsObject::from_proto_and_data_with_shared_shape(
+        context.root_shape(),
+        context
+            .intrinsics()
+            .constructors()
+            .file_system_file_handle()
+            .prototype(),
+        new_handle,
+    );
+    let (promise, resolvers) = JsPromise::new_pending(context);
+    resolvers
+        .resolve
+        .call(&JsValue::undefined(), &[handle_obj.into()], context)?;
+    Ok(JsValue::from(promise))
+}
+
+// =============================================================================
+// PICKER FUNCTIONS (legacy)
+// =============================================================================
+
 pub fn show_open_file_picker(
     _this: &JsValue,
     _args: &[JsValue],
     context: &mut Context,
 ) -> JsResult<JsValue> {
-    // Create a file handle with VFS-backed persistence
     let file_path = PathBuf::from("/documents/example_document.txt");
-
-    // Ensure the file exists in VFS with sample content
     let sample_content = b"This is a sample document file created by showOpenFilePicker.\nYou can read and modify this content through the File System API.";
     let _ = vfs::fs::write(&file_path, sample_content);
 
@@ -1023,11 +1253,8 @@ pub fn show_open_file_picker(
         file_handle,
     );
 
-    // Return array with single file handle
     let array = boa_engine::builtins::array::Array::array_create(1, None, context)?;
     array.set(0, file_handle_obj, true, context)?;
-
-    // Create a resolved Promise
     let (promise, resolvers) = JsPromise::new_pending(context);
     resolvers
         .resolve
@@ -1035,19 +1262,13 @@ pub fn show_open_file_picker(
     Ok(JsValue::from(promise))
 }
 
-/// The global `window.showSaveFilePicker()` function
 pub fn show_save_file_picker(
     _this: &JsValue,
     _args: &[JsValue],
     context: &mut Context,
 ) -> JsResult<JsValue> {
-    // Create a file handle with VFS-backed persistence for saving
     let file_path = PathBuf::from("/documents/new_save_file.txt");
-
-    // Initialize an empty file in VFS that can be written to
-    let initial_content = b""; // Empty file ready for writing
-    let _ = vfs::fs::write(&file_path, initial_content);
-
+    let _ = vfs::fs::write(&file_path, b"");
     let file_handle = FileSystemFileHandle::new("new_save_file.txt".to_string(), file_path);
     let file_handle_obj = JsObject::from_proto_and_data_with_shared_shape(
         context.root_shape(),
@@ -1058,8 +1279,6 @@ pub fn show_save_file_picker(
             .prototype(),
         file_handle,
     );
-
-    // Create a resolved Promise
     let (promise, resolvers) = JsPromise::new_pending(context);
     resolvers
         .resolve
@@ -1067,23 +1286,14 @@ pub fn show_save_file_picker(
     Ok(JsValue::from(promise))
 }
 
-/// The global `window.showDirectoryPicker()` function
 pub fn show_directory_picker(
     _this: &JsValue,
     _args: &[JsValue],
     context: &mut Context,
 ) -> JsResult<JsValue> {
-    // Create a directory handle with VFS-backed persistence
     let dir_path = PathBuf::from("/documents");
-
-    // Ensure the directory exists in VFS with some sample files
-    // Create sample files in the directory
-    let _ = vfs::fs::write(dir_path.join("readme.txt"), b"Welcome to the documents directory!\nThis directory contains sample files accessible through the File System API.");
-    let _ = vfs::fs::write(
-        dir_path.join("notes.txt"),
-        b"Sample notes file.\nYou can read and write to this file.",
-    );
-
+    let _ = vfs::fs::write(dir_path.join("readme.txt"), b"Welcome to the documents directory!");
+    let _ = vfs::fs::write(dir_path.join("notes.txt"), b"Sample notes file.");
     let dir_handle = FileSystemDirectoryHandle::new("documents".to_string(), dir_path);
     let dir_handle_obj = JsObject::from_proto_and_data_with_shared_shape(
         context.root_shape(),
@@ -1094,8 +1304,6 @@ pub fn show_directory_picker(
             .prototype(),
         dir_handle,
     );
-
-    // Create a resolved Promise
     let (promise, resolvers) = JsPromise::new_pending(context);
     resolvers
         .resolve
@@ -1105,3 +1313,17 @@ pub fn show_directory_picker(
 
 #[cfg(test)]
 mod tests;
+
+// Suppress unused-import warnings for items conditionally used by submodules.
+#[allow(dead_code)]
+fn _silence_unused() {
+    let _ = PropertyDescriptor::default();
+    let _ = std::sync::Arc::new(0u8);
+    let _ = HashMap::<String, FileData>::new();
+    let _ = RwLock::new(0u8);
+    let _: Option<&FileSystemSyncAccessHandle> = None;
+}
+
+// Placate unused-warning on Tracer since the manual Trace impls were dropped.
+#[allow(dead_code)]
+fn _tracer_unused(_: &mut Tracer) {}
