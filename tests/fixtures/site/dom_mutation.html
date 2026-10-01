@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Fixture DOM Mutation</title></head>
+<body>
+  <h1>DOM mutation</h1>
+  <ul id="items"><li>static item</li></ul>
+  <script>
+    // Built with real DOM APIs; the host must see these in page content.
+    var list = document.getElementById('items');
+    var added = document.createElement('li');
+    added.id = 'added';
+    added.textContent = 'added by script';
+    list.appendChild(added);
+
+    var button = document.createElement('button');
+    button.textContent = 'Inserted button';
+    document.body.appendChild(button);
+
+    // A script inserted through the DOM runs once
+    var inserted = document.createElement('script');
+    inserted.textContent =
+      "document.getElementById('items').insertAdjacentHTML('beforeend', '<li>from inserted script</li>');";
+    document.body.appendChild(inserted);
+
+  </script>
+</body>
+</html>

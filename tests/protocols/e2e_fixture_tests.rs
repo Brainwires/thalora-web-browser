@@ -254,6 +254,13 @@ fn e2e_timers_microtasks_and_animation_frames_run_during_navigation() {
     for entry in ["microtask", "raf", "timeout"] {
         assert!(log.contains(entry), "{entry} did not run: {log}");
     }
+    // ...and their DOM writes persist
+    let text = eval_in(
+        &mut h,
+        "timers",
+        "document.getElementById('timeout').textContent",
+    );
+    assert!(text.contains("timeout fired"), "timeout text: {text}");
 }
 
 #[test]
@@ -620,4 +627,45 @@ fn e2e_page_fetch_to_metadata_endpoint_is_blocked() {
         outcome.contains("blocked") || result.contains("threw"),
         "metadata fetch was not blocked: {outcome}"
     );
+}
+
+// ── Persistent DOM (Phase 3 R) ──────────────────────────────────────────────
+
+#[test]
+fn e2e_dom_mutations_reach_page_content_and_snapshot() {
+    let (mut h, site) = fixture_harness();
+    navigate_with_js(&mut h, site.url("/dom_mutation.html"), "dom");
+
+    let content = page_content(&mut h, "dom");
+    for expected in [
+        "static item",
+        "added by script",
+        "Inserted button",
+        "from inserted script",
+    ] {
+        assert!(
+            content.contains(expected),
+            "{expected:?} missing: {content}"
+        );
+    }
+
+    let snapshot = call_ok(&mut h, "browser_snapshot", json!({"session_id": "dom"}));
+    assert!(
+        snapshot.contains("Inserted button") && snapshot.contains("[ref="),
+        "snapshot: {snapshot}"
+    );
+
+    // Node identity holds across lookups
+    let same = eval_in(
+        &mut h,
+        "dom",
+        "document.getElementById('added') === document.querySelector('#items > #added')",
+    );
+    assert!(same.contains("true"), "identity: {same}");
+    let count = eval_in(
+        &mut h,
+        "dom",
+        "document.querySelectorAll('#items li').length",
+    );
+    assert!(count.contains('3'), "items: {count}");
 }
