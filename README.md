@@ -189,14 +189,19 @@ against the server's tool registry by `tests/protocols/readme_tools_test.rs`.
 | `browser_navigate_to` | Navigate a session to a URL, optionally running page JavaScript |
 | `browser_navigate_back` / `browser_navigate_forward` | Move through session history |
 | `browser_refresh_page` | Reload the current page |
+| `browser_snapshot` | Compact page outline for agents: interactive elements with refs (`[ref=e12]`), headings, landmarks and text, within a token budget |
 | `browser_get_page_content` | Current URL and content of a session |
-| `browser_click_element` | Click an element; submit buttons submit their form and links navigate unless `preventDefault()` is called |
+| `browser_click_element` | Click an element by snapshot ref or CSS selector; submit buttons submit their form and links navigate unless `preventDefault()` is called |
 | `browser_type_text` | Type into an input (fires `input`/`change`) |
 | `browser_fill_form` | Fill named fields of a form and (by default) submit it, including hidden fields such as CSRF tokens |
 | `browser_wait_for_element` | Wait until a selector matches |
 | `browser_prepare_form_submission` | Create a session for a form that opens a new window |
 | `browser_validate_session` | Check that a session exists and has the expected content |
 | `get_accessibility_tree` | ARIA roles, accessible names and states for the current page (always listed in full mode) |
+
+Action tools (`browser_click_element`, `browser_type_text`, `browser_fill`,
+`browser_wait_for_element`) accept a `ref` from `browser_snapshot` instead of a
+CSS selector. Refs stay valid until the page content changes.
 
 Tools that act on an existing page return an error for an unknown `session_id`
 instead of silently creating a blank session; `"default"` always exists.

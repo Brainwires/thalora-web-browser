@@ -62,10 +62,14 @@ pub(crate) fn get_brainclaw_alias_tool_definitions() -> Vec<Value> {
         // ── Interaction aliases ──────────────────────────────────────────────────
         serde_json::json!({
             "name": "browser_click",
-            "description": "Click an element in a browser session by CSS selector. Alias for `browser_click_element`.",
+            "description": "Click an element by ref (from browser_snapshot) or CSS selector. Alias for `browser_click_element`.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
+                    "ref": {
+                        "type": "string",
+                        "description": "Element ref from browser_snapshot (e.g. \"e12\"); use instead of selector"
+                    },
                     "selector": {
                         "type": "string",
                         "description": "CSS selector for the element to click"
@@ -75,7 +79,7 @@ pub(crate) fn get_brainclaw_alias_tool_definitions() -> Vec<Value> {
                         "description": "Browser session ID"
                     }
                 },
-                "required": ["selector", "session_id"]
+                "required": []
             }
         }),
         serde_json::json!({
@@ -84,6 +88,10 @@ pub(crate) fn get_brainclaw_alias_tool_definitions() -> Vec<Value> {
             "inputSchema": {
                 "type": "object",
                 "properties": {
+                    "ref": {
+                        "type": "string",
+                        "description": "Element ref from browser_snapshot (e.g. \"e12\"); use instead of selector"
+                    },
                     "selector": {
                         "type": "string",
                         "description": "CSS selector for the input field"
@@ -101,7 +109,7 @@ pub(crate) fn get_brainclaw_alias_tool_definitions() -> Vec<Value> {
                         "description": "Browser session ID (default: \"default\")"
                     }
                 },
-                "required": ["selector", "value"]
+                "required": ["value"]
             }
         }),
         // ── CDP aliases ──────────────────────────────────────────────────────────

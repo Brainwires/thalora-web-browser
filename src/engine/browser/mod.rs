@@ -10,6 +10,7 @@ pub mod core;
 pub mod form_analyzer;
 pub mod navigation;
 pub mod scraper;
+pub mod snapshot;
 
 // Re-export shared constants
 pub use thalora_constants::USER_AGENT;

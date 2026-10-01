@@ -5,10 +5,14 @@ pub(crate) fn get_browser_automation_tool_definitions() -> Vec<Value> {
     vec![
         serde_json::json!({
             "name": "browser_click_element",
-            "description": "Click on an element in the current page",
+            "description": "Click an element (by ref from browser_snapshot or CSS selector). Submit buttons submit their form and links navigate unless a handler calls preventDefault().",
             "inputSchema": {
                 "type": "object",
                 "properties": {
+                    "ref": {
+                        "type": "string",
+                        "description": "Element ref from browser_snapshot (e.g. \"e12\"); use instead of selector"
+                    },
                     "selector": {
                         "type": "string",
                         "description": "CSS selector or link text to click"
@@ -22,7 +26,7 @@ pub(crate) fn get_browser_automation_tool_definitions() -> Vec<Value> {
                         "description": "Browser session ID (optional)"
                     }
                 },
-                "required": ["selector"]
+                "required": []
             }
         }),
         serde_json::json!({
@@ -57,6 +61,10 @@ pub(crate) fn get_browser_automation_tool_definitions() -> Vec<Value> {
             "inputSchema": {
                 "type": "object",
                 "properties": {
+                    "ref": {
+                        "type": "string",
+                        "description": "Element ref from browser_snapshot (e.g. \"e12\"); use instead of selector"
+                    },
                     "selector": {
                         "type": "string",
                         "description": "CSS selector for the input element"
@@ -74,7 +82,7 @@ pub(crate) fn get_browser_automation_tool_definitions() -> Vec<Value> {
                         "description": "Browser session ID (optional)"
                     }
                 },
-                "required": ["selector", "text"]
+                "required": ["text"]
             }
         }),
         serde_json::json!({
@@ -83,6 +91,10 @@ pub(crate) fn get_browser_automation_tool_definitions() -> Vec<Value> {
             "inputSchema": {
                 "type": "object",
                 "properties": {
+                    "ref": {
+                        "type": "string",
+                        "description": "Element ref from browser_snapshot (e.g. \"e12\"); use instead of selector"
+                    },
                     "selector": {
                         "type": "string",
                         "description": "CSS selector for the element to wait for"
@@ -100,7 +112,7 @@ pub(crate) fn get_browser_automation_tool_definitions() -> Vec<Value> {
                         "description": "Browser session ID (optional)"
                     }
                 },
-                "required": ["selector"]
+                "required": []
             }
         }),
         serde_json::json!({

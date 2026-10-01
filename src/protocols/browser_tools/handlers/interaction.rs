@@ -10,6 +10,10 @@ use crate::protocols::security::{
 
 impl BrowserTools {
     pub async fn handle_click_element(&self, params: Value) -> McpResponse {
+        let params = match self.resolve_ref_param(params) {
+            Ok(params) => params,
+            Err(resp) => return resp,
+        };
         let selector = params["selector"].as_str().unwrap_or("");
         let session_id = params
             .get("session_id")
@@ -17,7 +21,7 @@ impl BrowserTools {
             .unwrap_or("default");
 
         if selector.is_empty() {
-            return McpResponse::error(-1, "Selector is required".to_string());
+            return McpResponse::error(-1, "selector or ref is required".to_string());
         }
 
         // SECURITY: Validate input lengths to prevent DoS attacks
@@ -101,6 +105,10 @@ impl BrowserTools {
     }
 
     pub async fn handle_type_text(&self, params: Value) -> McpResponse {
+        let params = match self.resolve_ref_param(params) {
+            Ok(params) => params,
+            Err(resp) => return resp,
+        };
         let selector = params["selector"].as_str().unwrap_or("");
         let text = params["text"].as_str().unwrap_or("");
         let clear_first = params
@@ -113,7 +121,7 @@ impl BrowserTools {
             .unwrap_or("default");
 
         if selector.is_empty() {
-            return McpResponse::error(-1, "Selector is required".to_string());
+            return McpResponse::error(-1, "selector or ref is required".to_string());
         }
 
         if text.is_empty() {
@@ -289,8 +297,15 @@ impl BrowserTools {
     /// `browser_fill`: set the value of a single field, optionally submitting
     /// its form afterwards (with every other field of the form).
     pub async fn handle_fill_field(&self, params: Value) -> McpResponse {
+        let params = match self.resolve_ref_param(params) {
+            Ok(params) => params,
+            Err(resp) => return resp,
+        };
         let Some(selector) = params.get("selector").and_then(|v| v.as_str()) else {
-            return McpResponse::error(-32602, "Missing required parameter: selector".to_string());
+            return McpResponse::error(
+                -32602,
+                "Missing required parameter: selector or ref".to_string(),
+            );
         };
         let Some(value) = params.get("value").and_then(|v| v.as_str()) else {
             return McpResponse::error(-32602, "Missing required parameter: value".to_string());
@@ -354,6 +369,10 @@ impl BrowserTools {
     }
 
     pub async fn handle_wait_for_element(&self, params: Value) -> McpResponse {
+        let params = match self.resolve_ref_param(params) {
+            Ok(params) => params,
+            Err(resp) => return resp,
+        };
         let selector = params["selector"].as_str().unwrap_or("");
         let timeout = params
             .get("timeout")
@@ -365,7 +384,7 @@ impl BrowserTools {
             .unwrap_or("default");
 
         if selector.is_empty() {
-            return McpResponse::error(-1, "Selector is required".to_string());
+            return McpResponse::error(-1, "selector or ref is required".to_string());
         }
 
         // SECURITY: Validate input lengths to prevent DoS attacks

@@ -277,3 +277,72 @@ fn e2e_bundled_code_runs() {
         "bundle did not run: {result}"
     );
 }
+
+// ── Snapshot refs (Phase 2) ─────────────────────────────────────────────────
+
+/// Find the ref on the snapshot line that contains `needle`.
+fn ref_for(snapshot: &str, needle: &str) -> String {
+    let line = snapshot
+        .lines()
+        .find(|l| l.contains(needle) && l.contains("[ref="))
+        .unwrap_or_else(|| panic!("no ref line containing {needle:?} in:\n{snapshot}"));
+    line.rsplit("[ref=")
+        .next()
+        .unwrap()
+        .trim_end_matches(']')
+        .to_string()
+}
+
+#[test]
+fn e2e_snapshot_refs_drive_a_login_flow() {
+    let (mut h, site) = fixture_harness();
+    call_ok(
+        &mut h,
+        "browser_navigate_to",
+        json!({"url": site.url("/login.html"), "session_id": "refs"}),
+    );
+    let snapshot = call_ok(&mut h, "browser_snapshot", json!({"session_id": "refs"}));
+    assert!(snapshot.contains("<untrusted_page_content"), "{snapshot}");
+    assert!(snapshot.contains("heading \"Sign in\""), "{snapshot}");
+    assert!(
+        !snapshot.contains("fixture-csrf-token"),
+        "hidden field leaked"
+    );
+
+    // Same page, same refs
+    let again = call_ok(&mut h, "browser_snapshot", json!({"session_id": "refs"}));
+    assert_eq!(snapshot, again);
+
+    let username = ref_for(&snapshot, "textbox \"Username\"");
+    let password = ref_for(&snapshot, "textbox \"Password\"");
+    let sign_in = ref_for(&snapshot, "button \"Sign in\"");
+
+    call_ok(
+        &mut h,
+        "browser_fill",
+        json!({"ref": username, "value": "agent", "session_id": "refs"}),
+    );
+    call_ok(
+        &mut h,
+        "browser_fill",
+        json!({"ref": password, "value": "pw123", "session_id": "refs"}),
+    );
+    call_ok(
+        &mut h,
+        "browser_click",
+        json!({"ref": sign_in, "session_id": "refs"}),
+    );
+
+    let echoed = page_content(&mut h, "refs");
+    assert!(echoed.contains("username=agent"), "{echoed}");
+    assert!(echoed.contains("password=pw123"), "{echoed}");
+
+    // The page changed, so the old ref is stale
+    let stale = call(
+        &mut h,
+        "browser_click",
+        json!({"ref": sign_in, "session_id": "refs"}),
+    );
+    assert!(stale.is_error);
+    assert!(text(&stale).contains("stale_ref"), "{}", text(&stale));
+}

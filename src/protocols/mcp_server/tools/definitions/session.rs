@@ -31,6 +31,31 @@ pub(crate) fn get_session_tool_definitions() -> Vec<Value> {
             }
         }),
         serde_json::json!({
+            "name": "browser_snapshot",
+            "description": "Compact outline of the current page for deciding what to do next: interactive elements with refs (e.g. [ref=e12]) plus headings, landmarks and text, within a token budget. Pass a ref instead of a CSS selector to browser_click_element, browser_type_text, browser_fill and browser_wait_for_element. Refs stay valid until the page content changes; a stale ref returns an error asking for a new snapshot.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "session_id": {
+                        "type": "string",
+                        "description": "Browser session ID (default: \"default\")"
+                    },
+                    "max_tokens": {
+                        "type": "integer",
+                        "description": "Approximate output budget in tokens (default 4000, 200-50000). Text is dropped first, interactive elements last."
+                    },
+                    "interactive_only": {
+                        "type": "boolean",
+                        "description": "Only list interactive elements (default false)"
+                    },
+                    "focus_ref": {
+                        "type": "string",
+                        "description": "Only snapshot the subtree of this ref"
+                    }
+                }
+            }
+        }),
+        serde_json::json!({
             "name": "browser_get_page_content",
             "description": "Get the current page content and URL from a browser session",
             "inputSchema": {

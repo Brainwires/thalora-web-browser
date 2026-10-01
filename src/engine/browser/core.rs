@@ -53,6 +53,8 @@ pub struct HeadlessWebBrowser {
     /// for the page at `filled_values_url`; merged into `submit_form`.
     pub(super) filled_values: HashMap<String, String>,
     pub(super) filled_values_url: Option<String>,
+    /// Element refs issued by the last `snapshot()` of this page.
+    pub(super) snapshot_refs: super::snapshot::RefTable,
 }
 
 impl HeadlessWebBrowser {
@@ -126,6 +128,7 @@ impl HeadlessWebBrowser {
             nosniff: false,
             filled_values: HashMap::new(),
             filled_values_url: None,
+            snapshot_refs: Default::default(),
         };
 
         let browser_rc = Rc::new(Mutex::new(browser));
