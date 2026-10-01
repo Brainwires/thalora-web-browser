@@ -326,8 +326,9 @@ pub struct DocumentData {
     content_type: Arc<Mutex<String>>,
     #[unsafe_ignore_trace]
     elements: Arc<Mutex<HashMap<String, JsObject>>>,
+    /// Event listeners with their capture/once/passive flags
     #[unsafe_ignore_trace]
-    event_listeners: Arc<Mutex<HashMap<String, Vec<JsValue>>>>,
+    event_listeners: Arc<Mutex<HashMap<String, Vec<crate::events::event_target::EventListener>>>>,
     #[unsafe_ignore_trace]
     html_content: Arc<Mutex<String>>,
     /// Cached layout geometry data keyed by CSS selector path
@@ -559,28 +560,84 @@ impl DocumentData {
         }
     }
 
+    /// Add a bubble-phase listener without options.
     pub fn add_event_listener(&self, event_type: String, listener: JsValue) {
-        self.event_listeners
-            .lock()
-            .unwrap()
-            .entry(event_type)
-            .or_default()
-            .push(listener);
+        self.add_event_listener_with_options(event_type, listener, false, false, false);
     }
 
+    /// Add a listener with its `capture` / `once` / `passive` flags. A
+    /// listener with the same callback and capture flag is only added once.
+    pub fn add_event_listener_with_options(
+        &self,
+        event_type: String,
+        listener: JsValue,
+        capture: bool,
+        once: bool,
+        passive: bool,
+    ) {
+        let entry =
+            crate::events::event_target::EventListener::new(listener, capture, once, passive);
+        let mut map = self.event_listeners.lock().unwrap();
+        crate::events::event_target::push_unique_listener(
+            map.entry(event_type).or_default(),
+            entry,
+        );
+    }
+
+    /// Remove every listener with this callback (regardless of capture).
     pub fn remove_event_listener(&self, event_type: &str, listener: &JsValue) {
         if let Some(listeners) = self.event_listeners.lock().unwrap().get_mut(event_type) {
-            listeners.retain(|l| !JsValue::same_value(l, listener));
+            listeners.retain(|l| !JsValue::same_value(l.callback(), listener));
         }
     }
 
+    /// Remove the listener matching `(type, callback, capture)`.
+    pub fn remove_event_listener_with_capture(
+        &self,
+        event_type: &str,
+        listener: &JsValue,
+        capture: bool,
+    ) {
+        if let Some(listeners) = self.event_listeners.lock().unwrap().get_mut(event_type) {
+            listeners.retain(|l| !l.matches(listener, capture));
+        }
+    }
+
+    /// Listener callbacks for `event_type`, in registration order.
     pub fn get_event_listeners(&self, event_type: &str) -> Vec<JsValue> {
+        self.event_listeners
+            .lock()
+            .unwrap()
+            .get(event_type)
+            .map(|list| list.iter().map(|l| l.callback().clone()).collect())
+            .unwrap_or_default()
+    }
+
+    /// Snapshot of the listeners (with flags) for `event_type`.
+    pub(crate) fn listener_entries(
+        &self,
+        event_type: &str,
+    ) -> Vec<crate::events::event_target::EventListener> {
         self.event_listeners
             .lock()
             .unwrap()
             .get(event_type)
             .cloned()
             .unwrap_or_default()
+    }
+
+    /// Whether a listener matching `(type, callback, capture)` is registered.
+    pub(crate) fn has_listener_entry(
+        &self,
+        event_type: &str,
+        listener: &JsValue,
+        capture: bool,
+    ) -> bool {
+        self.event_listeners
+            .lock()
+            .unwrap()
+            .get(event_type)
+            .is_some_and(|list| list.iter().any(|l| l.matches(listener, capture)))
     }
 }
 
@@ -1315,7 +1372,9 @@ fn query_selector_all(
     Ok(array.into())
 }
 
-/// `Document.prototype.addEventListener(type, listener)`
+/// `Document.prototype.addEventListener(type, listener[, options])`
+///
+/// `options` is a boolean (capture) or `{ capture, once, passive }`.
 fn add_event_listener(
     this: &JsValue,
     args: &[JsValue],
@@ -1325,20 +1384,32 @@ fn add_event_listener(
         JsNativeError::typ()
             .with_message("Document.prototype.addEventListener called on non-object")
     })?;
-
-    let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
-        JsNativeError::typ()
+    if this_obj.downcast_ref::<DocumentData>().is_none() {
+        return Err(JsNativeError::typ()
             .with_message("Document.prototype.addEventListener called on non-Document object")
-    })?;
+            .into());
+    }
 
     let event_type = args.get_or_undefined(0).to_string(context)?;
     let listener = args.get_or_undefined(1).clone();
+    let (capture, once, passive) =
+        crate::events::event_target::parse_listener_options(args.get_or_undefined(2), context)?;
 
-    document.add_event_listener(event_type.to_std_string_escaped(), listener);
+    if let Some(document) = this_obj.downcast_ref::<DocumentData>() {
+        document.add_event_listener_with_options(
+            event_type.to_std_string_escaped(),
+            listener,
+            capture,
+            once,
+            passive,
+        );
+    }
     Ok(JsValue::undefined())
 }
 
-/// `Document.prototype.removeEventListener(type, listener)`
+/// `Document.prototype.removeEventListener(type, listener[, options])`
+///
+/// Removes the listener matching `(type, callback, capture)`.
 fn remove_event_listener(
     this: &JsValue,
     args: &[JsValue],
@@ -1348,16 +1419,24 @@ fn remove_event_listener(
         JsNativeError::typ()
             .with_message("Document.prototype.removeEventListener called on non-object")
     })?;
-
-    let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
-        JsNativeError::typ()
+    if this_obj.downcast_ref::<DocumentData>().is_none() {
+        return Err(JsNativeError::typ()
             .with_message("Document.prototype.removeEventListener called on non-Document object")
-    })?;
+            .into());
+    }
 
     let event_type = args.get_or_undefined(0).to_string(context)?;
-    let listener = args.get_or_undefined(1);
+    let listener = args.get_or_undefined(1).clone();
+    let (capture, _, _) =
+        crate::events::event_target::parse_listener_options(args.get_or_undefined(2), context)?;
 
-    document.remove_event_listener(&event_type.to_std_string_escaped(), listener);
+    if let Some(document) = this_obj.downcast_ref::<DocumentData>() {
+        document.remove_event_listener_with_capture(
+            &event_type.to_std_string_escaped(),
+            &listener,
+            capture,
+        );
+    }
     Ok(JsValue::undefined())
 }
 

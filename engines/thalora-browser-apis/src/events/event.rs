@@ -157,6 +157,13 @@ impl EventData {
         self.composed = composed;
     }
 
+    /// Clear the stop-propagation flags at the end of a dispatch
+    /// (DOM "dispatch" step: unset stop propagation / stop immediate flags).
+    pub fn clear_propagation_flags(&mut self) {
+        self.stop_propagation = false;
+        self.stop_immediate_propagation = false;
+    }
+
     pub fn should_stop_propagation(&self) -> bool {
         self.stop_propagation
     }

@@ -3,6 +3,7 @@
 //! Real native implementation of Element standard with actual DOM tree functionality
 //! https://dom.spec.whatwg.org/#interface-element
 
+use crate::events::event_target::EventListener;
 use boa_engine::{
     Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
@@ -568,9 +569,9 @@ pub struct ElementData {
     /// Element's bounding box for layout
     #[unsafe_ignore_trace]
     bounding_rect: Arc<Mutex<DOMRect>>,
-    /// Event listeners attached to this element
+    /// Event listeners attached to this element, with their capture/once/passive flags
     #[unsafe_ignore_trace]
-    event_listeners: Arc<Mutex<HashMap<String, Vec<JsValue>>>>,
+    event_listeners: Arc<Mutex<HashMap<String, Vec<EventListener>>>>,
     /// Shadow root for Shadow DOM API
     #[unsafe_ignore_trace]
     shadow_root: Arc<Mutex<Option<JsObject>>>,
@@ -1357,30 +1358,79 @@ impl ElementData {
         self.style.lock().unwrap().clone()
     }
 
-    /// Add event listener to this element
+    /// Add event listener to this element (bubble phase, no options)
     pub fn add_event_listener(&self, event_type: String, listener: JsValue) {
-        self.event_listeners
-            .lock()
-            .unwrap()
-            .entry(event_type)
-            .or_default()
-            .push(listener);
+        self.add_event_listener_with_options(event_type, listener, false, false, false);
     }
 
-    /// Remove event listener from this element
+    /// Add an event listener with its `capture` / `once` / `passive` flags.
+    /// A listener with the same callback and capture flag is only added once.
+    pub fn add_event_listener_with_options(
+        &self,
+        event_type: String,
+        listener: JsValue,
+        capture: bool,
+        once: bool,
+        passive: bool,
+    ) {
+        let entry = EventListener::new(listener, capture, once, passive);
+        let mut map = self.event_listeners.lock().unwrap();
+        crate::events::event_target::push_unique_listener(
+            map.entry(event_type).or_default(),
+            entry,
+        );
+    }
+
+    /// Remove every listener with this callback (regardless of capture)
     pub fn remove_event_listener(&self, event_type: &str, listener: &JsValue) {
         if let Some(listeners) = self.event_listeners.lock().unwrap().get_mut(event_type) {
-            listeners.retain(|l| !JsValue::same_value(l, listener));
+            listeners.retain(|l| !JsValue::same_value(l.callback(), listener));
         }
     }
 
-    /// Get event listeners for a specific event type
+    /// Remove the listener matching `(type, callback, capture)`
+    pub fn remove_event_listener_with_capture(
+        &self,
+        event_type: &str,
+        listener: &JsValue,
+        capture: bool,
+    ) {
+        if let Some(listeners) = self.event_listeners.lock().unwrap().get_mut(event_type) {
+            listeners.retain(|l| !l.matches(listener, capture));
+        }
+    }
+
+    /// Get event listener callbacks for a specific event type
     pub fn get_event_listeners(&self, event_type: &str) -> Option<Vec<JsValue>> {
         self.event_listeners
             .lock()
             .unwrap()
             .get(event_type)
+            .map(|list| list.iter().map(|l| l.callback().clone()).collect())
+    }
+
+    /// Snapshot of the listeners (with flags) for a specific event type
+    pub(crate) fn listener_entries(&self, event_type: &str) -> Vec<EventListener> {
+        self.event_listeners
+            .lock()
+            .unwrap()
+            .get(event_type)
             .cloned()
+            .unwrap_or_default()
+    }
+
+    /// Whether a listener matching `(type, callback, capture)` is registered
+    pub(crate) fn has_listener_entry(
+        &self,
+        event_type: &str,
+        listener: &JsValue,
+        capture: bool,
+    ) -> bool {
+        self.event_listeners
+            .lock()
+            .unwrap()
+            .get(event_type)
+            .is_some_and(|list| list.iter().any(|l| l.matches(listener, capture)))
     }
 
     /// Attach shadow root for Shadow DOM API
@@ -1424,16 +1474,15 @@ impl ElementData {
         event_data: &JsValue,
         context: &mut Context,
     ) -> JsResult<()> {
-        let listeners = self.event_listeners.lock().unwrap();
-        if let Some(event_listeners) = listeners.get(event_type) {
-            for listener in event_listeners {
-                if listener.is_callable() {
-                    let _ = listener.as_callable().unwrap().call(
-                        &JsValue::undefined(),
-                        std::slice::from_ref(event_data),
-                        context,
-                    );
-                }
+        // Snapshot first: never hold the listener lock while calling JS.
+        let listeners = self.listener_entries(event_type);
+        for listener in listeners {
+            if let Some(function) = listener.callback().as_callable() {
+                let _ = function.call(
+                    &JsValue::undefined(),
+                    std::slice::from_ref(event_data),
+                    context,
+                );
             }
         }
         Ok(())
@@ -2351,7 +2400,8 @@ fn attach_shadow(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsR
 }
 
 /// `Element.prototype.addEventListener(type, listener[, options])`
-/// JavaScript wrapper for EventTarget functionality
+///
+/// `options` is a boolean (capture) or `{ capture, once, passive }`.
 fn add_event_listener(
     this: &JsValue,
     args: &[JsValue],
@@ -2360,21 +2410,33 @@ fn add_event_listener(
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Element.prototype.addEventListener called on non-object")
     })?;
-
-    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-        JsNativeError::typ()
+    if this_obj.downcast_ref::<ElementData>().is_none() {
+        return Err(JsNativeError::typ()
             .with_message("Element.prototype.addEventListener called on non-Element object")
-    })?;
+            .into());
+    }
 
+    // Read everything that may run JS before borrowing the element.
     let event_type = args.get_or_undefined(0).to_string(context)?;
-    let listener = args.get_or_undefined(1);
+    let listener = args.get_or_undefined(1).clone();
+    let (capture, once, passive) =
+        crate::events::event_target::parse_listener_options(args.get_or_undefined(2), context)?;
 
-    element.add_event_listener(event_type.to_std_string_escaped(), listener.clone());
+    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
+        element.add_event_listener_with_options(
+            event_type.to_std_string_escaped(),
+            listener,
+            capture,
+            once,
+            passive,
+        );
+    }
     Ok(JsValue::undefined())
 }
 
 /// `Element.prototype.removeEventListener(type, listener[, options])`
-/// JavaScript wrapper for EventTarget functionality
+///
+/// Removes the listener matching `(type, callback, capture)`.
 fn remove_event_listener(
     this: &JsValue,
     args: &[JsValue],
@@ -2384,17 +2446,77 @@ fn remove_event_listener(
         JsNativeError::typ()
             .with_message("Element.prototype.removeEventListener called on non-object")
     })?;
-
-    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-        JsNativeError::typ()
+    if this_obj.downcast_ref::<ElementData>().is_none() {
+        return Err(JsNativeError::typ()
             .with_message("Element.prototype.removeEventListener called on non-Element object")
-    })?;
+            .into());
+    }
 
     let event_type = args.get_or_undefined(0).to_string(context)?;
-    let listener = args.get_or_undefined(1);
+    let listener = args.get_or_undefined(1).clone();
+    let (capture, _, _) =
+        crate::events::event_target::parse_listener_options(args.get_or_undefined(2), context)?;
 
-    element.remove_event_listener(&event_type.to_std_string_escaped(), listener);
+    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
+        element.remove_event_listener_with_capture(
+            &event_type.to_std_string_escaped(),
+            &listener,
+            capture,
+        );
+    }
     Ok(JsValue::undefined())
+}
+
+/// Propagation path of a bound element: the element, its tree ancestors
+/// (the document node maps to the document object), then the window when
+/// the element is connected and the event isn't `load`.
+fn bound_event_path(
+    b: &crate::dom::binding::DomBinding,
+    target: &JsObject,
+    event_type: &str,
+    context: &mut Context,
+) -> JsResult<Vec<crate::events::dispatch::PathEntry>> {
+    use crate::events::dispatch::PathEntry;
+
+    // Read the tree, then drop the borrow before creating wrappers.
+    let (ancestors, connected) = {
+        let tree = b.tree.borrow();
+        let mut ancestors = Vec::new();
+        let mut current = tree.parent(b.node);
+        while let Some(id) = current {
+            ancestors.push(id);
+            current = tree.parent(id);
+        }
+        (ancestors, tree.is_connected(b.node))
+    };
+
+    let mut path = vec![PathEntry::single(target.clone())];
+    for id in ancestors {
+        let wrapper = crate::dom::binding::wrapper_for(&b.document, &b.tree, id, context)?;
+        if let Some(object) = wrapper.as_object() {
+            path.push(PathEntry::single(object));
+        }
+    }
+    if connected
+        && event_type != "load"
+        && let Some(window) = crate::events::dispatch::window_path_entry(context)
+    {
+        path.push(window);
+    }
+    Ok(path)
+}
+
+/// DOM dispatch for a bound element (capture, at-target, bubble).
+/// Returns `!defaultPrevented`.
+fn dispatch_bound_event(
+    b: &crate::dom::binding::DomBinding,
+    target: &JsObject,
+    event: &JsObject,
+    context: &mut Context,
+) -> JsResult<bool> {
+    let event_type = crate::events::dispatch::event_type_of(event, context)?;
+    let path = bound_event_path(b, target, &event_type, context)?;
+    crate::events::dispatch::dispatch_along_path(event, &path, context)
 }
 
 /// `Element.prototype.dispatchEvent(event)`
@@ -2405,15 +2527,22 @@ fn dispatch_event(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
     })?;
 
     // Verify this is an Element
-    let _element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-        JsNativeError::typ()
+    if this_obj.downcast_ref::<ElementData>().is_none() {
+        return Err(JsNativeError::typ()
             .with_message("Element.prototype.dispatchEvent called on non-Element object")
-    })?;
+            .into());
+    }
 
     let event_arg = args.get_or_undefined(0);
     let event_obj = event_arg.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("dispatchEvent requires an Event object")
     })?;
+
+    // Tree-backed element: full propagation through ancestors, document, window.
+    if let Some(b) = crate::dom::binding::bound_element(this) {
+        let result = dispatch_bound_event(&b, &this_obj, &event_obj, context)?;
+        return Ok(JsValue::from(result));
+    }
 
     // Use spec-compliant 3-phase dispatch via EventTargetData
     if let Some(target_data) =
@@ -2429,8 +2558,21 @@ fn dispatch_event(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
 
         if !event_type_value.is_undefined() {
             let event_type = event_type_value.to_string(context)?;
-            let element = this_obj.downcast_ref::<ElementData>().unwrap();
-            element.dispatch_event(&event_type.to_std_string_escaped(), event_arg, context)?;
+            let listeners = this_obj
+                .downcast_ref::<ElementData>()
+                .map(|element| element.listener_entries(&event_type.to_std_string_escaped()))
+                .unwrap_or_default();
+            // Same as ElementData::dispatch_event, without holding the
+            // element borrow while listeners run.
+            for listener in listeners {
+                if let Some(function) = listener.callback().as_callable() {
+                    let _ = function.call(
+                        &JsValue::undefined(),
+                        std::slice::from_ref(event_arg),
+                        context,
+                    );
+                }
+            }
         }
         Ok(JsValue::from(true))
     }
@@ -2731,6 +2873,24 @@ fn click(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<J
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Element.prototype.click called on non-object")
     })?;
+
+    // Tree-backed element: a real `Event` (bubbles, cancelable) dispatched
+    // through the full propagation path.
+    if let Some(b) = crate::dom::binding::bound_element(this) {
+        let click_event = JsObject::from_proto_and_data_with_shared_shape(
+            context.root_shape(),
+            context.intrinsics().constructors().event().prototype(),
+            crate::events::event::EventData::new("click".to_string(), true, true),
+        )
+        .upcast();
+        // MouseEvent-ish fields for listeners that read them.
+        click_event.set(js_string!("clientX"), 0, false, context)?;
+        click_event.set(js_string!("clientY"), 0, false, context)?;
+        click_event.set(js_string!("button"), 0, false, context)?;
+        click_event.set(js_string!("detail"), 1, false, context)?;
+        dispatch_bound_event(&b, &this_obj, &click_event, context)?;
+        return Ok(JsValue::undefined());
+    }
 
     let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
         JsNativeError::typ().with_message("Element.prototype.click called on non-Element object")

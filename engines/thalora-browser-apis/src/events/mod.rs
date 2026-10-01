@@ -3,6 +3,7 @@
 pub mod abort_signal;
 pub mod close_event;
 pub mod custom_event;
+pub mod dispatch;
 pub mod error_event;
 pub mod event;
 pub mod event_target;

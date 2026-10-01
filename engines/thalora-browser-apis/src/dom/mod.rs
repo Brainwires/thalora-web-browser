@@ -32,6 +32,7 @@ pub mod node;
 pub mod nodeiterator;
 pub mod nodelist;
 pub mod range;
+pub mod script_runner;
 pub mod selection;
 pub mod shadow;
 pub mod svg;
@@ -42,12 +43,17 @@ pub mod treewalker;
 #[cfg(test)]
 mod binding_tests;
 #[cfg(test)]
+mod document_tests;
+#[cfg(test)]
 mod mutation_bridge_tests;
 #[cfg(test)]
-mod document_tests;
+mod script_runner_tests;
 
 #[cfg(test)]
 mod element_tests;
 
 #[cfg(test)]
 mod dom_additional_tests;
+
+#[cfg(test)]
+mod event_dispatch_tests;
