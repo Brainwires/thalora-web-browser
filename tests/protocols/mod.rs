@@ -12,6 +12,7 @@ pub mod cdp_debugging_tests;
 pub mod cdp_session_integration_tests;
 pub mod session_management_tests;
 pub mod tool_registry_consistency;
+pub mod readme_tools_test;
 
 // WASM debug tools tests (requires wasm-debug feature)
 #[cfg(feature = "wasm-debug")]

@@ -76,6 +76,20 @@ unset THALORA_ENABLE_AI_MEMORY
 
 ---
 
+## MCP Tool Selection
+
+| Variable | Default | Effect |
+|---|---|---|
+| `THALORA_MCP_MODE` | `minimal` | `minimal` lists only `snapshot_url` and `web_search`; `full` lists the categories enabled below |
+| `THALORA_PRESET` | unset | `brainclaw` enables sessions, CDP and search in full mode and adds agent-friendly alias tools |
+| `THALORA_ENABLE_SCRAPING` | `true` | `snapshot_url` |
+| `THALORA_ENABLE_SEARCH` | `false` | `web_search`, `image_search` |
+| `THALORA_ENABLE_SESSIONS` | `false` | Browser session, navigation and form automation tools |
+| `THALORA_ENABLE_CDP` | `false` | `cdp_runtime_evaluate` (also enables sessions) |
+| `THALORA_ENABLE_CDP_EXPERIMENTAL` | `false` | Also list the mock-backed CDP tools (`cdp_dom_*`, `cdp_network_*`, `cdp_console_get_messages`, `cdp_page_*`, `browser_screenshot`) |
+| `THALORA_ENABLE_ADVANCED` | `false` | List the not-yet-implemented advanced tools (`extract_pdf`, `download_file`, …); calls fail with "Tool not found" |
+| `THALORA_EXPOSE_PASSWORDS` | `false` | **Unsafe.** Make `ai_memory_get_credentials` return stored secrets to the model |
+
 ## Engine Configuration
 
 ### `THALORA_ENGINE`
@@ -212,5 +226,5 @@ rm -rf ~/.cache/thalora/ai_memory/
 ## See Also
 
 - [SECURITY.md](SECURITY.md) - Security architecture and best practices
-- [SECURITY_REMEDIATION_SUMMARY.md](SECURITY_REMEDIATION_SUMMARY.md) - Security fixes and verification
+- [SECURITY_REMEDIATION_SUMMARY.md](archive/SECURITY_REMEDIATION_SUMMARY.md) - Security fixes and verification
 - [FEATURES.md](FEATURES.md) - Complete feature list including AI Memory

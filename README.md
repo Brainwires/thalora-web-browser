@@ -3,7 +3,6 @@
 [![CI](https://github.com/Brainwires/thalora-web-browser/actions/workflows/ci.yml/badge.svg)](https://github.com/Brainwires/thalora-web-browser/actions/workflows/ci.yml)
 [![Crates.io](https://img.shields.io/crates/v/thalora.svg)](https://crates.io/crates/thalora)
 [![docs.rs](https://docs.rs/thalora/badge.svg)](https://docs.rs/thalora)
-[![Tests](https://img.shields.io/badge/tests-658%20passing-brightgreen)](#testing)
 [![LOC](https://img.shields.io/badge/lines%20of%20code-209K-blue)](#architecture)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Rust](https://img.shields.io/badge/rust-2024%20edition-orange)](https://www.rust-lang.org/)
@@ -18,18 +17,18 @@ A cutting-edge **full-featured web browser** built entirely in Rust, designed sp
 - **Real Chrome 131 Mimicking**: Perfect User-Agent, headers, and browser fingerprinting
 - **Advanced JavaScript Engine**: Boa engine with complete ES2017-2025 support
 - **Modern Web APIs**: WebRTC, WebAssembly, Service Workers, WebGL, Media APIs
-- **Zero Mock Implementations**: Everything is real - no fake timers or simulated responses
+- **Honest about gaps**: APIs that are still stubbed or simulated are listed in [docs/MOCKED_APIS.md](docs/MOCKED_APIS.md)
 - **Google-Tested**: Successfully handles Google's anti-bot protection (proves authenticity)
 
 ### 🧠 **AI-First Architecture**
 - **AI Memory Heap**: Persistent storage that survives context compression
-- **17+ MCP Tools**: Complete Model Context Protocol integration
-- **Chrome DevTools Protocol**: Full CDP debugging for AI development
+- **MCP Server**: Scraping, search, browser sessions, form automation, accessibility tree and AI memory tools over stdio or HTTP
+- **JavaScript evaluation**: Run JS in a session's page via `cdp_runtime_evaluate`
 - **Single Binary**: No dependencies, deploy anywhere
 
 ### 🌐 **Complete Browser Capabilities**
 - **Real HTTP/2 Client**: Authentic network requests with connection pooling
-- **JavaScript Execution**: Sandboxed with real timers, promises, and async support
+- **JavaScript Execution**: Sandboxed Boa engine (an event loop for timers and async callbacks is in progress)
 - **Modern Web Standards**: Fetch, WebSocket, Storage, Crypto, Events, and more
 - **Device APIs**: WebHID, USB, Serial, Bluetooth (Chrome 131+ features)
 - **WebGL & Canvas**: Full graphics rendering with fingerprint compatibility
@@ -49,41 +48,17 @@ A cutting-edge **full-featured web browser** built entirely in Rust, designed sp
 | **Security** | Web Crypto API, Permissions API, CSP |
 
 ### 🧠 **AI Memory System**
-```rust
-// Store persistent research findings
-memory_store_research(
-    key: "react_patterns_2024",
-    topic: "Modern React Design Patterns",
-    findings: ["Server Components reduce bundle size by 40%"],
-    confidence_score: 0.9
-)
-
-// Encrypted credential storage
-memory_store_credentials(
-    service: "GitHub API",
-    username: "ai-agent",
-    password: "ghp_secure_token"
-)
-
-// Smart search across all data
-memory_search(
-    query: "authentication patterns",
-    category: "research",
-    tags: ["security", "auth"]
-)
+```text
+ai_memory_store_research   { key, topic, summary, tags, confidence_score }
+ai_memory_search_research  { query, tags }
+ai_memory_store_credentials { service, username, password }   # AES-256-GCM encrypted
+ai_memory_get_credentials  { service }                        # never returns the secret
 ```
 
-### 🔍 **Chrome DevTools Protocol Integration**
-```javascript
-// Real JavaScript debugging
-cdp_evaluate_javascript("document.querySelector('h1').textContent")
-
-// Set breakpoints for AI development
-cdp_set_breakpoint("script.js", 42)
-
-// Monitor network requests
-cdp_enable_network()
-cdp_get_response_body(requestId)
+### 🔍 **JavaScript in the page**
+```text
+browser_navigate_to   { url, session_id: "work" }
+cdp_runtime_evaluate  { expression: "document.querySelector('h1').textContent", session_id: "work" }
 ```
 
 ## 🛠 **Installation & Quick Start**
@@ -185,94 +160,80 @@ echo '{"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}' | ./tar
 cargo check --lib --features wasm --no-default-features
 ```
 
-## 🚀 **MCP Tools - 17+ Comprehensive Tools**
+## 🚀 **MCP Tools**
 
-### 🧠 **AI Memory Tools**
-| Tool | Description | Use Case |
-|------|-------------|----------|
-| `memory_store_research` | Store research with confidence scores | Persistent findings across sessions |
-| `memory_store_credentials` | Encrypted credential storage | Secure API key management |
-| `memory_store_bookmark` | URL collections with metadata | Organized link management |
-| `memory_store_note` | Categorized notes with priority | Project documentation |
-| `memory_search` | Search across all stored data | Find past research instantly |
-| `memory_start_session` | Begin development sessions | Long-term project tracking |
-| `memory_get_statistics` | Memory usage statistics | Storage optimization |
+Which tools are listed depends on the configuration (see
+[docs/ENVIRONMENT_VARIABLES.md](docs/ENVIRONMENT_VARIABLES.md)):
 
-### 🔍 **Chrome DevTools Protocol**
-| Tool | Description | Use Case |
-|------|-------------|----------|
-| `cdp_enable_runtime` | Enable JavaScript debugging | AI web development |
-| `cdp_evaluate_javascript` | Execute JS with full debugging | Dynamic web interaction |
-| `cdp_enable_debugger` | Breakpoint management | Step-through debugging |
-| `cdp_enable_dom` | DOM inspection | Real-time page analysis |
-| `cdp_enable_network` | Network monitoring | Request/response tracking |
+| Configuration | How to enable | Tools |
+|---|---|---|
+| Minimal (default) | nothing | `snapshot_url`, `web_search` |
+| Full | `THALORA_MCP_MODE=full` + `THALORA_ENABLE_*` flags | categories below |
+| BrainClaw preset | `THALORA_PRESET=brainclaw` | sessions, automation, search, `cdp_runtime_evaluate`, accessibility, aliases |
 
-### 🌐 **Web Automation Tools**
-| Tool | Description | Use Case |
-|------|-------------|----------|
-| `snapshot_url` | Point-in-time page snapshot with JS | Dynamic content extraction |
-| `google_search` | Real Google search | Information gathering |
-| `navigate_page` | Interactive navigation | Multi-step workflows |
-| `fill_form` | Automatic form handling | Data submission |
-| `click_element` | Element interaction | User simulation |
+Every tool returns standard MCP content blocks. The tables below are checked
+against the server's tool registry by `tests/protocols/readme_tools_test.rs`.
 
-## 🧪 **Real-World Examples**
+<!-- tools:start -->
+### 🌐 Scraping & search (`THALORA_ENABLE_SCRAPING`, on by default; `THALORA_ENABLE_SEARCH`)
+| Tool | Description |
+|------|-------------|
+| `snapshot_url` | Load a page (optionally running its JS) and extract links, images, metadata, custom selectors, structured data and readable markdown, with output-size limits |
+| `web_search` | Web search returning title, URL and snippet per result |
+| `image_search` | Image search |
 
-### AI Research Assistant
-```json
-{
-  "method": "tools/call",
-  "params": {
-    "name": "memory_store_research",
-    "arguments": {
-      "key": "ai_trends_2024",
-      "topic": "Emerging AI Architectures",
-      "summary": "Latest developments in transformer alternatives",
-      "findings": [
-        "Mamba models show 5x faster inference than transformers",
-        "State Space Models handle 100K+ context lengths",
-        "Retrieval-augmented architectures reduce hallucinations by 60%"
-      ],
-      "sources": ["https://arxiv.org/abs/2312.00752", "https://research.google"],
-      "tags": ["ai", "transformers", "architecture", "2024"],
-      "confidence_score": 0.95,
-      "metadata": {
-        "date_accessed": "2024-01-15",
-        "research_phase": "literature_review"
-      }
-    }
-  }
-}
-```
+### 🧭 Browser sessions & automation (`THALORA_ENABLE_SESSIONS`)
+| Tool | Description |
+|------|-------------|
+| `browser_session_management` | Create, list, inspect and close named browser sessions |
+| `browser_navigate_to` | Navigate a session to a URL, optionally running page JavaScript |
+| `browser_navigate_back` / `browser_navigate_forward` | Move through session history |
+| `browser_refresh_page` | Reload the current page |
+| `browser_get_page_content` | Current URL and content of a session |
+| `browser_click_element` | Click an element; submit buttons submit their form and links navigate unless `preventDefault()` is called |
+| `browser_type_text` | Type into an input (fires `input`/`change`) |
+| `browser_fill_form` | Fill named fields of a form and (by default) submit it, including hidden fields such as CSRF tokens |
+| `browser_wait_for_element` | Wait until a selector matches |
+| `browser_prepare_form_submission` | Create a session for a form that opens a new window |
+| `browser_validate_session` | Check that a session exists and has the expected content |
+| `get_accessibility_tree` | ARIA roles, accessible names and states for the current page (always listed in full mode) |
 
-### Web Development with CDP
-```json
-{
-  "method": "tools/call",
-  "params": {
-    "name": "cdp_evaluate_javascript",
-    "arguments": {
-      "expression": `
-        // Test React component rendering
-        const reactVersion = React.version;
-        const componentCount = document.querySelectorAll('[data-reactroot]').length;
-        const performance = window.performance.timing;
+Tools that act on an existing page return an error for an unknown `session_id`
+instead of silently creating a blank session; `"default"` always exists.
 
-        return {
-          reactVersion,
-          componentCount,
-          loadTime: performance.loadEventEnd - performance.navigationStart,
-          memoryUsage: performance.memory ? performance.memory.usedJSHeapSize : 'unavailable'
-        };
-      `,
-      "return_by_value": true,
-      "generate_preview": true
-    }
-  }
-}
-```
+### 🔍 Chrome DevTools Protocol (`THALORA_ENABLE_CDP`)
+| Tool | Description |
+|------|-------------|
+| `cdp_runtime_evaluate` | Evaluate JavaScript in a session's page (default session `"default"`) |
 
-### Automated Data Collection
+The other CDP tools (`cdp_dom_*`, `cdp_network_*`, `cdp_console_get_messages`,
+`cdp_page_screenshot`, `cdp_page_reload`) are currently backed by mock data and
+are only listed with `THALORA_ENABLE_CDP_EXPERIMENTAL=true`.
+
+### 🧠 AI memory (`THALORA_ENABLE_AI_MEMORY`, requires `THALORA_MASTER_PASSWORD`)
+| Tool | Description |
+|------|-------------|
+| `ai_memory_store_research` / `ai_memory_get_research` / `ai_memory_search_research` | Persistent research notes with tags and confidence scores |
+| `ai_memory_store_credentials` | Store credentials, encrypted with AES-256-GCM (Argon2id-derived key) |
+| `ai_memory_get_credentials` | Look up stored credentials; returns service, username and whether a password exists — never the secret (unless `THALORA_EXPOSE_PASSWORDS=true`) |
+| `ai_memory_store_bookmark` / `ai_memory_get_bookmarks` | Bookmarks with metadata |
+| `ai_memory_store_note` / `ai_memory_get_notes` | Categorized notes |
+
+### 🤖 BrainClaw aliases (`THALORA_PRESET=brainclaw`)
+| Tool | Description |
+|------|-------------|
+| `browser_read_url` | Navigate and return readable markdown in one call |
+| `browser_navigate` | Alias for `browser_navigate_to` |
+| `browser_click` | Alias for `browser_click_element` |
+| `browser_fill` | Fill one field by selector; `submit=true` also submits its form |
+| `browser_eval` | Alias for `cdp_runtime_evaluate` |
+| `browser_extract` | Alias for `snapshot_url` |
+| `browser_search` | `web_search` with sensible defaults |
+<!-- tools:end -->
+
+## 🧪 **Examples**
+
+### Read a page as markdown
 ```json
 {
   "method": "tools/call",
@@ -281,12 +242,32 @@ cargo check --lib --features wasm --no-default-features
     "arguments": {
       "url": "https://news.ycombinator.com",
       "wait_for_js": true,
-      "selector": ".storylink",
-      "extract_links": true,
-      "extract_images": false,
-      "custom_headers": {
-        "Accept": "text/html,application/xhtml+xml"
-      }
+      "extract_readable": true,
+      "format": "markdown"
+    }
+  }
+}
+```
+
+### Drive a page in a session
+```json
+{"method": "tools/call", "params": {"name": "browser_navigate_to", "arguments": {"url": "https://example.com/login", "session_id": "work"}}}
+{"method": "tools/call", "params": {"name": "browser_fill_form", "arguments": {"session_id": "work", "form_data": {"username": "me", "password": "…"}}}}
+{"method": "tools/call", "params": {"name": "cdp_runtime_evaluate", "arguments": {"session_id": "work", "expression": "document.title"}}}
+```
+
+### Store research
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "ai_memory_store_research",
+    "arguments": {
+      "key": "ai_trends",
+      "topic": "Emerging AI Architectures",
+      "summary": "Latest developments in transformer alternatives",
+      "tags": ["ai", "architecture"],
+      "confidence_score": 0.9
     }
   }
 }
@@ -371,7 +352,7 @@ Pages that rely heavily on these features (e.g. CSS-based icons via `::before`/`
 
 ### Security Features
 - **JavaScript Sandboxing**: 5-second timeouts, dangerous patterns blocked
-- **Encrypted Storage**: AI memory with XOR + base64 encryption
+- **Encrypted Storage**: AI memory credentials encrypted with AES-256-GCM (Argon2id key derivation from `THALORA_MASTER_PASSWORD`)
 - **Network Security**: TLS-only requests, header validation
 - **Memory Protection**: Controlled resource allocation
 
@@ -617,11 +598,13 @@ Our compatibility tests run against:
 - ✅ Core browser engine with JavaScript
 - ✅ Modern Web APIs implementation
 - ✅ AI memory system with AES-256-GCM encryption
-- ✅ MCP integration with 17+ tools
-- ✅ Chrome DevTools Protocol support
+- ✅ MCP server (stdio + streamable HTTP)
+- ✅ JavaScript evaluation via CDP `Runtime.evaluate` (other CDP domains experimental)
 - ✅ Security hardening (SSRF prevention, origin isolation, JS sandboxing)
 
 ### v0.3.0
+- 🔄 Real event loop: timers, microtasks, fetch/XHR settlement
+- 🔄 Agent-grade page snapshots with stable element refs, wait conditions and screenshots
 - 🔄 WebGPU implementation
 - 🔄 Advanced fingerprinting evasion
 - 🔄 Browser extensions support
