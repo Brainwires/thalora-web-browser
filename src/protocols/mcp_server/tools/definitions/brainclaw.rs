@@ -135,28 +135,6 @@ pub(crate) fn get_brainclaw_alias_tool_definitions() -> Vec<Value> {
                 "required": ["expression"]
             }
         }),
-        serde_json::json!({
-            "name": "browser_screenshot",
-            "description": "Capture a screenshot of the current browser page. Returns base64-encoded PNG. Alias for `cdp_page_screenshot`.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "session_id": {
-                        "type": "string",
-                        "description": "Browser session ID (optional)"
-                    },
-                    "format": {
-                        "type": "string",
-                        "enum": ["png", "jpeg"],
-                        "description": "Image format (default: png)"
-                    },
-                    "quality": {
-                        "type": "number",
-                        "description": "JPEG quality 0-100 (only used when format=jpeg, default: 80)"
-                    }
-                }
-            }
-        }),
         // ── Extraction / search aliases ──────────────────────────────────────────
         serde_json::json!({
             "name": "browser_extract",

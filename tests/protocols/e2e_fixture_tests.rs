@@ -534,3 +534,31 @@ fn e2e_fill_credential_never_reveals_the_secret() {
         text(&refused)
     );
 }
+
+#[test]
+fn e2e_screenshot_returns_a_png_image() {
+    use base64::Engine;
+
+    let (mut h, site) = fixture_harness();
+    call_ok(
+        &mut h,
+        "browser_navigate_to",
+        json!({"url": site.url("/index.html"), "session_id": "shot"}),
+    );
+    let resp = call(
+        &mut h,
+        "browser_screenshot",
+        json!({"session_id": "shot", "width": 800, "height": 600}),
+    );
+    assert!(!resp.is_error, "{}", text(&resp));
+    let image = resp
+        .content
+        .iter()
+        .find(|c| c["type"] == "image")
+        .expect("an image content block");
+    assert_eq!(image["mimeType"], "image/png");
+    let png = base64::engine::general_purpose::STANDARD
+        .decode(image["data"].as_str().unwrap())
+        .expect("valid base64");
+    assert_eq!(&png[..8], b"\x89PNG\r\n\x1a\n");
+}

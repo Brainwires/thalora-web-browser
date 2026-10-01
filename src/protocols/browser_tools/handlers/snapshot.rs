@@ -65,6 +65,62 @@ impl BrowserTools {
         }
     }
 
+    /// `browser_screenshot`: PNG of the current page from the layout engine.
+    pub async fn handle_screenshot(&self, params: Value) -> McpResponse {
+        use crate::engine::renderer::paint::ScreenshotOptions;
+        use base64::Engine;
+
+        let session_id = params
+            .get("session_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("default");
+        if let Err(e) = sanitize_session_id(session_id) {
+            return McpResponse::error(-32602, format!("Session ID validation failed: {}", e));
+        }
+        let defaults = ScreenshotOptions::default();
+        let dimension = |key: &str, default: u32, min: u64, max: u64| {
+            params
+                .get(key)
+                .and_then(|v| v.as_u64())
+                .map_or(default, |v| v.clamp(min, max) as u32)
+        };
+        let options = ScreenshotOptions {
+            width: dimension("width", defaults.width, 320, 2560),
+            height: dimension("height", defaults.height, 240, 4000),
+            full_page: params
+                .get("full_page")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false),
+        };
+
+        let browser = match self.get_session(session_id) {
+            Ok(browser) => browser,
+            Err(e) => return McpResponse::error(-32602, e),
+        };
+        let Ok(mut guard) = browser.lock() else {
+            return McpResponse::error(-1, "Failed to acquire browser lock".to_string());
+        };
+        match guard.screenshot_png(options) {
+            Ok(png) => {
+                let data = base64::engine::general_purpose::STANDARD.encode(&png);
+                McpResponse::success(json!([
+                    {"type": "image", "data": data, "mimeType": "image/png"},
+                    {
+                        "type": "text",
+                        "text": format!(
+                            "Screenshot of {} ({}x{}{}, approximate rendering)",
+                            guard.get_current_url().unwrap_or_default(),
+                            options.width,
+                            options.height,
+                            if options.full_page { ", full page" } else { "" }
+                        )
+                    }
+                ]))
+            }
+            Err(e) => McpResponse::error(-1, format!("Screenshot failed: {}", e)),
+        }
+    }
+
     /// If `params` has a `ref` from `browser_snapshot`, resolve it to a CSS
     /// selector and store it as `params["selector"]` (a ref takes precedence
     /// over a selector). Stale or unknown refs are reported as errors.

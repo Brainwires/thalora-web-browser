@@ -56,6 +56,31 @@ pub(crate) fn get_session_tool_definitions() -> Vec<Value> {
             }
         }),
         serde_json::json!({
+            "name": "browser_screenshot",
+            "description": "PNG screenshot of the current page, rendered by Thalora's own layout engine (approximate: boxes, colours, borders and text; images are shown as placeholders).",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "session_id": {
+                        "type": "string",
+                        "description": "Browser session ID (optional)"
+                    },
+                    "full_page": {
+                        "type": "boolean",
+                        "description": "Capture the whole page height instead of the viewport (default false)"
+                    },
+                    "width": {
+                        "type": "integer",
+                        "description": "Viewport width in px (default 1280, 320-2560)"
+                    },
+                    "height": {
+                        "type": "integer",
+                        "description": "Viewport height in px (default 800, 240-4000)"
+                    }
+                }
+            }
+        }),
+        serde_json::json!({
             "name": "browser_get_page_content",
             "description": "Get the current page content and URL from a browser session",
             "inputSchema": {

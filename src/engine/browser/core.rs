@@ -350,6 +350,24 @@ impl HeadlessWebBrowser {
         }
     }
 
+    /// Render the current page to PNG with the built-in layout engine
+    /// (including fetched external stylesheets).
+    pub fn screenshot_png(
+        &mut self,
+        options: crate::engine::renderer::paint::ScreenshotOptions,
+    ) -> Result<Vec<u8>> {
+        if self.current_content.is_empty() {
+            return Err(anyhow::anyhow!("No page loaded. Navigate to a page first."));
+        }
+        let layout = crate::engine::renderer::page_layout::compute_page_layout_with_css(
+            &self.current_content,
+            options.width as f32,
+            options.height as f32,
+            &self.external_stylesheets,
+        )?;
+        crate::engine::renderer::paint::render_png(&layout, options)
+    }
+
     /// Console messages logged by the current page (oldest first, at most 500).
     pub fn console_messages(
         &mut self,

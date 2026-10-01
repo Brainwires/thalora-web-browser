@@ -1735,7 +1735,7 @@ fn normalize_color(css: &str) -> String {
     }
 }
 
-fn parse_color_to_rgba(s: &str) -> Option<(u8, u8, u8, u8)> {
+pub(crate) fn parse_color_to_rgba(s: &str) -> Option<(u8, u8, u8, u8)> {
     // Hex: #rgb  #rgba  #rrggbb  #rrggbbaa
     if let Some(hex) = s.strip_prefix('#') {
         let chars: Vec<char> = hex.chars().collect();

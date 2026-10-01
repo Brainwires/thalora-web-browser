@@ -75,7 +75,6 @@ fn unimplemented_tools_hidden_by_default() {
         "page_to_pdf",
         "cdp_dom_get_document",
         "cdp_page_screenshot",
-        "browser_screenshot",
     ] {
         assert!(
             !names.iter().any(|n| n == hidden),

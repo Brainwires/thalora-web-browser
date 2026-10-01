@@ -190,6 +190,7 @@ against the server's tool registry by `tests/protocols/readme_tools_test.rs`.
 | `browser_navigate_back` / `browser_navigate_forward` | Move through session history |
 | `browser_refresh_page` | Reload the current page |
 | `browser_snapshot` | Compact page outline for agents: interactive elements with refs (`[ref=e12]`), headings, landmarks and text, within a token budget |
+| `browser_screenshot` | PNG screenshot from Thalora's own layout engine (approximate; images as placeholders) |
 | `browser_get_page_content` | Current URL and content of a session |
 | `browser_click_element` | Click an element by snapshot ref or CSS selector; submit buttons submit their form and links navigate unless `preventDefault()` is called |
 | `browser_type_text` | Type into an input (fires `input`/`change`) |

@@ -5,6 +5,7 @@ pub mod js_security;
 pub mod layout;
 pub mod layout_bridge;
 pub mod page_layout;
+pub mod paint;
 pub mod polyfills;
 pub mod security;
 pub mod styled_tree;

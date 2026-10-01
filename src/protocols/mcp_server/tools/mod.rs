@@ -264,7 +264,6 @@ const EXPERIMENTAL_CDP_TOOLS: &[&str] = &[
     "cdp_console_get_messages",
     "cdp_page_screenshot",
     "cdp_page_reload",
-    "browser_screenshot",
 ];
 
 fn is_experimental_cdp_tool(tool: &Value) -> bool {

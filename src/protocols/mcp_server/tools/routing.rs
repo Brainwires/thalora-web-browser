@@ -193,11 +193,7 @@ impl McpServer {
                     .evaluate_javascript(arguments, &mut self.cdp_server)
                     .await
             }
-            "browser_screenshot" => {
-                self.cdp_tools
-                    .take_screenshot(arguments, &mut self.cdp_server)
-                    .await
-            }
+            "browser_screenshot" => self.browser_tools.handle_screenshot(arguments).await,
             // Extraction / search
             "browser_extract" => self.handle_snapshot_url(arguments).await,
             "browser_search" => self.web_search(arguments).await,
