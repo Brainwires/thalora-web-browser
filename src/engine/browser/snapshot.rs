@@ -649,9 +649,9 @@ mod tests {
                 ..SnapshotOptions::default()
             },
         );
-        assert!(!s.text.contains("heading"));
-        assert!(!s.text.contains("- text"));
-        assert_eq!(s.ref_count, 7);
+        assert!(!s.text.contains("heading"), "{}", s.text);
+        assert!(!s.text.contains("- text \""), "{}", s.text);
+        assert_eq!(s.ref_count, 7, "{}", s.text);
     }
 
     #[test]
@@ -660,13 +660,16 @@ mod tests {
         let s = snap(
             &mut table,
             SnapshotOptions {
-                max_tokens: 100,
+                max_tokens: 80,
                 interactive_only: false,
             },
         );
-        assert!(s.truncated);
-        assert!(!s.text.contains("- text"), "{}", s.text);
-        assert!(s.text.len() <= 100 * 4 + 120, "{}", s.text);
+        assert!(s.truncated, "{}", s.text);
+        // Text and structure go first; interactive refs survive
+        assert!(!s.text.contains("- text \""), "{}", s.text);
+        assert!(!s.text.contains("- heading"), "{}", s.text);
+        assert!(s.text.contains("[ref=e1]"), "{}", s.text);
+        assert!(s.text.len() <= 80 * 4 + 120, "{}", s.text);
     }
 
     #[test]

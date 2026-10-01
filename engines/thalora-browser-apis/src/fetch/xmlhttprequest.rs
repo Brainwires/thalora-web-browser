@@ -20,7 +20,6 @@ use boa_gc::{Finalize, Trace};
 use reqwest;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use url::Url;
 
 /// JavaScript `XMLHttpRequest` constructor implementation.
 #[derive(Debug, Copy, Clone)]
@@ -180,8 +179,9 @@ impl XmlHttpRequest {
         };
 
         // Validate URL
-        Url::parse(&url)
-            .map_err(|_| JsNativeError::syntax().with_message(format!("Invalid URL: {}", url)))?;
+        let url = crate::page_url::resolve_url(context, &url)
+            .ok_or_else(|| JsNativeError::syntax().with_message(format!("Invalid URL: {}", url)))?
+            .to_string();
 
         // Validate method
         match method.as_str() {
@@ -443,7 +443,7 @@ impl XmlHttpRequest {
         }
 
         // Execute the request - collect all async results before borrowing context
-        let send_result = request_builder.send().await;
+        let send_result = crate::net::io(request_builder.send()).await;
 
         match send_result {
             Ok(response) => {
@@ -467,7 +467,7 @@ impl XmlHttpRequest {
                 }
 
                 // Await body without holding context borrow
-                let body_result = response.text().await;
+                let body_result = crate::net::io(response.text()).await;
 
                 // Now borrow context for the sync operations
                 let context = &mut *context.borrow_mut();

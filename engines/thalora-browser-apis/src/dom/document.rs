@@ -414,6 +414,26 @@ impl DocumentData {
 
     pub fn set_title(&self, title: &str) {
         *self.title.lock().unwrap() = title.to_string();
+        // With a tree, document.title writes the <title> element
+        if let Some(tree) = self.tree() {
+            let mut tree = tree.borrow_mut();
+            let doc = tree.document();
+            let existing = tree.elements_by_tag(doc, "title").into_iter().next();
+            let title_node = match existing {
+                Some(node) => Some(node),
+                None => {
+                    let parent = tree.html_child("head").or_else(|| tree.document_element());
+                    parent.map(|parent| {
+                        let node = tree.create_element("title");
+                        let _ = tree.append(parent, node);
+                        node
+                    })
+                }
+            };
+            if let Some(node) = title_node {
+                let _ = tree.set_text_content(node, title);
+            }
+        }
     }
 
     pub fn set_html_content(&self, html: &str) {
@@ -472,6 +492,16 @@ impl DocumentData {
     }
 
     pub fn get_title(&self) -> String {
+        // With a tree, document.title reads the first <title> element
+        // (whitespace collapsed, per spec)
+        if let Some(tree) = self.tree() {
+            let tree = tree.borrow();
+            let doc = tree.document();
+            if let Some(node) = tree.elements_by_tag(doc, "title").into_iter().next() {
+                let text = tree.text_content(node).unwrap_or_default();
+                return text.split_ascii_whitespace().collect::<Vec<_>>().join(" ");
+            }
+        }
         self.title.lock().unwrap().clone()
     }
 

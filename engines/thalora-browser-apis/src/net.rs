@@ -109,6 +109,37 @@ pub fn redirect_policy() -> reqwest::redirect::Policy {
 }
 
 /// An async client for page requests with the redirect checks applied.
+/// Run a network future (a reqwest send or body read) on Thalora's shared
+/// network runtime and return a future for its output.
+///
+/// Page JS runs on a single-threaded runtime whose event loop is pumped
+/// synchronously (`ThaloraJobExecutor::pump`); while it pumps, that
+/// runtime's IO driver cannot run, so reqwest futures polled there would
+/// never complete. The returned future only checks the spawned task for
+/// completion, which works under any polling.
+pub fn io<F>(future: F) -> impl std::future::Future<Output = F::Output>
+where
+    F: std::future::Future + Send + 'static,
+    F::Output: Send + 'static,
+{
+    static RUNTIME: std::sync::OnceLock<tokio::runtime::Runtime> = std::sync::OnceLock::new();
+    let runtime = RUNTIME.get_or_init(|| {
+        tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .thread_name("thalora-net")
+            .enable_all()
+            .build()
+            .expect("failed to start the network runtime")
+    });
+    let task = runtime.spawn(future);
+    async move {
+        match task.await {
+            Ok(output) => output,
+            Err(e) => std::panic::resume_unwind(e.into_panic()),
+        }
+    }
+}
+
 pub fn page_client() -> reqwest::Client {
     reqwest::Client::builder()
         .redirect(redirect_policy())

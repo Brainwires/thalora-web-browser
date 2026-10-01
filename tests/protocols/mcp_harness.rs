@@ -100,10 +100,12 @@ impl McpTestHarness {
         let mut process = cmd
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
+            // Never pipe stderr without reading it: the server logs a lot,
+            // and a full pipe buffer blocks it mid-request
             .stderr(if config.debug_output {
                 Stdio::inherit()
             } else {
-                Stdio::piped()
+                Stdio::null()
             })
             .spawn()
             .context("Failed to spawn MCP server process")?;

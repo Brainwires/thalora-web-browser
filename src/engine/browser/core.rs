@@ -336,6 +336,11 @@ impl HeadlessWebBrowser {
         // for how the old one is released).
         self.reset_renderer();
         if let Some(renderer) = self.renderer.as_mut()
+            && let Some(url) = self.current_url.as_deref()
+        {
+            renderer.set_page_url(url);
+        }
+        if let Some(renderer) = self.renderer.as_mut()
             && let Err(e) = renderer.update_document_html(&content)
         {
             eprintln!("WARNING: Failed to update document HTML for scripts: {}", e);

@@ -14,6 +14,7 @@ fn fixture_harness() -> (McpTestHarness, FixtureServer) {
     let mut env = HashMap::new();
     env.insert("THALORA_PRESET".to_string(), "brainclaw".to_string());
     env.insert("THALORA_ALLOW_LOOPBACK".to_string(), "1".to_string());
+    env.insert("THALORA_DISABLE_RATE_LIMIT".to_string(), "1".to_string());
     let harness = create_harness_with_raw_env(env).expect("Failed to create harness");
     (harness, server)
 }
@@ -76,8 +77,9 @@ fn e2e_snapshot_url_returns_page_text() {
         "snapshot_url",
         json!({"url": site.url("/index.html"), "wait_for_js": false}),
     );
+    // Basic extraction: metadata and links
     assert!(
-        snapshot.contains("Thalora Fixture Site"),
+        snapshot.contains("Thalora Fixture Index") && snapshot.contains("Login form"),
         "snapshot output: {snapshot}"
     );
 }

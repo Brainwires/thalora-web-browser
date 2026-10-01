@@ -160,6 +160,9 @@ impl super::super::HeadlessWebBrowser {
         // shouldn't abort navigation.
         if let Some(ref mut renderer) = self.renderer {
             eprintln!("🔍 DEBUG: Updating document HTML via renderer");
+            if let Some(url) = self.current_url.as_deref() {
+                renderer.set_page_url(url);
+            }
             if let Err(e) = renderer.update_document_html(&content) {
                 eprintln!(
                     "WARNING: Failed to update document HTML: {} (continuing)",
@@ -911,6 +914,11 @@ impl super::super::HeadlessWebBrowser {
         // Update document HTML in the renderer if available.
         // Non-fatal: the page content is already loaded; a renderer update failure
         // shouldn't abort navigation.
+        if let Some(ref mut renderer) = self.renderer
+            && let Some(url) = self.current_url.as_deref()
+        {
+            renderer.set_page_url(url);
+        }
         if let Some(ref mut renderer) = self.renderer
             && let Err(e) = renderer.update_document_html(&content)
         {

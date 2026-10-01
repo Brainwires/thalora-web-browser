@@ -293,6 +293,14 @@ impl RustRenderer {
         }
     }
 
+    /// Tell the page its URL (`location`, `document.URL`); relative URLs in
+    /// fetch/XHR resolve against it.
+    pub fn set_page_url(&mut self, url: &str) {
+        if let Some(ctx) = &mut self.js_context {
+            thalora_browser_apis::page_url::set_page_url(ctx, url);
+        }
+    }
+
     /// Update the document's HTML content to enable real DOM querying
     pub fn update_document_html(&mut self, html_content: &str) -> Result<()> {
         use thalora_browser_apis::boa_engine::js_string;

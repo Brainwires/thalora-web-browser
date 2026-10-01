@@ -76,12 +76,14 @@ impl RateLimiter {
     pub fn new() -> Self {
         let mut configs = HashMap::new();
 
-        // Navigation tools - most expensive (HTTP requests)
+        // Navigation tools - most expensive (HTTP requests). This bucket
+        // also covers click/fill/submit, so the burst must fit a short
+        // agent flow (fill, fill, click, navigate, ...).
         configs.insert(
             "navigation".to_string(),
             RateLimitConfig {
-                requests_per_minute: 10,
-                burst_size: 3,
+                requests_per_minute: 30,
+                burst_size: 10,
             },
         );
 
@@ -160,6 +162,9 @@ impl RateLimiter {
     /// Check if a request is allowed for the given category
     /// Returns Ok(()) if allowed, Err(wait_duration) if rate limited
     pub fn check(&self, category: &str) -> Result<(), Duration> {
+        if rate_limit_disabled() {
+            return Ok(());
+        }
         let config = self
             .configs
             .get(category)
@@ -253,6 +258,13 @@ impl Default for RateLimiter {
     }
 }
 
+/// `THALORA_DISABLE_RATE_LIMIT=1` turns rate limiting off (for trusted
+/// local agents and the end-to-end tests).
+fn rate_limit_disabled() -> bool {
+    std::env::var("THALORA_DISABLE_RATE_LIMIT")
+        .is_ok_and(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -263,7 +275,7 @@ mod tests {
         let limiter = RateLimiter::new();
 
         // Should allow burst size requests immediately
-        for _ in 0..3 {
+        for _ in 0..10 {
             assert!(limiter.check("navigation").is_ok());
         }
     }
@@ -273,7 +285,7 @@ mod tests {
         let limiter = RateLimiter::new();
 
         // Exhaust burst
-        for _ in 0..3 {
+        for _ in 0..10 {
             let _ = limiter.check("navigation");
         }
 

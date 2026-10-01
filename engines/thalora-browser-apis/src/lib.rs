@@ -57,6 +57,7 @@ pub mod event_loop;
 // Outbound request safety (SSRF protection for page requests)
 #[cfg(feature = "native")]
 pub mod net;
+pub mod page_url;
 
 // WebRTC APIs
 pub mod webrtc;

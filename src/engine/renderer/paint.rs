@@ -65,10 +65,26 @@ pub fn render_png(layout: &LayoutResult, options: ScreenshotOptions) -> Result<V
         .map_err(|e| anyhow!("PNG encoding failed: {e}"))
 }
 
+/// Lowest edge of `element` or any descendant (absolute coordinates).
+fn content_bottom(element: &ElementLayout) -> f64 {
+    element
+        .children
+        .iter()
+        .map(content_bottom)
+        .fold(element.y + element.height, f64::max)
+}
+
 /// Render `layout` to a pixmap (white background).
 pub fn render(layout: &LayoutResult, options: ScreenshotOptions) -> Result<Pixmap> {
     let height = if options.full_page {
-        (layout.height.ceil() as u32).clamp(options.height, MAX_FULL_PAGE_HEIGHT)
+        // LayoutResult::height is the viewport; the page is as tall as its
+        // lowest element
+        let bottom = layout
+            .elements
+            .iter()
+            .map(content_bottom)
+            .fold(layout.height, f64::max);
+        (bottom.ceil() as u32).clamp(options.height, MAX_FULL_PAGE_HEIGHT)
     } else {
         options.height
     };

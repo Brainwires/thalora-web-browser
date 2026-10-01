@@ -238,6 +238,9 @@ impl BuiltInConstructor for EventSource {
         let url_str = url_string.to_std_string_escaped();
 
         // Validate URL
+        let url_str = crate::page_url::resolve_url(context, &url_str)
+            .map(|u| u.to_string())
+            .unwrap_or(url_str);
         let _parsed_url = Url::parse(&url_str).map_err(|_| {
             JsNativeError::syntax().with_message("Invalid URL provided to EventSource constructor")
         })?;
@@ -330,7 +333,7 @@ impl EventSource {
             }
 
             // Make the request
-            match request_builder.send().await {
+            match crate::net::io(request_builder.send()).await {
                 Ok(response) => {
                     // Check if response is successful
                     if response.status().is_success() {
