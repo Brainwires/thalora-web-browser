@@ -82,6 +82,13 @@ fn fetch(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<J
             .into());
     }
 
+    // SSRF: pages may not reach internal/private addresses
+    if let Err(reason) = crate::net::check_url(&url_string) {
+        eprintln!("🔒 fetch() blocked: {}", reason);
+        let error = JsNativeError::typ().with_message(format!("Failed to fetch: {reason}"));
+        return Ok(JsPromise::reject(error, context)?.into());
+    }
+
     // Parse init options
     let fetch_init = if !init.is_undefined() {
         parse_fetch_init(init, context)?
@@ -119,8 +126,8 @@ fn fetch(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<J
     // Enqueue an async job to perform the actual HTTP request
     context.enqueue_job(
         NativeAsyncJob::new(async move |context| {
-            // Perform HTTP request in the background
-            let client = reqwest::Client::new();
+            // Perform HTTP request in the background (redirects re-checked)
+            let client = crate::net::page_client();
 
             // CORS preflight for non-simple cross-origin requests
             // Check preflight cache first

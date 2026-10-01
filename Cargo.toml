@@ -229,7 +229,7 @@ desktop = ["core", "_bin", "http-transport"]
 
 # Allow THALORA_ALLOW_LOOPBACK=1 to permit navigation to loopback addresses in
 # release builds (debug builds honour it without this feature). Test-only.
-test-hooks = []
+test-hooks = ["thalora-browser-apis/test-hooks"]
 
 # Full native build — all platform-specific dependencies (may require ffmpeg)
 native = [

@@ -5,6 +5,7 @@
 //   GET  /<file>            static file from tests/fixtures/site
 //   GET  /api/data?delay=MS JSON payload after an optional delay
 //   *    /echo              HTML page echoing the method, query and body
+//   GET  /redirect?to=URL   302 redirect to URL (percent-decoded)
 //
 // The MCP server must be started with THALORA_ALLOW_LOOPBACK=1 to reach it.
 
@@ -70,6 +71,20 @@ fn handle(mut stream: TcpStream) -> std::io::Result<()> {
     let body = String::from_utf8_lossy(&body).to_string();
 
     let (path, query) = target.split_once('?').unwrap_or((target.as_str(), ""));
+
+    // GET /redirect?to=<url-encoded URL> -> 302 to that URL
+    if path == "/redirect" {
+        let to = query
+            .split('&')
+            .find_map(|kv| kv.strip_prefix("to="))
+            .map(percent_decode)
+            .unwrap_or_else(|| "/".to_string());
+        write!(
+            stream,
+            "HTTP/1.1 302 Found\r\nLocation: {to}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+        )?;
+        return stream.flush();
+    }
 
     let (status, content_type, payload) = match path {
         "/api/data" => {
@@ -139,4 +154,23 @@ fn escape(s: &str) -> String {
         .replace('<', "&lt;")
         .replace('>', "&gt;")
         .replace('"', "&quot;")
+}
+
+fn percent_decode(s: &str) -> String {
+    let bytes = s.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%'
+            && i + 2 < bytes.len()
+            && let Ok(byte) = u8::from_str_radix(&s[i + 1..i + 3], 16)
+        {
+            out.push(byte);
+            i += 3;
+        } else {
+            out.push(bytes[i]);
+            i += 1;
+        }
+    }
+    String::from_utf8_lossy(&out).to_string()
 }

@@ -73,6 +73,11 @@ impl HeadlessWebBrowser {
         // Configure client with enhanced stealth capabilities
         // Use centralized USER_AGENT constant for consistency
         let client = reqwest::Client::builder()
+            // SSRF: only connect to public addresses, re-check redirects
+            .dns_resolver(Arc::new(
+                crate::engine::security::ssrf::http::PublicOnlyResolver,
+            ))
+            .redirect(crate::engine::security::ssrf::http::redirect_policy())
             .cookie_provider(Arc::clone(&cookie_store))
             .timeout(std::time::Duration::from_secs(30))
             .user_agent(super::USER_AGENT)

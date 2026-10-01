@@ -414,11 +414,19 @@ impl XmlHttpRequest {
         body: Option<String>,
         context: &RefCell<&mut Context>,
     ) -> JsResult<()> {
+        // SSRF: pages may not reach internal/private addresses
+        if let Err(reason) = crate::net::check_url(&url) {
+            eprintln!("🔒 XMLHttpRequest blocked: {}", reason);
+            return Err(JsNativeError::typ()
+                .with_message(format!("XMLHttpRequest blocked: {reason}"))
+                .into());
+        }
+
         // Update state to HEADERS_RECEIVED
         Self::update_ready_state(&xhr_obj, 2, *context.borrow_mut())?;
 
-        // Perform HTTP request (no context borrow needed)
-        let client = reqwest::Client::new();
+        // Perform HTTP request (no context borrow needed; redirects re-checked)
+        let client = crate::net::page_client();
         let mut request_builder = client.request(
             reqwest::Method::from_bytes(method.as_bytes()).unwrap_or(reqwest::Method::GET),
             &url,

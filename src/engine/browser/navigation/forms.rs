@@ -280,6 +280,9 @@ impl super::super::HeadlessWebBrowser {
         let mut form_url = url::Url::parse(&current_url)?.join(&action)?;
         form_url.set_fragment(None);
 
+        // SSRF: a page-controlled form action must not target internal hosts
+        crate::engine::security::SsrfProtection::new().is_safe_url(form_url.as_str())?;
+
         let filled = self.filled_values_for_current_page();
         merge_entries(&mut entries, filled);
         merge_entries(&mut entries, form_data);

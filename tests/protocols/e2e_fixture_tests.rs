@@ -562,3 +562,62 @@ fn e2e_screenshot_returns_a_png_image() {
         .expect("valid base64");
     assert_eq!(&png[..8], b"\x89PNG\r\n\x1a\n");
 }
+
+// ── SSRF hardening ──────────────────────────────────────────────────────────
+
+#[test]
+fn e2e_redirects_into_private_networks_are_blocked() {
+    let (mut h, site) = fixture_harness();
+    for target in [
+        "http%3A%2F%2F169.254.169.254%2Flatest%2Fmeta-data",
+        "http%3A%2F%2F10.0.0.1%2F",
+        "http%3A%2F%2F%5Bfd00%3A%3A1%5D%2F",
+    ] {
+        let resp = call(
+            &mut h,
+            "browser_navigate_to",
+            json!({"url": site.url(&format!("/redirect?to={target}")), "session_id": "ssrf"}),
+        );
+        assert!(
+            resp.is_error,
+            "redirect to {target} should be blocked: {}",
+            text(&resp)
+        );
+    }
+
+    // A redirect to another public-or-allowed page still works
+    let ok = call_ok(
+        &mut h,
+        "browser_navigate_to",
+        json!({
+            "url": site.url("/redirect?to=%2Findex.html"),
+            "session_id": "ssrf"
+        }),
+    );
+    assert!(ok.contains("Thalora Fixture Site"), "{ok}");
+}
+
+#[test]
+fn e2e_page_fetch_to_metadata_endpoint_is_blocked() {
+    let (mut h, site) = fixture_harness();
+    navigate_with_js(&mut h, site.url("/index.html"), "ssrf-fetch");
+    let result = eval_in(
+        &mut h,
+        "ssrf-fetch",
+        "(function () { try { fetch('http://169.254.169.254/latest/meta-data').then(function () { window.ssrfResult = 'fetched'; }, function (e) { window.ssrfResult = 'blocked: ' + e.message; }); return 'started'; } catch (e) { return 'threw: ' + e.message; } })()",
+    );
+    assert!(
+        result.contains("started") || result.contains("threw"),
+        "{result}"
+    );
+    call_ok(
+        &mut h,
+        "browser_wait",
+        json!({"session_id": "ssrf-fetch", "network_idle": true, "timeout_ms": 2000}),
+    );
+    let outcome = eval_in(&mut h, "ssrf-fetch", "String(window.ssrfResult)");
+    assert!(
+        outcome.contains("blocked") || result.contains("threw"),
+        "metadata fetch was not blocked: {outcome}"
+    );
+}

@@ -376,7 +376,13 @@ impl super::super::HeadlessWebBrowser {
                 let fetch_futures: Vec<_> = async_scripts
                     .iter()
                     .map(|(url, _)| {
-                        let client = reqwest::Client::new();
+                        let client = reqwest::Client::builder()
+                            .dns_resolver(std::sync::Arc::new(
+                                crate::engine::security::ssrf::http::PublicOnlyResolver,
+                            ))
+                            .redirect(crate::engine::security::ssrf::http::redirect_policy())
+                            .build()
+                            .unwrap_or_default();
                         let url = url.clone();
                         async move {
                             let result = client

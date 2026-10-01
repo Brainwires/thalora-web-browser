@@ -25,6 +25,9 @@ native = [
     "boa_engine/native",
 ]
 
+# Allow THALORA_ALLOW_LOOPBACK in release builds (test fixtures only)
+test-hooks = []
+
 # WASM build - excludes native-only dependencies
 wasm = [
     "boa_engine/wasm",
