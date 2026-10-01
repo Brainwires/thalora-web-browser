@@ -32,14 +32,20 @@ pub fn set_page_url(context: &mut Context, url: &str) {
     }
 }
 
-/// The page URL of `context` (`location.href`), if one has been set.
+/// The page (or worker script) URL of `context` (`location.href`), if set.
 pub fn page_url(context: &mut Context) -> Option<Url> {
     let global = context.global_object();
     let location = global.get(js_string!("location"), context).ok()?;
-    let href = location
-        .as_object()?
-        .downcast_ref::<LocationData>()
-        .map(|data| data.href().to_string())?;
+    let location = location.as_object()?;
+    let href = match location.downcast_ref::<LocationData>() {
+        Some(data) => data.href().to_string(),
+        // Worker locations (WorkerLocation) are plain objects with `href`
+        None => location
+            .get(js_string!("href"), context)
+            .ok()?
+            .as_string()?
+            .to_std_string_escaped(),
+    };
     Url::parse(&href).ok().filter(|u| u.scheme() != "about")
 }
 
