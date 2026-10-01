@@ -80,15 +80,12 @@ impl std::fmt::Debug for FileSystemSyncAccessHandle {
 }
 
 impl FileSystemSyncAccessHandle {
-    pub fn open(
-        backend: Arc<OpfsBackend>,
-        virtual_path: PathBuf,
-    ) -> Result<Self, SyncOpenError> {
+    pub fn open(backend: Arc<OpfsBackend>, virtual_path: PathBuf) -> Result<Self, SyncOpenError> {
         let canonical = backend
             .resolve(&virtual_path)
             .map_err(|_| SyncOpenError::PathInvalid)?;
-        let lock = OpfsExclusiveLock::acquire(canonical.clone())
-            .ok_or(SyncOpenError::AlreadyLocked)?;
+        let lock =
+            OpfsExclusiveLock::acquire(canonical.clone()).ok_or(SyncOpenError::AlreadyLocked)?;
         let file = backend
             .open_file_rw(&virtual_path, true)
             .map_err(SyncOpenError::Io)?;
@@ -267,7 +264,9 @@ impl FileSystemSyncAccessHandle {
         let mut tmp = vec![0u8; max_len];
         let bytes_read = match file.read(&mut tmp) {
             Ok(n) => n,
-            Err(e) => return reject_with(super::errors::map_io_error(&e), &format!("{e}"), context),
+            Err(e) => {
+                return reject_with(super::errors::map_io_error(&e), &format!("{e}"), context);
+            }
         };
         drop(inner);
         if let Some(mut data) = buf_handle.data_mut() {
@@ -312,7 +311,9 @@ impl FileSystemSyncAccessHandle {
         }
         let written = match file.write(&bytes) {
             Ok(n) => n,
-            Err(e) => return reject_with(super::errors::map_io_error(&e), &format!("{e}"), context),
+            Err(e) => {
+                return reject_with(super::errors::map_io_error(&e), &format!("{e}"), context);
+            }
         };
         // Mark variables used to silence dead-code warnings.
         let _ = &inner.backend;

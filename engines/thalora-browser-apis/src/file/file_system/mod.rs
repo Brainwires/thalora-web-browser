@@ -281,11 +281,7 @@ impl IntrinsicObject for FileSystemHandle {
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
             .method(Self::is_same_entry, js_string!("isSameEntry"), 1)
             .method(Self::query_permission, js_string!("queryPermission"), 0)
-            .method(
-                Self::request_permission,
-                js_string!("requestPermission"),
-                0,
-            )
+            .method(Self::request_permission, js_string!("requestPermission"), 0)
             .build();
     }
 
@@ -320,9 +316,8 @@ impl FileSystemHandle {
         args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        let this_path = handle_path(this).ok_or_else(|| {
-            JsNativeError::typ().with_message("'this' is not a FileSystemHandle")
-        })?;
+        let this_path = handle_path(this)
+            .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a FileSystemHandle"))?;
         let other = args.get_or_undefined(0);
         let other_obj = other.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("Argument is not a FileSystemHandle")
@@ -345,9 +340,8 @@ impl FileSystemHandle {
         args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        let (is_opfs, path, _) = handle_meta(this).ok_or_else(|| {
-            JsNativeError::typ().with_message("'this' is not a FileSystemHandle")
-        })?;
+        let (is_opfs, path, _) = handle_meta(this)
+            .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a FileSystemHandle"))?;
 
         let mode = parse_permission_mode(args.first(), context);
 
@@ -372,9 +366,8 @@ impl FileSystemHandle {
         args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        let (is_opfs, path, _) = handle_meta(this).ok_or_else(|| {
-            JsNativeError::typ().with_message("'this' is not a FileSystemHandle")
-        })?;
+        let (is_opfs, path, _) = handle_meta(this)
+            .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a FileSystemHandle"))?;
         let mode = parse_permission_mode(args.first(), context);
 
         let state = if is_opfs {
@@ -475,9 +468,19 @@ impl BuiltInObject for FileSystemFileHandle {
 impl IntrinsicObject for FileSystemFileHandle {
     fn init(realm: &Realm) {
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
-            .inherits(Some(realm.intrinsics().constructors().file_system_handle().prototype()))
+            .inherits(Some(
+                realm
+                    .intrinsics()
+                    .constructors()
+                    .file_system_handle()
+                    .prototype(),
+            ))
             .method(Self::is_same_entry_proxy, js_string!("isSameEntry"), 1)
-            .method(Self::query_permission_proxy, js_string!("queryPermission"), 0)
+            .method(
+                Self::query_permission_proxy,
+                js_string!("queryPermission"),
+                0,
+            )
             .method(
                 Self::request_permission_proxy,
                 js_string!("requestPermission"),
@@ -490,7 +493,11 @@ impl IntrinsicObject for FileSystemFileHandle {
                 js_string!("createSyncAccessHandle"),
                 0,
             )
-            .property(js_string!("kind"), JsString::from("file"), boa_engine::property::Attribute::CONFIGURABLE)
+            .property(
+                js_string!("kind"),
+                JsString::from("file"),
+                boa_engine::property::Attribute::CONFIGURABLE,
+            )
             .build();
     }
 
@@ -564,7 +571,9 @@ impl FileSystemFileHandle {
                             .ok()
                             .and_then(|m| m.modified().ok())
                             .and_then(|t| {
-                                t.duration_since(std::time::UNIX_EPOCH).ok().map(|d| d.as_millis() as u64)
+                                t.duration_since(std::time::UNIX_EPOCH)
+                                    .ok()
+                                    .map(|d| d.as_millis() as u64)
                             })
                             .unwrap_or(0);
                         (name, bytes, modified)
@@ -617,7 +626,10 @@ impl FileSystemFileHandle {
             let file_handle = obj.downcast_ref::<Self>().ok_or_else(|| {
                 JsNativeError::typ().with_message("'this' is not a FileSystemFileHandle")
             })?;
-            match (&file_handle.handle.backend, &file_handle.handle.virtual_path) {
+            match (
+                &file_handle.handle.backend,
+                &file_handle.handle.virtual_path,
+            ) {
                 (Some(b), p) => (b.clone(), p.clone()),
                 _ => {
                     return reject_with(
@@ -759,23 +771,41 @@ impl BuiltInObject for FileSystemDirectoryHandle {
 impl IntrinsicObject for FileSystemDirectoryHandle {
     fn init(realm: &Realm) {
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
-            .inherits(Some(realm.intrinsics().constructors().file_system_handle().prototype()))
+            .inherits(Some(
+                realm
+                    .intrinsics()
+                    .constructors()
+                    .file_system_handle()
+                    .prototype(),
+            ))
             .method(Self::is_same_entry_proxy, js_string!("isSameEntry"), 1)
-            .method(Self::query_permission_proxy, js_string!("queryPermission"), 0)
+            .method(
+                Self::query_permission_proxy,
+                js_string!("queryPermission"),
+                0,
+            )
             .method(
                 Self::request_permission_proxy,
                 js_string!("requestPermission"),
                 0,
             )
             .method(Self::get_file_handle, js_string!("getFileHandle"), 1)
-            .method(Self::get_directory_handle, js_string!("getDirectoryHandle"), 1)
+            .method(
+                Self::get_directory_handle,
+                js_string!("getDirectoryHandle"),
+                1,
+            )
             .method(Self::remove_entry, js_string!("removeEntry"), 1)
             .method(Self::resolve, js_string!("resolve"), 1)
             .method(Self::keys, js_string!("keys"), 0)
             .method(Self::values, js_string!("values"), 0)
             .method(Self::entries, js_string!("entries"), 0)
             .method(Self::async_iterator, JsSymbol::async_iterator(), 0)
-            .property(js_string!("kind"), JsString::from("directory"), boa_engine::property::Attribute::CONFIGURABLE)
+            .property(
+                js_string!("kind"),
+                JsString::from("directory"),
+                boa_engine::property::Attribute::CONFIGURABLE,
+            )
             .build();
     }
 
@@ -856,7 +886,11 @@ impl FileSystemDirectoryHandle {
                 JsNativeError::typ().with_message("'this' is not a FileSystemDirectoryHandle")
             })?;
             match &dir.handle.backend {
-                Some(b) => (b.clone(), dir.handle.virtual_path.clone(), dir.handle.is_opfs),
+                Some(b) => (
+                    b.clone(),
+                    dir.handle.virtual_path.clone(),
+                    dir.handle.is_opfs,
+                ),
                 None => {
                     return legacy_get_file_handle(&dir.handle.path, &name, context);
                 }
@@ -928,7 +962,11 @@ impl FileSystemDirectoryHandle {
                 JsNativeError::typ().with_message("'this' is not a FileSystemDirectoryHandle")
             })?;
             match &dir.handle.backend {
-                Some(b) => (b.clone(), dir.handle.virtual_path.clone(), dir.handle.is_opfs),
+                Some(b) => (
+                    b.clone(),
+                    dir.handle.virtual_path.clone(),
+                    dir.handle.is_opfs,
+                ),
                 None => {
                     let subdir = dir.handle.path.join(&name);
                     let _ = vfs::fs::write(subdir.join(".keep"), b"");
@@ -1019,9 +1057,11 @@ impl FileSystemDirectoryHandle {
                 Some(b) => (b.clone(), dir.handle.virtual_path.clone()),
                 None => {
                     let (promise, resolvers) = JsPromise::new_pending(context);
-                    resolvers
-                        .resolve
-                        .call(&JsValue::undefined(), &[JsValue::undefined()], context)?;
+                    resolvers.resolve.call(
+                        &JsValue::undefined(),
+                        &[JsValue::undefined()],
+                        context,
+                    )?;
                     return Ok(JsValue::from(promise));
                 }
             }
@@ -1097,8 +1137,7 @@ impl FileSystemDirectoryHandle {
         let result = match other_path {
             Some(other) => match other.strip_prefix(&parent_virtual) {
                 Ok(rel) => {
-                    let arr =
-                        boa_engine::builtins::array::Array::array_create(0, None, context)?;
+                    let arr = boa_engine::builtins::array::Array::array_create(0, None, context)?;
                     let mut idx = 0u32;
                     for comp in rel.components() {
                         if let std::path::Component::Normal(s) = comp {
@@ -1206,11 +1245,7 @@ impl std::ops::Deref for FileSystemDirectoryHandle {
 }
 
 // Legacy non-OPFS getFileHandle (called when `backend` is None — picker pathway).
-fn legacy_get_file_handle(
-    parent: &Path,
-    name: &str,
-    context: &mut Context,
-) -> JsResult<JsValue> {
+fn legacy_get_file_handle(parent: &Path, name: &str, context: &mut Context) -> JsResult<JsValue> {
     let file_path = parent.join(name);
     let new_handle = FileSystemFileHandle::new(name.to_string(), file_path);
     let handle_obj = JsObject::from_proto_and_data_with_shared_shape(
@@ -1292,7 +1327,10 @@ pub fn show_directory_picker(
     context: &mut Context,
 ) -> JsResult<JsValue> {
     let dir_path = PathBuf::from("/documents");
-    let _ = vfs::fs::write(dir_path.join("readme.txt"), b"Welcome to the documents directory!");
+    let _ = vfs::fs::write(
+        dir_path.join("readme.txt"),
+        b"Welcome to the documents directory!",
+    );
     let _ = vfs::fs::write(dir_path.join("notes.txt"), b"Sample notes file.");
     let dir_handle = FileSystemDirectoryHandle::new("documents".to_string(), dir_path);
     let dir_handle_obj = JsObject::from_proto_and_data_with_shared_shape(

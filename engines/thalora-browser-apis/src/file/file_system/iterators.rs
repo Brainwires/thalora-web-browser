@@ -78,11 +78,7 @@ pub fn build_iterator(
         is_opfs: dir.is_opfs,
     };
 
-    let proto = context
-        .intrinsics()
-        .constructors()
-        .object()
-        .prototype();
+    let proto = context.intrinsics().constructors().object().prototype();
     let iter_obj = JsObject::from_proto_and_data(Some(proto), state);
 
     let next_fn = BuiltInBuilder::callable(context.realm(), iterator_next)
@@ -165,8 +161,7 @@ fn iterator_return(_this: &JsValue, _args: &[JsValue], context: &mut Context) ->
 }
 
 fn resolved_iter_result(value: JsValue, done: bool, context: &mut Context) -> JsResult<JsValue> {
-    let result =
-        boa_engine::builtins::iterable::create_iter_result_object(value, done, context);
+    let result = boa_engine::builtins::iterable::create_iter_result_object(value, done, context);
     let (promise, resolvers) = JsPromise::new_pending(context);
     resolvers
         .resolve
