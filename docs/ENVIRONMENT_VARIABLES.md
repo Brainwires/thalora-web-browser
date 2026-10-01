@@ -92,6 +92,9 @@ unset THALORA_ENABLE_AI_MEMORY
 | `THALORA_STEALTH_DELAYS` | `false` | Add 1.5–5 s of random "human-like" delay to every navigation (anti-bot evasion) |
 | `THALORA_PAGE_SCRIPT_TIMEOUT_MS` | `3000` | Synchronous execution limit per page `<script>` |
 | `THALORA_EVENT_LOOP` | unset | `legacy` disables the event loop (timers never fire, promises only settle during module loading) — temporary escape hatch |
+| `THALORA_IDLE_PUMP_MS` | `50` | How often an idle browser thread runs due timers and microtasks between tool calls; `0` disables |
+| `THALORA_LEAK_RENDERERS` | unset | `1` leaks replaced JS renderers instead of dropping them (pre-BrowserThread behaviour) — escape hatch |
+| `THALORA_DOM` | unset | `legacy` disables the persistent DOM tree (string-backed DOM, no node identity) — escape hatch |
 | `THALORA_ALLOW_LOOPBACK` | unset | Test-only: allow navigation to 127.0.0.1/localhost. Honoured only in debug builds or with the `test-hooks` feature |
 
 ## Engine Configuration
