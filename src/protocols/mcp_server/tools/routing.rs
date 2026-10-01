@@ -226,10 +226,8 @@ impl McpServer {
                     Ok(browser) => browser,
                     Err(e) => return McpResponse::error(-32602, e),
                 };
-                match browser.lock() {
-                    Ok(guard) => {
-                        let content = guard.get_current_content();
-                        let page_url = guard.get_current_url();
+                match crate::protocols::browser_tools::core::page_state(&browser).await {
+                    Ok((page_url, content)) => {
                         if content.is_empty() {
                             McpResponse::error(
                                 -1,
@@ -243,7 +241,7 @@ impl McpServer {
                             McpResponse::page_content(page_url.as_deref(), tree)
                         }
                     }
-                    Err(_) => McpResponse::error(-1, "Failed to acquire browser lock".to_string()),
+                    Err(e) => McpResponse::error(-1, e),
                 }
             }
 

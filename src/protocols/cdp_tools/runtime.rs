@@ -2,6 +2,7 @@ use crate::protocols::browser_tools::BrowserTools;
 use crate::protocols::cdp::{CdpCommand, CdpMessage, CdpServer};
 use crate::protocols::mcp::McpResponse;
 use crate::protocols::security::{MAX_JS_CODE_LENGTH, limit_input_length, sanitize_session_id};
+use futures::FutureExt;
 use serde_json::Value;
 use std::rc::Rc;
 
@@ -53,7 +54,7 @@ impl RuntimeTools {
     pub async fn evaluate_javascript(
         &mut self,
         args: Value,
-        cdp_server: &mut CdpServer,
+        _cdp_server: &mut CdpServer,
     ) -> McpResponse {
         let expression = match args.get("expression").and_then(|v| v.as_str()) {
             Some(expr) => expr,
@@ -85,83 +86,35 @@ impl RuntimeTools {
             Err(e) => return McpResponse::error(-32602, e),
         };
 
-        let response;
-        let lock_res = browser.lock();
-        match lock_res {
-            Ok(mut browser_guard) => {
-                let handle = tokio::runtime::Handle::current();
-                response = tokio::task::block_in_place(|| {
-                    match handle.block_on(browser_guard.execute_javascript(expression)) {
-                        Ok(js_result) => {
-                            // Try to parse as different types
-                            let text = if js_result == "true" || js_result == "false" {
-                                format!("JavaScript result (boolean): {}", js_result)
-                            } else if let Ok(num) = js_result.parse::<f64>() {
-                                format!("JavaScript result (number): {}", num)
-                            } else {
-                                format!("JavaScript result: {}", js_result)
-                            };
-                            // Values come from page state, so they're untrusted
-                            let page_url = browser_guard.get_current_url();
-                            McpResponse::page_content(
-                                page_url.as_deref(),
-                                serde_json::Value::String(text),
-                            )
-                        }
-                        Err(e) => {
-                            McpResponse::error(-1, format!("JavaScript execution error: {}", e))
-                        }
-                    }
-                });
-            }
-            Err(_) => {
-                // If session browser fails, try CDP server as fallback
-                let command = CdpCommand {
-                    id: 2,
-                    method: "Runtime.evaluate".to_string(),
-                    params: Some(serde_json::json!({
-                        "expression": expression,
-                        "returnByValue": true
-                    })),
-                    session_id: None,
+        let expression = expression.to_string();
+        crate::protocols::browser_tools::core::run_in(&browser, move |browser| {
+            async move {
+                let Ok(mut browser_guard) = browser.lock() else {
+                    return McpResponse::error(-1, "Failed to acquire browser lock".to_string());
                 };
-
-                match cdp_server.handle_message(CdpMessage::Command(command)) {
-                    Ok(Some(CdpMessage::Response(cdp_response))) => {
-                        if let Some(error) = cdp_response.error {
-                            response = McpResponse::error(
-                                -1,
-                                format!("CDP JavaScript evaluation failed: {}", error.message),
-                            );
-                        } else if let Some(result) = cdp_response.result {
-                            response = McpResponse::success(serde_json::json!({
-                                "type": "text",
-                                "text": format!("CDP JavaScript evaluation result: {}", result)
-                            }));
+                match browser_guard.execute_javascript(&expression).await {
+                    Ok(js_result) => {
+                        // Try to parse as different types
+                        let text = if js_result == "true" || js_result == "false" {
+                            format!("JavaScript result (boolean): {}", js_result)
+                        } else if let Ok(num) = js_result.parse::<f64>() {
+                            format!("JavaScript result (number): {}", num)
                         } else {
-                            response = McpResponse::success(serde_json::json!({
-                                "type": "text",
-                                "text": "CDP JavaScript evaluation completed (no result)"
-                            }));
-                        }
+                            format!("JavaScript result: {}", js_result)
+                        };
+                        // Values come from page state, so they're untrusted
+                        let page_url = browser_guard.get_current_url();
+                        McpResponse::page_content(
+                            page_url.as_deref(),
+                            serde_json::Value::String(text),
+                        )
                     }
-                    Ok(_) => {
-                        response = McpResponse::success(serde_json::json!({
-                            "type": "text",
-                            "text": "CDP JavaScript evaluation completed (no response)"
-                        }));
-                    }
-                    Err(e) => {
-                        response = McpResponse::error(
-                            -1,
-                            format!("CDP JavaScript evaluation error: {}", e),
-                        );
-                    }
+                    Err(e) => McpResponse::error(-1, format!("JavaScript execution error: {}", e)),
                 }
             }
-        }
-
-        response
+            .boxed_local()
+        })
+        .await
     }
 
     pub async fn get_console_messages(

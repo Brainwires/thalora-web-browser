@@ -14,21 +14,16 @@ impl BrowserTools {
             Ok(browser) => browser,
             Err(e) => return McpResponse::error(-32602, e),
         };
-        let mut response = McpResponse::error(-1, "Failed to acquire browser lock".to_string());
-        {
-            if let Ok(browser_guard) = browser.lock() {
-                let content = browser_guard.get_current_content();
-                let url = browser_guard.get_current_url();
-                response = McpResponse::page_content(
-                    url.as_deref(),
-                    json!({
-                        "content": content,
-                        "url": url,
-                        "session_id": session_id
-                    }),
-                );
-            }
+        match crate::protocols::browser_tools::core::page_state(&browser).await {
+            Ok((url, content)) => McpResponse::page_content(
+                url.as_deref(),
+                json!({
+                    "content": content,
+                    "url": url,
+                    "session_id": session_id
+                }),
+            ),
+            Err(e) => McpResponse::error(-1, e),
         }
-        response
     }
 }

@@ -1,3 +1,4 @@
+use futures::FutureExt;
 use scraper::{Html, Selector};
 use serde_json::Value;
 
@@ -116,83 +117,41 @@ impl McpServer {
             }
 
             eprintln!("🔍 SNAPSHOT: Starting navigation to URL: {}", url_str);
-            // Create temporary browser or use session
-            let temp_browser = if let Some(sid) = session_id {
-                // Try to get existing session browser
-                if let Some(session_browser) = self.browser_tools.get_session_browser(sid) {
-                    eprintln!(
-                        "🔍 SNAPSHOT: Using existing session browser for session: {}",
-                        sid
-                    );
-                    session_browser
-                } else {
-                    eprintln!(
-                        "🔍 SNAPSHOT: Session {} not found, creating new browser",
-                        sid
-                    );
-                    crate::engine::browser::HeadlessWebBrowser::new()
+            let url_owned = url_str.to_string();
+            let job = move |browser: crate::protocols::browser_tools::core::BrowserHandle| {
+                async move {
+                    let mut guard = browser
+                        .lock()
+                        .map_err(|_| "Failed to acquire browser lock".to_string())?;
+                    guard
+                        .navigate_to_with_options(&url_owned, wait_for_js)
+                        .await
+                        .map_err(|e| format!("Failed to navigate to URL: {}", e))?;
+                    Ok::<String, String>(guard.get_current_content())
                 }
-            } else {
-                eprintln!("🔍 SNAPSHOT: Creating temporary browser");
-                crate::engine::browser::HeadlessWebBrowser::new()
+                .boxed_local()
             };
 
-            eprintln!("🔍 SNAPSHOT: Browser created");
-
-            // Navigate to URL
-            {
-                eprintln!("🔍 SNAPSHOT: Acquiring browser lock for navigation");
-                let nav_result = tokio::task::block_in_place(|| {
-                    let mut browser = match temp_browser.lock() {
-                        Ok(b) => {
-                            eprintln!("🔍 SNAPSHOT: Browser lock acquired");
-                            b
-                        }
-                        Err(_) => {
-                            eprintln!("🔍 SNAPSHOT: Failed to acquire browser lock");
-                            return Err("Failed to acquire browser lock".to_string());
-                        }
-                    };
-
-                    eprintln!("🔍 SNAPSHOT: Calling navigate_to_with_options");
-                    match tokio::runtime::Handle::current()
-                        .block_on(browser.navigate_to_with_options(url_str, wait_for_js))
-                    {
-                        Ok(_) => {
-                            eprintln!("🔍 SNAPSHOT: Navigation successful");
-                            Ok(())
-                        }
-                        Err(e) => {
-                            eprintln!("🔍 SNAPSHOT: Navigation failed: {}", e);
-                            Err(format!("Failed to navigate to URL: {}", e))
-                        }
-                    }
-                });
-                if let Err(e) = nav_result {
-                    return McpResponse::error(-1, e);
+            // Use the session's browser if there is one, otherwise a
+            // temporary browser on its own short-lived thread
+            let session_browser =
+                session_id.and_then(|sid| self.browser_tools.get_session_browser(sid));
+            let result = match session_browser {
+                Some(browser) => browser.call(job).await,
+                None => {
+                    crate::engine::browser::BrowserThread::run_once(
+                        "snapshot",
+                        crate::engine::engine_trait::EngineType::Boa,
+                        job,
+                    )
+                    .await
                 }
-            }
-
-            eprintln!("🔍 SNAPSHOT: Getting HTML content");
-            // Get HTML content
-            let html = {
-                let browser = match temp_browser.lock() {
-                    Ok(b) => b,
-                    Err(_) => {
-                        eprintln!("🔍 SNAPSHOT: Failed to acquire browser lock for content");
-                        return McpResponse::error(
-                            -1,
-                            "Failed to acquire browser lock".to_string(),
-                        );
-                    }
-                };
-                browser.get_current_content()
             };
-
-            eprintln!("🔍 SNAPSHOT: HTML content retrieved, dropping browser");
-            // Explicitly drop browser after getting content (Drop impl will handle cleanup)
-            drop(temp_browser);
-            eprintln!("🔍 SNAPSHOT: Browser dropped");
+            let html = match result {
+                Ok(Ok(html)) => html,
+                Ok(Err(e)) => return McpResponse::error(-1, e),
+                Err(e) => return McpResponse::error(-1, format!("Browser failed: {}", e)),
+            };
 
             html
         } else {
@@ -204,28 +163,24 @@ impl McpServer {
             );
 
             match self.browser_tools.get_session_browser(session_id_str) {
-                Some(browser) => match browser.lock() {
-                    Ok(browser_guard) => {
-                        let content = browser_guard.get_current_content();
-                        if content.is_empty() {
-                            return McpResponse::error(
-                                -1,
-                                format!(
-                                    "Session '{}' has no content. Navigate to a URL first.",
-                                    session_id_str
-                                ),
-                            );
+                Some(browser) => {
+                    match crate::protocols::browser_tools::core::page_state(&browser).await {
+                        Ok((_, content)) => {
+                            if content.is_empty() {
+                                return McpResponse::error(
+                                    -1,
+                                    format!(
+                                        "Session '{}' has no content. Navigate to a URL first.",
+                                        session_id_str
+                                    ),
+                                );
+                            }
+                            eprintln!("🔍 SNAPSHOT: Got {} chars from session", content.len());
+                            content
                         }
-                        eprintln!("🔍 SNAPSHOT: Got {} chars from session", content.len());
-                        content
+                        Err(e) => return McpResponse::error(-1, e),
                     }
-                    Err(_) => {
-                        return McpResponse::error(
-                            -1,
-                            "Failed to acquire session browser lock".to_string(),
-                        );
-                    }
-                },
+                }
                 None => {
                     return McpResponse::error(
                         -1,

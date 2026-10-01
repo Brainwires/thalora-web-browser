@@ -1,3 +1,4 @@
+use futures::FutureExt;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
@@ -10,7 +11,7 @@ use crate::protocols::security::{
 
 impl BrowserTools {
     pub async fn handle_click_element(&self, params: Value) -> McpResponse {
-        let params = match self.resolve_ref_param(params) {
+        let params = match self.resolve_ref_param(params).await {
             Ok(params) => params,
             Err(resp) => return resp,
         };
@@ -37,75 +38,106 @@ impl BrowserTools {
             Err(e) => return McpResponse::error(-32602, e),
         };
         let selector_owned = selector.to_string();
-        let self_ref = self;
         let session_id_owned = session_id.to_string();
 
-        tokio::task::block_in_place(|| {
-            let rt = tokio::runtime::Handle::current();
-            if let Ok(mut guard) = browser.lock() {
-                let mut potential_new_window_info = None;
+        // The job returns the response plus a predictive session to create
+        // (sessions live in BrowserTools, which stays on this thread).
+        let outcome = browser
+            .call(move |browser| {
+                async move {
+                    let mut predictive_session = None;
+                    if let Ok(mut guard) = browser.lock() {
+                        let mut potential_new_window_info = None;
 
-                // Check if this is a submit button for a form that opens new windows
-                if let Some(form_info) = guard.find_form_by_submit_button(&selector_owned)
-                    && form_info.opens_new_window
-                {
-                    eprintln!("🔍 DEBUG: Click on submit button for new window form detected");
-                    eprintln!(
-                        "🔍 DEBUG: Form target: {}, action: {}",
-                        form_info.target, form_info.action
-                    );
+                        // Check if this is a submit button for a form that opens new windows
+                        if let Some(form_info) = guard.find_form_by_submit_button(&selector_owned)
+                            && form_info.opens_new_window
+                        {
+                            eprintln!(
+                                "🔍 DEBUG: Click on submit button for new window form detected"
+                            );
+                            eprintln!(
+                                "🔍 DEBUG: Form target: {}, action: {}",
+                                form_info.target, form_info.action
+                            );
 
-                    if let Some(ref predicted_url) = form_info.predicted_url {
-                        let predictive_session_id = format!(
-                            "predictive_{}_{}",
-                            session_id_owned,
-                            std::time::SystemTime::now()
-                                .duration_since(std::time::UNIX_EPOCH)
-                                .unwrap()
-                                .as_millis()
-                        );
+                            if let Some(ref predicted_url) = form_info.predicted_url {
+                                let predictive_session_id = format!(
+                                    "predictive_{}_{}",
+                                    session_id_owned,
+                                    std::time::SystemTime::now()
+                                        .duration_since(std::time::UNIX_EPOCH)
+                                        .unwrap()
+                                        .as_millis()
+                                );
 
-                        eprintln!(
-                            "🔍 DEBUG: Creating predictive session: {} for URL: {}",
-                            predictive_session_id, predicted_url
-                        );
+                                eprintln!(
+                                    "🔍 DEBUG: Creating predictive session: {} for URL: {}",
+                                    predictive_session_id, predicted_url
+                                );
 
-                        let _predictive_browser =
-                            self_ref.get_or_create_session(&predictive_session_id, false);
+                                predictive_session = Some(predictive_session_id.clone());
 
-                        potential_new_window_info = Some(json!({
-                            "will_open_new_window": true,
-                            "predicted_url": predicted_url,
-                            "predictive_session_id": predictive_session_id,
-                            "form_target": form_info.target,
-                            "form_action": form_info.action,
-                            "form_method": form_info.method
-                        }));
-                    }
-                }
-
-                match rt.block_on(guard.click_element(&selector_owned)) {
-                    Ok(resp) => {
-                        if let Some(new_window_info) = potential_new_window_info {
-                            let mut resp_json = serde_json::to_value(&resp).unwrap_or_default();
-                            if let Some(obj) = resp_json.as_object_mut() {
-                                obj.insert("potential_new_window".to_string(), new_window_info);
+                                potential_new_window_info = Some(json!({
+                                    "will_open_new_window": true,
+                                    "predicted_url": predicted_url,
+                                    "predictive_session_id": predictive_session_id,
+                                    "form_target": form_info.target,
+                                    "form_action": form_info.action,
+                                    "form_method": form_info.method
+                                }));
                             }
-                            McpResponse::success(resp_json)
-                        } else {
-                            McpResponse::success(serde_json::to_value(resp).unwrap_or_default())
                         }
+
+                        let response = match guard.click_element(&selector_owned).await {
+                            Ok(resp) => {
+                                if let Some(new_window_info) = potential_new_window_info {
+                                    let mut resp_json =
+                                        serde_json::to_value(&resp).unwrap_or_default();
+                                    if let Some(obj) = resp_json.as_object_mut() {
+                                        obj.insert(
+                                            "potential_new_window".to_string(),
+                                            new_window_info,
+                                        );
+                                    }
+                                    McpResponse::success(resp_json)
+                                } else {
+                                    McpResponse::success(
+                                        serde_json::to_value(resp).unwrap_or_default(),
+                                    )
+                                }
+                            }
+                            Err(e) => {
+                                McpResponse::error(-1, format!("Failed to click element: {}", e))
+                            }
+                        };
+                        (response, predictive_session)
+                    } else {
+                        (
+                            McpResponse::error(-1, "Failed to acquire browser lock".to_string()),
+                            None,
+                        )
                     }
-                    Err(e) => McpResponse::error(-1, format!("Failed to click element: {}", e)),
                 }
-            } else {
-                McpResponse::error(-1, "Failed to acquire browser lock".to_string())
+                .boxed_local()
+            })
+            .await;
+
+        match outcome {
+            Ok((response, predictive_session)) => {
+                if let Some(predictive_session_id) = predictive_session
+                    && let Err(e) = self.get_or_create_session(&predictive_session_id, false)
+                {
+                    eprintln!("⚠️ Could not create predictive session: {}", e);
+                }
+                response
             }
-        })
+            Err(e) => McpResponse::error(-1, format!("Browser session failed: {}", e)),
+        }
     }
 
     pub async fn handle_type_text(&self, params: Value) -> McpResponse {
-        let params = match self.resolve_ref_param(params) {
+        let params = match self.resolve_ref_param(params).await {
             Ok(params) => params,
             Err(resp) => return resp,
         };
@@ -146,23 +178,25 @@ impl BrowserTools {
         let selector_owned = selector.to_string();
         let text_owned = text.to_string();
 
-        tokio::task::block_in_place(|| {
-            let rt = tokio::runtime::Handle::current();
-            if let Ok(mut guard) = browser.lock() {
-                match rt.block_on(guard.type_text_into_element(
-                    &selector_owned,
-                    &text_owned,
-                    clear_first,
-                )) {
-                    Ok(resp) => {
-                        McpResponse::success(serde_json::to_value(resp).unwrap_or_default())
+        crate::protocols::browser_tools::core::run_in(&browser, move |browser| {
+            async move {
+                if let Ok(mut guard) = browser.lock() {
+                    match guard
+                        .type_text_into_element(&selector_owned, &text_owned, clear_first)
+                        .await
+                    {
+                        Ok(resp) => {
+                            McpResponse::success(serde_json::to_value(resp).unwrap_or_default())
+                        }
+                        Err(e) => McpResponse::error(-1, format!("Failed to type text: {}", e)),
                     }
-                    Err(e) => McpResponse::error(-1, format!("Failed to type text: {}", e)),
+                } else {
+                    McpResponse::error(-1, "Failed to acquire browser lock".to_string())
                 }
-            } else {
-                McpResponse::error(-1, "Failed to acquire browser lock".to_string())
             }
+            .boxed_local()
         })
+        .await
     }
 
     pub async fn handle_fill_form(&self, params: Value) -> McpResponse {
@@ -218,44 +252,53 @@ impl BrowserTools {
 
         if !submit {
             // Fill only: type each value into `<form_selector> [name="…"]`.
-            return tokio::task::block_in_place(|| {
-                let rt = tokio::runtime::Handle::current();
-                let Ok(mut guard) = browser.lock() else {
-                    return McpResponse::error(-1, "Failed to acquire browser lock".to_string());
-                };
-                let mut fields = serde_json::Map::new();
-                for (name, value) in &form_map {
-                    let field_selector = format!(
-                        "{} [name=\"{}\"]",
-                        form_selector_owned,
-                        name.replace('\\', "\\\\").replace('"', "\\\"")
-                    );
-                    match rt.block_on(guard.type_text_into_element(&field_selector, value, true)) {
-                        Ok(resp) => {
-                            fields.insert(
-                                name.clone(),
-                                json!({"filled": resp.success, "message": resp.message}),
-                            );
-                        }
-                        Err(e) => {
-                            return McpResponse::error(
-                                -1,
-                                format!("Failed to fill field '{}': {}", name, e),
-                            );
+            return crate::protocols::browser_tools::core::run_in(&browser, move |browser| {
+                async move {
+                    let Ok(mut guard) = browser.lock() else {
+                        return McpResponse::error(
+                            -1,
+                            "Failed to acquire browser lock".to_string(),
+                        );
+                    };
+                    let mut fields = serde_json::Map::new();
+                    for (name, value) in &form_map {
+                        let field_selector = format!(
+                            "{} [name=\"{}\"]",
+                            form_selector_owned,
+                            name.replace('\\', "\\\\").replace('"', "\\\"")
+                        );
+                        match guard
+                            .type_text_into_element(&field_selector, value, true)
+                            .await
+                        {
+                            Ok(resp) => {
+                                fields.insert(
+                                    name.clone(),
+                                    json!({"filled": resp.success, "message": resp.message}),
+                                );
+                            }
+                            Err(e) => {
+                                return McpResponse::error(
+                                    -1,
+                                    format!("Failed to fill field '{}': {}", name, e),
+                                );
+                            }
                         }
                     }
+                    let all_filled = fields.values().all(|f| f["filled"] == true);
+                    McpResponse::success(json!({
+                        "success": all_filled,
+                        "submitted": false,
+                        "fields": fields,
+                    }))
                 }
-                let all_filled = fields.values().all(|f| f["filled"] == true);
-                McpResponse::success(json!({
-                    "success": all_filled,
-                    "submitted": false,
-                    "fields": fields,
-                }))
-            });
+                .boxed_local()
+            })
+            .await;
         }
 
-        tokio::task::block_in_place(|| {
-            let rt = tokio::runtime::Handle::current();
+        crate::protocols::browser_tools::core::run_in(&browser, move |browser| {
+async move {
             if let Ok(mut guard) = browser.lock() {
                 let mut potential_new_window_info = None;
 
@@ -276,7 +319,7 @@ impl BrowserTools {
                     }));
                 }
 
-                match rt.block_on(guard.submit_form(&form_selector_owned, form_map)) {
+                match guard.submit_form(&form_selector_owned, form_map).await {
                     Ok(resp) => {
                         let mut resp_json = serde_json::to_value(&resp).unwrap_or_default();
                         if let Some(new_window_info) = potential_new_window_info
@@ -291,13 +334,16 @@ impl BrowserTools {
             } else {
                 McpResponse::error(-1, "Failed to acquire browser lock".to_string())
             }
-        })
+        }
+.boxed_local()
+})
+.await
     }
 
     /// `browser_fill`: set the value of a single field, optionally submitting
     /// its form afterwards (with every other field of the form).
     pub async fn handle_fill_field(&self, params: Value) -> McpResponse {
-        let params = match self.resolve_ref_param(params) {
+        let params = match self.resolve_ref_param(params).await {
             Ok(params) => params,
             Err(resp) => return resp,
         };
@@ -334,38 +380,45 @@ impl BrowserTools {
             Ok(browser) => browser,
             Err(e) => return McpResponse::error(-32602, e),
         };
+        let selector = selector.to_string();
+        let value = value.to_string();
 
-        tokio::task::block_in_place(|| {
-            let rt = tokio::runtime::Handle::current();
-            let Ok(mut guard) = browser.lock() else {
-                return McpResponse::error(-1, "Failed to acquire browser lock".to_string());
-            };
-            let filled = match rt.block_on(guard.type_text_into_element(selector, value, true)) {
-                Ok(resp) => resp,
-                Err(e) => return McpResponse::error(-1, format!("Failed to fill field: {}", e)),
-            };
-            if !filled.success || !submit {
-                return McpResponse::success(json!({
-                    "success": filled.success,
-                    "submitted": false,
-                    "message": filled.message,
-                }));
-            }
+        crate::protocols::browser_tools::core::run_in(&browser, move |browser| {
+            async move {
+                let Ok(mut guard) = browser.lock() else {
+                    return McpResponse::error(-1, "Failed to acquire browser lock".to_string());
+                };
+                let filled = match guard.type_text_into_element(&selector, &value, true).await {
+                    Ok(resp) => resp,
+                    Err(e) => {
+                        return McpResponse::error(-1, format!("Failed to fill field: {}", e));
+                    }
+                };
+                if !filled.success || !submit {
+                    return McpResponse::success(json!({
+                        "success": filled.success,
+                        "submitted": false,
+                        "message": filled.message,
+                    }));
+                }
 
-            // Submit the form that contains the field
-            match rt.block_on(guard.submit_form_containing(selector)) {
-                Ok(resp) => McpResponse::success(json!({
-                    "success": resp.success,
-                    "submitted": true,
-                    "message": resp.message,
-                    "url": guard.get_current_url(),
-                })),
-                Err(e) => McpResponse::error(
-                    -1,
-                    format!("Field filled, but submitting its form failed: {}", e),
-                ),
+                // Submit the form that contains the field
+                match guard.submit_form_containing(&selector).await {
+                    Ok(resp) => McpResponse::success(json!({
+                        "success": resp.success,
+                        "submitted": true,
+                        "message": resp.message,
+                        "url": guard.get_current_url(),
+                    })),
+                    Err(e) => McpResponse::error(
+                        -1,
+                        format!("Field filled, but submitting its form failed: {}", e),
+                    ),
+                }
             }
+            .boxed_local()
         })
+        .await
     }
 
     /// Element actions: `browser_select_option`, `browser_check`,
@@ -373,7 +426,7 @@ impl BrowserTools {
     pub async fn handle_element_action(&self, tool: &str, params: Value) -> McpResponse {
         use crate::engine::browser::types::ElementAction;
 
-        let params = match self.resolve_ref_param(params) {
+        let params = match self.resolve_ref_param(params).await {
             Ok(params) => params,
             Err(resp) => return resp,
         };
@@ -436,24 +489,28 @@ impl BrowserTools {
             Ok(browser) => browser,
             Err(e) => return McpResponse::error(-32602, e),
         };
-        tokio::task::block_in_place(|| {
-            let rt = tokio::runtime::Handle::current();
-            let Ok(mut guard) = browser.lock() else {
-                return McpResponse::error(-1, "Failed to acquire browser lock".to_string());
-            };
-            match rt.block_on(guard.perform_action(selector.as_deref(), &action)) {
-                Ok(resp) => {
-                    let mut out = serde_json::to_value(&resp).unwrap_or_default();
-                    // The new page content is available via page tools
-                    if let Some(obj) = out.as_object_mut() {
-                        obj.remove("new_content");
-                        obj.insert("url".to_string(), json!(guard.get_current_url()));
+        let tool = tool.to_string();
+        crate::protocols::browser_tools::core::run_in(&browser, move |browser| {
+            async move {
+                let Ok(mut guard) = browser.lock() else {
+                    return McpResponse::error(-1, "Failed to acquire browser lock".to_string());
+                };
+                match guard.perform_action(selector.as_deref(), &action).await {
+                    Ok(resp) => {
+                        let mut out = serde_json::to_value(&resp).unwrap_or_default();
+                        // The new page content is available via page tools
+                        if let Some(obj) = out.as_object_mut() {
+                            obj.remove("new_content");
+                            obj.insert("url".to_string(), json!(guard.get_current_url()));
+                        }
+                        McpResponse::success(out)
                     }
-                    McpResponse::success(out)
+                    Err(e) => McpResponse::error(-1, format!("{tool} failed: {e}")),
                 }
-                Err(e) => McpResponse::error(-1, format!("{tool} failed: {e}")),
             }
+            .boxed_local()
         })
+        .await
     }
 
     /// `browser_console_messages`: console output logged by the page.
@@ -473,26 +530,32 @@ impl BrowserTools {
             Ok(browser) => browser,
             Err(e) => return McpResponse::error(-32602, e),
         };
-        let Ok(mut guard) = browser.lock() else {
-            return McpResponse::error(-1, "Failed to acquire browser lock".to_string());
-        };
-        let messages: Vec<Value> = guard
-            .console_messages(clear)
-            .into_iter()
-            .map(|m| json!({"level": m.level, "text": m.text}))
-            .collect();
-        let url = guard.get_current_url();
-        McpResponse::page_content(
-            url.as_deref(),
-            json!({"count": messages.len(), "messages": messages}),
-        )
+        crate::protocols::browser_tools::core::run_in(&browser, move |browser| {
+            async move {
+                let Ok(mut guard) = browser.lock() else {
+                    return McpResponse::error(-1, "Failed to acquire browser lock".to_string());
+                };
+                let messages: Vec<Value> = guard
+                    .console_messages(clear)
+                    .into_iter()
+                    .map(|m| json!({"level": m.level, "text": m.text}))
+                    .collect();
+                let url = guard.get_current_url();
+                McpResponse::page_content(
+                    url.as_deref(),
+                    json!({"count": messages.len(), "messages": messages}),
+                )
+            }
+            .boxed_local()
+        })
+        .await
     }
 
     /// `browser_wait`: wait for a selector/ref, text, URL fragment or network idle.
     pub async fn handle_wait(&self, params: Value) -> McpResponse {
         use crate::engine::browser::types::WaitCondition;
 
-        let params = match self.resolve_ref_param(params) {
+        let params = match self.resolve_ref_param(params).await {
             Ok(params) => params,
             Err(resp) => return resp,
         };
@@ -548,26 +611,29 @@ impl BrowserTools {
             Ok(browser) => browser,
             Err(e) => return McpResponse::error(-32602, e),
         };
-        tokio::task::block_in_place(|| {
-            let rt = tokio::runtime::Handle::current();
-            let Ok(mut guard) = browser.lock() else {
-                return McpResponse::error(-1, "Failed to acquire browser lock".to_string());
-            };
-            let started = std::time::Instant::now();
-            match rt.block_on(guard.wait_for_condition(&condition, timeout_ms)) {
-                Ok(met) => McpResponse::success(json!({
-                    "met": met,
-                    "condition": format!("{:?}", condition),
-                    "waited_ms": started.elapsed().as_millis() as u64,
-                    "url": guard.get_current_url(),
-                })),
-                Err(e) => McpResponse::error(-1, format!("Wait failed: {}", e)),
+        crate::protocols::browser_tools::core::run_in(&browser, move |browser| {
+            async move {
+                let Ok(mut guard) = browser.lock() else {
+                    return McpResponse::error(-1, "Failed to acquire browser lock".to_string());
+                };
+                let started = std::time::Instant::now();
+                match guard.wait_for_condition(&condition, timeout_ms).await {
+                    Ok(met) => McpResponse::success(json!({
+                        "met": met,
+                        "condition": format!("{:?}", condition),
+                        "waited_ms": started.elapsed().as_millis() as u64,
+                        "url": guard.get_current_url(),
+                    })),
+                    Err(e) => McpResponse::error(-1, format!("Wait failed: {}", e)),
+                }
             }
+            .boxed_local()
         })
+        .await
     }
 
     pub async fn handle_wait_for_element(&self, params: Value) -> McpResponse {
-        let params = match self.resolve_ref_param(params) {
+        let params = match self.resolve_ref_param(params).await {
             Ok(params) => params,
             Err(resp) => return resp,
         };
@@ -599,25 +665,30 @@ impl BrowserTools {
         };
         let selector_owned = selector.to_string();
 
-        tokio::task::block_in_place(|| {
-            let rt = tokio::runtime::Handle::current();
-            if let Ok(mut guard) = browser.lock() {
-                match rt.block_on(guard.wait_for_element(&selector_owned, timeout)) {
-                    Ok(found) => McpResponse::success(json!({
-                        "found": found,
-                        "selector": selector_owned,
-                        "timeout_ms": timeout,
-                        "message": if found {
-                            format!("Element found: {}", selector_owned)
-                        } else {
-                            format!("Element not found after {}ms: {}", timeout, selector_owned)
+        crate::protocols::browser_tools::core::run_in(&browser, move |browser| {
+            async move {
+                if let Ok(mut guard) = browser.lock() {
+                    match guard.wait_for_element(&selector_owned, timeout).await {
+                        Ok(found) => McpResponse::success(json!({
+                            "found": found,
+                            "selector": selector_owned,
+                            "timeout_ms": timeout,
+                            "message": if found {
+                                format!("Element found: {}", selector_owned)
+                            } else {
+                                format!("Element not found after {}ms: {}", timeout, selector_owned)
+                            }
+                        })),
+                        Err(e) => {
+                            McpResponse::error(-1, format!("Failed to wait for element: {}", e))
                         }
-                    })),
-                    Err(e) => McpResponse::error(-1, format!("Failed to wait for element: {}", e)),
+                    }
+                } else {
+                    McpResponse::error(-1, "Failed to acquire browser lock".to_string())
                 }
-            } else {
-                McpResponse::error(-1, "Failed to acquire browser lock".to_string())
             }
+            .boxed_local()
         })
+        .await
     }
 }

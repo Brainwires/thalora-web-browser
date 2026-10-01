@@ -1,17 +1,54 @@
+use futures::future::LocalBoxFuture;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::Mutex;
 use tracing::{debug, info};
 
-use crate::engine::browser::HeadlessWebBrowser;
+use crate::engine::browser::BrowserThread;
+use crate::engine::engine_trait::EngineType;
 use crate::protocols::browser_tools::session::BrowserSession;
+use crate::protocols::mcp::McpResponse;
 
-/// Shared handle to a browser instance (single-threaded, !Send).
-pub type BrowserHandle = Rc<Mutex<HeadlessWebBrowser>>;
+/// A session's browser, living on its own thread (see [`BrowserThread`]).
+pub type SessionBrowser = BrowserThread;
 
-/// Map of session ID to (browser handle, session metadata).
-pub(super) type SessionMap = HashMap<String, (BrowserHandle, BrowserSession)>;
+/// The browser as seen by jobs running on its thread.
+pub use crate::engine::browser::session_thread::BrowserHandle;
+
+/// Map of session ID to (browser thread, session metadata).
+pub(super) type SessionMap = HashMap<String, (SessionBrowser, BrowserSession)>;
+
+/// Run `job` with a session's browser on its thread. A failed or panicked
+/// job becomes an MCP error response.
+pub(crate) async fn run_in<F>(browser: &SessionBrowser, job: F) -> McpResponse
+where
+    F: FnOnce(BrowserHandle) -> LocalBoxFuture<'static, McpResponse> + Send + 'static,
+{
+    browser
+        .call(job)
+        .await
+        .unwrap_or_else(|e| McpResponse::error(-1, format!("Browser session failed: {}", e)))
+}
+
+/// Current URL and HTML content of a session's page.
+pub(crate) async fn page_state(
+    browser: &SessionBrowser,
+) -> Result<(Option<String>, String), String> {
+    use futures::FutureExt;
+    browser
+        .call(|browser| {
+            async move {
+                match browser.lock() {
+                    Ok(guard) => Ok((guard.get_current_url(), guard.get_current_content())),
+                    Err(_) => Err("Failed to acquire browser lock".to_string()),
+                }
+            }
+            .boxed_local()
+        })
+        .await
+        .map_err(|e| format!("Browser session failed: {}", e))?
+}
 
 #[allow(dead_code)]
 pub struct BrowserTools {
@@ -27,44 +64,36 @@ impl BrowserTools {
         }
     }
 
-    pub fn get_or_create_session(&self, session_id: &str, persistent: bool) -> BrowserHandle {
+    /// Get a session's browser, starting a new browser thread if needed.
+    pub fn get_or_create_session(
+        &self,
+        session_id: &str,
+        persistent: bool,
+    ) -> Result<SessionBrowser, String> {
         let mut sessions = self.sessions.lock().unwrap();
 
         if let Some((browser, session)) = sessions.get_mut(session_id) {
             debug!(session_id, "Found existing session");
             session.update_last_accessed();
-            // Debug browser state
-            if let Ok(browser_guard) = browser.try_lock() {
-                debug!(
-                    session_id,
-                    content_length = browser_guard.get_current_content().len(),
-                    url = ?browser_guard.get_current_url(),
-                    "Existing browser state"
-                );
-            }
-            // Return existing browser with preserved state
-            browser.clone()
-        } else {
-            debug!(session_id, "Creating new session");
-            let browser = HeadlessWebBrowser::new();
-            let session = BrowserSession::new(session_id.to_string(), persistent);
-
-            // Set persistent data path for session storage
-            if persistent && let Ok(mut browser_guard) = browser.try_lock() {
-                browser_guard
-                    .get_storage_mut()
-                    .session_storage
-                    .insert("_session_id".to_string(), session_id.to_string());
-            }
-
-            sessions.insert(session_id.to_string(), (browser.clone(), session));
-
-            if persistent {
-                drop(self.save_session(session_id));
-            }
-
-            browser
+            return Ok(browser.clone());
         }
+
+        debug!(session_id, "Creating new session");
+        let browser = BrowserThread::spawn(session_id, EngineType::Boa).map_err(|e| {
+            format!(
+                "Failed to start browser for session '{}': {}",
+                session_id, e
+            )
+        })?;
+        let session = BrowserSession::new(session_id.to_string(), persistent);
+        sessions.insert(session_id.to_string(), (browser.clone(), session));
+        drop(sessions);
+
+        if persistent {
+            drop(self.save_session(session_id));
+        }
+
+        Ok(browser)
     }
 
     /// Look up a session for tools that act on an existing page.
@@ -73,9 +102,9 @@ impl BrowserTools {
     /// not silently create a blank browser for a mistyped ID: unknown IDs are
     /// an error listing the sessions that do exist. The `"default"` session is
     /// always available and is created on first use.
-    pub fn get_session(&self, session_id: &str) -> Result<BrowserHandle, String> {
+    pub fn get_session(&self, session_id: &str) -> Result<SessionBrowser, String> {
         if session_id == "default" {
-            return Ok(self.get_or_create_session(session_id, false));
+            return self.get_or_create_session(session_id, false);
         }
         if let Some(browser) = self.get_session_browser(session_id) {
             return Ok(browser);
@@ -97,7 +126,7 @@ impl BrowserTools {
 
     /// Get browser from an existing session without creating a new one
     /// Returns None if the session doesn't exist
-    pub fn get_session_browser(&self, session_id: &str) -> Option<BrowserHandle> {
+    pub fn get_session_browser(&self, session_id: &str) -> Option<SessionBrowser> {
         let mut sessions = self.sessions.lock().unwrap();
         if let Some((browser, session)) = sessions.get_mut(session_id) {
             session.update_last_accessed();
@@ -116,11 +145,11 @@ impl BrowserTools {
     }
 
     pub fn close_session(&self, session_id: &str) -> bool {
-        let mut sessions = self.sessions.lock().unwrap();
-        if let Some((browser, session)) = sessions.remove(session_id) {
+        let removed = self.sessions.lock().unwrap().remove(session_id);
+        if let Some((browser, session)) = removed {
             info!(session_id, "Closing session");
-            // Explicitly drop browser to trigger cleanup
-            drop(browser);
+            // Stop the browser thread; the browser is dropped on that thread
+            browser.shutdown_blocking();
 
             if session.persistent {
                 drop(self.remove_persistent_session(session_id));
@@ -177,10 +206,10 @@ impl Drop for BrowserTools {
         let session_ids: Vec<String> = sessions.keys().cloned().collect();
         info!(count = session_ids.len(), "Closing active sessions");
 
+        // Dropping the last handle stops each browser thread, which drops
+        // its browser on its own thread.
         for session_id in session_ids {
-            if let Some((browser, _)) = sessions.remove(&session_id) {
-                drop(browser);
-            }
+            sessions.remove(&session_id);
         }
         sessions.clear();
     }

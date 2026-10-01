@@ -1,6 +1,7 @@
 //! `browser_fill_credential`: fill a stored credential into a page without
 //! the secret ever entering the model's context.
 
+use futures::FutureExt;
 use serde_json::{Value, json};
 
 use crate::protocols::mcp::McpResponse;
@@ -54,9 +55,10 @@ impl McpServer {
             Ok(browser) => browser,
             Err(e) => return McpResponse::error(-32602, e),
         };
+        let service = service.to_string();
 
-        tokio::task::block_in_place(|| {
-            let rt = tokio::runtime::Handle::current();
+        crate::protocols::browser_tools::core::run_in(&browser, move |browser| {
+async move {
             let Ok(mut guard) = browser.lock() else {
                 return McpResponse::error(-1, "Failed to acquire browser lock".to_string());
             };
@@ -106,12 +108,12 @@ impl McpServer {
 
             let mut filled = Vec::new();
             if let Some(field) = &username_field {
-                if let Err(e) = rt.block_on(guard.fill_secret(field, &username)) {
+                if let Err(e) = guard.fill_secret(field, &username).await {
                     return McpResponse::error(-1, format!("Failed to fill username: {}", e));
                 }
                 filled.push("username");
             }
-            if let Err(e) = rt.block_on(guard.fill_secret(&password_field, &password)) {
+            if let Err(e) = guard.fill_secret(&password_field, &password).await {
                 return McpResponse::error(-1, format!("Failed to fill password: {}", e));
             }
             filled.push("password");
@@ -123,6 +125,9 @@ impl McpServer {
                 "origin": credential_origin,
                 "message": "Credential filled; the secret was not returned. Submit the form to log in."
             }))
-        })
+        }
+.boxed_local()
+})
+.await
     }
 }

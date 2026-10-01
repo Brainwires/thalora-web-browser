@@ -29,7 +29,9 @@ impl BrowserTools {
                             rand::random::<u32>()
                         )
                     });
-                let _browser = self.get_or_create_session(&session_id, persistent);
+                if let Err(e) = self.get_or_create_session(&session_id, persistent) {
+                    return McpResponse::error(-1, e);
+                }
                 McpResponse::success(json!({
                     "session_id": session_id,
                     "created": true,
@@ -92,8 +94,13 @@ impl BrowserTools {
         // Check if session exists
         if let Some(session_info) = self.get_session_info(session_id) {
             // Try to get browser content if session exists
-            let sessions = self.sessions.lock().unwrap();
-            if let Some((browser, _)) = sessions.get(session_id) {
+            let browser = self
+                .sessions
+                .lock()
+                .unwrap()
+                .get(session_id)
+                .map(|(browser, _)| browser.clone());
+            if let Some(browser) = browser {
                 let mut validation_result = json!({
                     "session_exists": true,
                     "session_info": {
@@ -104,10 +111,9 @@ impl BrowserTools {
                     }
                 });
 
-                if let Ok(browser_guard) = browser.try_lock() {
-                    let current_url = browser_guard.get_current_url();
-                    let current_content = browser_guard.get_current_content();
-
+                if let Ok((current_url, current_content)) =
+                    crate::protocols::browser_tools::core::page_state(&browser).await
+                {
                     validation_result["current_url"] = json!(current_url);
                     validation_result["content_length"] = json!(current_content.len());
                     validation_result["has_content"] = json!(!current_content.is_empty());
@@ -138,7 +144,7 @@ impl BrowserTools {
                     validation_result["validation_successful"] = json!(true);
                 } else {
                     validation_result["validation_successful"] = json!(false);
-                    validation_result["error"] = json!("Could not acquire browser lock");
+                    validation_result["error"] = json!("Could not read the browser state");
                 }
 
                 McpResponse::success(validation_result)
