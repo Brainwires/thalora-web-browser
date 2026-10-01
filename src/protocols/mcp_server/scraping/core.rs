@@ -811,6 +811,13 @@ impl McpServer {
             return text.to_string();
         }
 
+        // Clamp to a UTF-8 char boundary so slicing never panics on
+        // multi-byte characters (CJK, emoji, accented text).
+        let mut max_len = max_len;
+        while !text.is_char_boundary(max_len) {
+            max_len -= 1;
+        }
+
         let search_region = &text[..max_len];
 
         // Try to find a paragraph break (double newline)
@@ -858,5 +865,26 @@ impl McpServer {
 
         // Otherwise return the raw content (it's already plain text)
         content_trimmed.to_string()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::McpServer;
+
+    #[test]
+    fn truncate_at_boundary_never_splits_multibyte_chars() {
+        let text = "日本語のテキスト。🦀 Rust é ü ✓ ".repeat(20);
+        for max_len in 0..text.len() {
+            let out = McpServer::truncate_at_boundary(&text, max_len);
+            assert!(out.len() <= max_len + 3, "max_len={max_len}");
+        }
+    }
+
+    #[test]
+    fn truncate_at_boundary_prefers_sentence_breaks() {
+        let text = "First sentence here. Second sentence here. Third one.";
+        let out = McpServer::truncate_at_boundary(text, 45);
+        assert_eq!(out, "First sentence here. Second sentence here....");
     }
 }

@@ -110,11 +110,10 @@ pub async fn search(query: &str, num_results: usize) -> Result<SearchResults> {
                     );
                     eprintln!(
                         "🔍 DEBUG: Redirect response preview: {}",
-                        if redirect_html.len() > 500 {
-                            &redirect_html[..500]
-                        } else {
-                            &redirect_html
-                        }
+                        redirect_html
+                            .char_indices()
+                            .nth(500)
+                            .map_or(redirect_html.as_str(), |(i, _)| &redirect_html[..i])
                     );
 
                     // Explicitly drop browser to ensure cleanup
@@ -138,11 +137,9 @@ pub async fn search(query: &str, num_results: usize) -> Result<SearchResults> {
         );
         eprintln!(
             "🔍 DEBUG: HTML content: {}",
-            if html.len() > 500 {
-                &html[..500]
-            } else {
-                &html
-            }
+            html.char_indices()
+                .nth(500)
+                .map_or(html.as_str(), |(i, _)| &html[..i])
         );
     }
 
