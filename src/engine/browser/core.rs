@@ -84,8 +84,13 @@ pub(crate) fn dispose_renderer(renderer: RustRenderer) {
         std::mem::forget(renderer);
     } else {
         drop(renderer);
+        RENDERERS_DROPPED.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     }
 }
+
+/// Renderers actually dropped (not leaked) by [`dispose_renderer`].
+pub(crate) static RENDERERS_DROPPED: std::sync::atomic::AtomicUsize =
+    std::sync::atomic::AtomicUsize::new(0);
 
 impl HeadlessWebBrowser {
     pub fn new() -> Rc<Mutex<Self>> {

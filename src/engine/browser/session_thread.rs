@@ -342,6 +342,82 @@ mod tests {
         });
     }
 
+    /// Old renderers are dropped on the owner thread (not leaked), and the
+    /// browser keeps working after many resets.
+    #[test]
+    fn renderer_resets_drop_old_renderers_and_js_still_runs() {
+        if std::env::var("THALORA_LEAK_RENDERERS").is_ok() {
+            return;
+        }
+        let thread = BrowserThread::spawn("test-resets", EngineType::Boa).unwrap();
+        let before =
+            super::super::core::RENDERERS_DROPPED.load(std::sync::atomic::Ordering::Relaxed);
+        let result = thread
+            .call_blocking(|b| {
+                async move {
+                    let mut guard = b.lock().unwrap();
+                    for _ in 0..20 {
+                        guard.reset_renderer();
+                    }
+                    guard.execute_javascript("6 * 7").await
+                }
+                .boxed_local()
+            })
+            .unwrap()
+            .unwrap();
+        assert!(result.contains("42"), "unexpected result: {result}");
+        let after =
+            super::super::core::RENDERERS_DROPPED.load(std::sync::atomic::Ordering::Relaxed);
+        assert!(
+            after - before >= 20,
+            "only {} renderers dropped",
+            after - before
+        );
+        thread.shutdown_blocking();
+    }
+
+    /// Resident set size in KiB (Linux only).
+    fn rss_kib() -> Option<u64> {
+        let status = std::fs::read_to_string("/proc/self/status").ok()?;
+        let line = status.lines().find(|l| l.starts_with("VmRSS:"))?;
+        line.split_whitespace().nth(1)?.parse().ok()
+    }
+
+    /// Soak test: memory stays bounded across many page loads.
+    /// Run with `cargo test --lib renderer_soak -- --ignored --nocapture`.
+    #[test]
+    #[ignore]
+    fn renderer_soak_memory_is_bounded() {
+        let thread = BrowserThread::spawn("test-soak", EngineType::Boa).unwrap();
+        let cycle = |n: usize| {
+            thread
+                .call_blocking(move |b| {
+                    async move {
+                        let mut guard = b.lock().unwrap();
+                        for i in 0..n {
+                            guard.reset_renderer();
+                            let script = format!(
+                                "var a = []; for (var j = 0; j < 20000; j++) a.push({{i: {i}, j}}); a.length"
+                            );
+                            let _ = guard.execute_javascript(&script).await;
+                        }
+                    }
+                    .boxed_local()
+                })
+                .unwrap()
+        };
+        cycle(20);
+        let Some(baseline) = rss_kib() else {
+            return;
+        };
+        cycle(200);
+        let grown = rss_kib().unwrap_or(baseline).saturating_sub(baseline);
+        eprintln!("RSS grew {grown} KiB over 200 renderer cycles");
+        // Leaking every renderer costs 5-15 MB each (1-3 GB here)
+        assert!(grown < 300 * 1024, "RSS grew {grown} KiB");
+        thread.shutdown_blocking();
+    }
+
     #[test]
     fn calls_after_shutdown_fail_cleanly() {
         let thread = BrowserThread::spawn("test-stop", EngineType::Boa).unwrap();
