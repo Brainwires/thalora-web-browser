@@ -22,4 +22,10 @@ pub use types::*;
 #[cfg(feature = "core")]
 pub use core::HeadlessWebBrowser;
 
+// One long-lived OS thread per browser (native builds)
+#[cfg(feature = "core")]
+pub mod session_thread;
+#[cfg(feature = "core")]
+pub use session_thread::BrowserThread;
+
 pub use form_analyzer::{FormAnalyzer, FormInfo};

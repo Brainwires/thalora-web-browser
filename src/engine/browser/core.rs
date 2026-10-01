@@ -57,6 +57,36 @@ pub struct HeadlessWebBrowser {
     pub(super) snapshot_refs: super::snapshot::RefTable,
 }
 
+thread_local! {
+    /// Set on threads that own their browsers for the browsers' whole life
+    /// (see `session_thread::BrowserThread`).
+    static ON_OWNER_THREAD: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Mark the current thread as owning every browser it creates, for its
+/// whole life, so old renderers can be dropped instead of leaked.
+pub(crate) fn mark_owner_thread() {
+    ON_OWNER_THREAD.with(|flag| flag.set(true));
+}
+
+/// Release a renderer that is being replaced.
+///
+/// Boa's GC is thread-local. On threads that may not have created the
+/// renderer (FFI calls from arbitrary threads, legacy paths) dropping it
+/// can run finalizers against another thread's GC state and crash, so it is
+/// leaked with `mem::forget`. On owner threads (`BrowserThread`) it is
+/// dropped normally. `THALORA_LEAK_RENDERERS=1` forces the old leaking
+/// behaviour everywhere.
+pub(crate) fn dispose_renderer(renderer: RustRenderer) {
+    let force_leak = std::env::var("THALORA_LEAK_RENDERERS")
+        .is_ok_and(|v| v == "1" || v.eq_ignore_ascii_case("true"));
+    if force_leak || !ON_OWNER_THREAD.with(|flag| flag.get()) {
+        std::mem::forget(renderer);
+    } else {
+        drop(renderer);
+    }
+}
+
 impl HeadlessWebBrowser {
     pub fn new() -> Rc<Mutex<Self>> {
         Self::new_with_engine(crate::engine::engine_trait::EngineType::Boa)
@@ -263,12 +293,25 @@ impl HeadlessWebBrowser {
         self.history.current_index < self.history.entries.len().saturating_sub(1)
     }
 
-    /// Leak the Boa JS renderer, preventing its Drop from running on the wrong thread.
-    /// Call this before `thalora_destroy` drops the instance. See `thalora_destroy` for rationale.
+    /// Release the Boa JS renderer (see [`dispose_renderer`]). Call this
+    /// before dropping the browser from a thread that may not own it.
     pub fn leak_renderer(&mut self) {
         if let Some(renderer) = self.renderer.take() {
-            std::mem::forget(renderer);
+            dispose_renderer(renderer);
         }
+    }
+
+    /// Replace the JS renderer with a fresh one (new Boa context), disposing
+    /// of the old one and re-wiring the History API.
+    pub(crate) fn reset_renderer(&mut self) {
+        if let Some(old) = self.renderer.take() {
+            dispose_renderer(old);
+        }
+        let mut renderer = RustRenderer::new();
+        if let Err(e) = renderer.setup_history_api(self.history_events.clone()) {
+            eprintln!("⚠️ Failed to set up History API on new renderer: {}", e);
+        }
+        self.renderer = Some(renderer);
     }
 
     /// Execute page scripts on the already-loaded `current_content`.
@@ -284,21 +327,14 @@ impl HeadlessWebBrowser {
             return Ok(false);
         }
 
-        // Reinitialize the JS context on the current thread.
-        //
-        // WHY: NavigateStaticAsync runs on a dedicated 8MB OS thread (T_nav).
-        // ExecutePageScriptsAsync runs on a thread-pool thread (T_pool ≠ T_nav).
-        // Boa GC is thread-local — accessing GC objects from a different thread causes
-        // SIGSEGV. We mem::forget the old renderer (no finalizers on T_nav's GC state)
-        // and create a fresh context here on T_pool.
-        if let Some(old_renderer) = self.renderer.take() {
-            std::mem::forget(old_renderer);
-        }
-        let mut new_renderer = RustRenderer::new();
-        if let Err(e) = new_renderer.update_document_html(&content) {
+        // Fresh JS context for running the page's scripts (see dispose_renderer
+        // for how the old one is released).
+        self.reset_renderer();
+        if let Some(renderer) = self.renderer.as_mut()
+            && let Err(e) = renderer.update_document_html(&content)
+        {
             eprintln!("WARNING: Failed to update document HTML for scripts: {}", e);
         }
-        self.renderer = Some(new_renderer);
 
         // Install CSP eval block if needed
         if let Some(ref mut renderer) = self.renderer {
