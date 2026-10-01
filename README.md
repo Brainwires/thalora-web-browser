@@ -227,8 +227,9 @@ are only listed with `THALORA_ENABLE_CDP_EXPERIMENTAL=true`.
 | Tool | Description |
 |------|-------------|
 | `ai_memory_store_research` / `ai_memory_get_research` / `ai_memory_search_research` | Persistent research notes with tags and confidence scores |
-| `ai_memory_store_credentials` | Store credentials, encrypted with AES-256-GCM (Argon2id-derived key) |
+| `ai_memory_store_credentials` | Store credentials, encrypted with AES-256-GCM (Argon2id-derived key); pass `origin` to allow filling them into that site |
 | `ai_memory_get_credentials` | Look up stored credentials; returns service, username and whether a password exists — never the secret (unless `THALORA_EXPOSE_PASSWORDS=true`) |
+| `browser_fill_credential` | Type a stored username/password into the page server-side, only on the credential's own origin; the secret is never returned |
 | `ai_memory_store_bookmark` / `ai_memory_get_bookmarks` | Bookmarks with metadata |
 | `ai_memory_store_note` / `ai_memory_get_notes` | Categorized notes |
 

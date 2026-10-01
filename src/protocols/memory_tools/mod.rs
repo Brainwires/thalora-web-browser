@@ -6,7 +6,7 @@ use crate::protocols::security::{MAX_QUERY_LENGTH, limit_input_length};
 
 // Submodules
 mod bookmarks;
-mod credentials;
+pub(crate) mod credentials;
 mod notes;
 mod research;
 mod sessions;

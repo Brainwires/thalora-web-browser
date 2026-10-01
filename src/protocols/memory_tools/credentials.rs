@@ -68,6 +68,26 @@ pub async fn handle_store_credentials(args: Value, ai_memory: &mut AiMemoryHeap)
         })
         .unwrap_or_default();
 
+    // Bind the credential to a site so browser_fill_credential only fills
+    // it into pages of that origin.
+    let mut additional_data = additional_data;
+    if let Some(origin) = args.get("origin").and_then(|v| v.as_str()) {
+        match normalize_origin(origin) {
+            Some(origin) => {
+                additional_data.insert("origin".to_string(), origin);
+            }
+            None => {
+                return McpResponse::error(
+                    -32602,
+                    format!(
+                        "Invalid origin '{}': expected e.g. https://example.com",
+                        origin
+                    ),
+                );
+            }
+        }
+    }
+
     match ai_memory.store_credentials(key, service, username, password, additional_data) {
         Ok(_) => McpResponse::success(serde_json::json!({
             "type": "text",
@@ -143,6 +163,14 @@ fn credential_key(args: &Value) -> Option<&str> {
         .or_else(|| args.get("service").and_then(|v| v.as_str()))
 }
 
+/// `https://example.com/login` -> `https://example.com` (None if not a URL
+/// with a host).
+pub(crate) fn normalize_origin(url: &str) -> Option<String> {
+    let parsed = url::Url::parse(url).ok()?;
+    parsed.host_str()?;
+    Some(parsed.origin().ascii_serialization())
+}
+
 /// Whether raw secrets may be returned to the caller (opt-in, unsafe).
 fn expose_secrets() -> bool {
     std::env::var("THALORA_EXPOSE_PASSWORDS")
@@ -153,6 +181,20 @@ fn expose_secrets() -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn origins_are_normalized() {
+        assert_eq!(
+            normalize_origin("https://Example.com:443/login?x=1").as_deref(),
+            Some("https://example.com")
+        );
+        assert_eq!(
+            normalize_origin("http://localhost:8080/").as_deref(),
+            Some("http://localhost:8080")
+        );
+        assert_eq!(normalize_origin("not a url"), None);
+        assert_eq!(normalize_origin("data:text/plain,hi"), None);
+    }
 
     #[test]
     fn credential_key_falls_back_to_service() {

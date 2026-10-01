@@ -433,3 +433,104 @@ fn e2e_console_messages_are_captured() {
         "console.log not captured: {messages}"
     );
 }
+
+// ── Credential fill-by-reference ────────────────────────────────────────────
+
+#[test]
+fn e2e_fill_credential_never_reveals_the_secret() {
+    let server = FixtureServer::start();
+    let mut env = HashMap::new();
+    for (k, v) in [
+        ("THALORA_PRESET", "brainclaw"),
+        ("THALORA_ALLOW_LOOPBACK", "1"),
+        ("THALORA_ENABLE_AI_MEMORY", "true"),
+        (
+            "THALORA_MASTER_PASSWORD",
+            "test_master_password_min_32chars_secure",
+        ),
+    ] {
+        env.insert(k.to_string(), v.to_string());
+    }
+    let mut h = create_harness_with_raw_env(env).expect("Failed to create harness");
+
+    let unique = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let service = format!("fixture-login-{unique}");
+    let secret = format!("s3cret-{unique}");
+
+    call_ok(
+        &mut h,
+        "ai_memory_store_credentials",
+        json!({
+            "service": service,
+            "username": "agent",
+            "password": secret,
+            "origin": server.url("/"),
+        }),
+    );
+    let looked_up = call_ok(
+        &mut h,
+        "ai_memory_get_credentials",
+        json!({"service": service}),
+    );
+    assert!(!looked_up.contains(&secret), "secret returned: {looked_up}");
+
+    call_ok(
+        &mut h,
+        "browser_navigate_to",
+        json!({"url": server.url("/login.html"), "session_id": "cred"}),
+    );
+    let filled = call_ok(
+        &mut h,
+        "browser_fill_credential",
+        json!({
+            "service": service,
+            "username_selector": "#username",
+            "password_selector": "#password",
+            "session_id": "cred"
+        }),
+    );
+    assert!(!filled.contains(&secret), "secret returned: {filled}");
+
+    call_ok(
+        &mut h,
+        "browser_click",
+        json!({"selector": "#signin", "session_id": "cred"}),
+    );
+    let echoed = page_content(&mut h, "cred");
+    assert!(
+        echoed.contains(&format!("password={secret}")),
+        "the server should receive the password: {echoed}"
+    );
+
+    // A credential for another origin is refused
+    let other = format!("other-site-{unique}");
+    call_ok(
+        &mut h,
+        "ai_memory_store_credentials",
+        json!({
+            "service": other,
+            "username": "x",
+            "password": "y",
+            "origin": "https://example.com",
+        }),
+    );
+    call_ok(
+        &mut h,
+        "browser_navigate_to",
+        json!({"url": server.url("/login.html"), "session_id": "cred"}),
+    );
+    let refused = call(
+        &mut h,
+        "browser_fill_credential",
+        json!({"service": other, "password_selector": "#password", "session_id": "cred"}),
+    );
+    assert!(refused.is_error);
+    assert!(
+        text(&refused).contains("Refusing to fill"),
+        "{}",
+        text(&refused)
+    );
+}

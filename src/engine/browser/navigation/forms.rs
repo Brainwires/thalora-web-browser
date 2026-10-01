@@ -491,6 +491,37 @@ impl super::super::HeadlessWebBrowser {
         }
     }
 
+    /// Put a secret (e.g. a stored password) into the field matching
+    /// `selector`, firing input/change. Unlike `type_text_into_element` the
+    /// value is never echoed back in results or logs.
+    pub async fn fill_secret(&mut self, selector: &str, secret: &str) -> Result<()> {
+        if self.current_content.is_empty() {
+            return Err(anyhow!("No current page loaded"));
+        }
+        let js = format!(
+            r#"(function() {{
+    var el = document.querySelector({selector});
+    if (!el) {{ return JSON.stringify({{success: false, message: "Element not found"}}); }}
+    try {{
+        el.value = {secret};
+        el.dispatchEvent(new Event('input', {{bubbles: true}}));
+        el.dispatchEvent(new Event('change', {{bubbles: true}}));
+    }} catch (e) {{
+        return JSON.stringify({{success: false, message: "Could not set the field value"}});
+    }}
+    return JSON.stringify({{success: true}});
+}})()"#,
+            selector = js_string_literal(selector),
+            secret = js_string_literal(secret)
+        );
+        self.run_action_script(&js)
+            .map_err(|_| anyhow!("Could not fill the field {}", selector))?;
+        if let Some(name) = first_match_attr(&self.current_content, selector, "name") {
+            self.record_filled_value(&name, secret);
+        }
+        Ok(())
+    }
+
     /// Evaluate a generated action script that returns a JSON object with a
     /// `success` flag, then let async handlers run.
     fn run_action_script(&mut self, js: &str) -> Result<serde_json::Value> {

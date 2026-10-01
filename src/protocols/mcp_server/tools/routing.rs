@@ -49,6 +49,7 @@ impl McpServer {
                     .get_credentials(arguments, &mut self.ai_memory)
                     .await
             }
+            "browser_fill_credential" => self.handle_fill_credential(arguments).await,
             "ai_memory_store_bookmark" => {
                 self.memory_tools
                     .store_bookmark(arguments, &mut self.ai_memory)

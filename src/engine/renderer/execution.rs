@@ -48,13 +48,11 @@ impl RustRenderer {
 
         // Execute JavaScript directly without wrapper for form interactions
         let source = Source::from_bytes(js_code);
+        // Log sizes only: scripts and results can carry typed values (e.g.
+        // passwords filled into a form).
         eprintln!(
-            "🔍 DEBUG: About to eval direct JavaScript: {}",
-            if js_code.len() > 200 {
-                &js_code[..200]
-            } else {
-                js_code
-            }
+            "🔍 DEBUG: About to eval direct JavaScript ({} bytes)",
+            js_code.len()
         );
 
         if let Some(ctx) = &mut self.js_context {
@@ -66,7 +64,10 @@ impl RustRenderer {
                     );
                     // Convert JS value to string - this should preserve JSON strings
                     let result = self.js_value_to_string(value);
-                    eprintln!("🔍 DEBUG: Direct conversion to string: {}", result);
+                    eprintln!(
+                        "🔍 DEBUG: Direct JavaScript result ({} bytes)",
+                        result.len()
+                    );
                     Ok(result)
                 }
                 Err(e) => {
@@ -189,12 +190,8 @@ impl RustRenderer {
         // Execute JavaScript directly without nested async handling
         let source = Source::from_bytes(&safe_wrapper);
         eprintln!(
-            "🔍 DEBUG: About to eval JavaScript: {}",
-            if safe_wrapper.len() > 200 {
-                &safe_wrapper[..200]
-            } else {
-                &safe_wrapper
-            }
+            "🔍 DEBUG: About to eval JavaScript ({} bytes)",
+            safe_wrapper.len()
         );
 
         // Run bot detection test BEFORE executing page scripts
@@ -235,7 +232,7 @@ impl RustRenderer {
                     );
                     // Convert JS value to string
                     let result = self.js_value_to_string(value);
-                    eprintln!("🔍 DEBUG: Converted to string: {}", result);
+                    eprintln!("🔍 DEBUG: JavaScript result ({} bytes)", result.len());
                     Ok(result)
                 }
                 Err(e) => {

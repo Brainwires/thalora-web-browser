@@ -76,6 +76,10 @@ pub(crate) fn get_memory_tool_definitions() -> Vec<Value> {
                         "type": "string",
                         "description": "Storage key (optional; defaults to service)"
                     },
+                    "origin": {
+                        "type": "string",
+                        "description": "Site the credential belongs to, e.g. https://github.com. Required for browser_fill_credential, which only fills into pages of this origin."
+                    },
                     "username": {
                         "type": "string",
                         "description": "Username or identifier"
@@ -114,6 +118,40 @@ pub(crate) fn get_memory_tool_definitions() -> Vec<Value> {
                     "username": {
                         "type": "string",
                         "description": "Username to filter by (optional)"
+                    }
+                },
+                "required": ["service"]
+            }
+        }),
+        serde_json::json!({
+            "name": "browser_fill_credential",
+            "description": "Fill a stored credential into the current page without revealing it: the password (and optionally the username) is typed into the given fields server-side and never returned. Only works on pages whose origin matches the origin the credential was stored with.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "service": {
+                        "type": "string",
+                        "description": "Credential to use (service name or storage key)"
+                    },
+                    "password_ref": {
+                        "type": "string",
+                        "description": "Snapshot ref of the password field"
+                    },
+                    "password_selector": {
+                        "type": "string",
+                        "description": "CSS selector of the password field (alternative to password_ref)"
+                    },
+                    "username_ref": {
+                        "type": "string",
+                        "description": "Snapshot ref of the username field (optional)"
+                    },
+                    "username_selector": {
+                        "type": "string",
+                        "description": "CSS selector of the username field (optional)"
+                    },
+                    "session_id": {
+                        "type": "string",
+                        "description": "Browser session ID (optional)"
                     }
                 },
                 "required": ["service"]
