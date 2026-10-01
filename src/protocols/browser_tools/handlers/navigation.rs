@@ -57,12 +57,15 @@ impl BrowserTools {
                 )) {
                     Ok(content) => {
                         let current_url = guard.get_current_url();
-                        McpResponse::success(json!({
-                            "success": true,
-                            "content": content,
-                            "url": current_url,
-                            "message": format!("Successfully navigated to {}", url_owned)
-                        }))
+                        McpResponse::page_content(
+                            current_url.as_deref(),
+                            json!({
+                                "success": true,
+                                "content": content,
+                                "url": current_url,
+                                "message": format!("Successfully navigated to {}", url_owned)
+                            }),
+                        )
                     }
                     Err(e) => McpResponse::error(-1, format!("Failed to navigate to URL: {}", e)),
                 }
@@ -93,11 +96,14 @@ impl BrowserTools {
                 match rt.block_on(guard.go_back()) {
                     Ok(Some(content)) => {
                         let current_url = guard.get_current_url();
-                        McpResponse::success(json!({
-                            "success": true,
-                            "content": content,
-                            "url": current_url
-                        }))
+                        McpResponse::page_content(
+                            current_url.as_deref(),
+                            json!({
+                                "success": true,
+                                "content": content,
+                                "url": current_url
+                            }),
+                        )
                     }
                     Ok(None) => McpResponse::success(json!({
                         "success": false,
@@ -132,11 +138,14 @@ impl BrowserTools {
                 match rt.block_on(guard.go_forward()) {
                     Ok(Some(content)) => {
                         let current_url = guard.get_current_url();
-                        McpResponse::success(json!({
-                            "success": true,
-                            "content": content,
-                            "url": current_url
-                        }))
+                        McpResponse::page_content(
+                            current_url.as_deref(),
+                            json!({
+                                "success": true,
+                                "content": content,
+                                "url": current_url
+                            }),
+                        )
                     }
                     Ok(None) => McpResponse::success(json!({
                         "success": false,
@@ -171,12 +180,15 @@ impl BrowserTools {
                 match rt.block_on(guard.reload()) {
                     Ok(content) => {
                         let current_url = guard.get_current_url();
-                        McpResponse::success(json!({
-                            "success": true,
-                            "content": content,
-                            "url": current_url,
-                            "message": "Page refreshed successfully"
-                        }))
+                        McpResponse::page_content(
+                            current_url.as_deref(),
+                            json!({
+                                "success": true,
+                                "content": content,
+                                "url": current_url,
+                                "message": "Page refreshed successfully"
+                            }),
+                        )
                     }
                     Err(e) => McpResponse::error(-1, format!("Failed to refresh page: {}", e)),
                 }

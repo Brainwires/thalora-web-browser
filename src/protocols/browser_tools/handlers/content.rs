@@ -19,11 +19,14 @@ impl BrowserTools {
             if let Ok(browser_guard) = browser.lock() {
                 let content = browser_guard.get_current_content();
                 let url = browser_guard.get_current_url();
-                response = McpResponse::success(json!({
-                    "content": content,
-                    "url": url,
-                    "session_id": session_id
-                }));
+                response = McpResponse::page_content(
+                    url.as_deref(),
+                    json!({
+                        "content": content,
+                        "url": url,
+                        "session_id": session_id
+                    }),
+                );
             }
         }
         response

@@ -161,7 +161,7 @@ impl McpServer {
                         "processing_time_ms": extraction_result.processing_time_ms,
                         "success": true
                     });
-                    McpResponse::success(result)
+                    McpResponse::page_content(url, result)
                 } else {
                     McpResponse::error(
                         -1,

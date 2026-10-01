@@ -94,22 +94,19 @@ impl RuntimeTools {
                     match handle.block_on(browser_guard.execute_javascript(expression)) {
                         Ok(js_result) => {
                             // Try to parse as different types
-                            if js_result == "true" || js_result == "false" {
-                                McpResponse::success(serde_json::json!({
-                                    "type": "text",
-                                    "text": format!("JavaScript result (boolean): {}", js_result)
-                                }))
+                            let text = if js_result == "true" || js_result == "false" {
+                                format!("JavaScript result (boolean): {}", js_result)
                             } else if let Ok(num) = js_result.parse::<f64>() {
-                                McpResponse::success(serde_json::json!({
-                                    "type": "text",
-                                    "text": format!("JavaScript result (number): {}", num)
-                                }))
+                                format!("JavaScript result (number): {}", num)
                             } else {
-                                McpResponse::success(serde_json::json!({
-                                    "type": "text",
-                                    "text": format!("JavaScript result: {}", js_result)
-                                }))
-                            }
+                                format!("JavaScript result: {}", js_result)
+                            };
+                            // Values come from page state, so they're untrusted
+                            let page_url = browser_guard.get_current_url();
+                            McpResponse::page_content(
+                                page_url.as_deref(),
+                                serde_json::Value::String(text),
+                            )
                         }
                         Err(e) => {
                             McpResponse::error(-1, format!("JavaScript execution error: {}", e))

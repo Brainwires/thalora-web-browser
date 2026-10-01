@@ -514,12 +514,8 @@ impl McpServer {
             serde_json::to_string_pretty(&result).unwrap_or_else(|_| "{}".to_string())
         };
 
-        // Wrap result in MCP text content format
-        let mcp_content = serde_json::json!({
-            "type": "text",
-            "text": result_text
-        });
-        McpResponse::success(mcp_content)
+        // Page-derived content goes in the untrusted-content envelope
+        McpResponse::page_content(url, serde_json::Value::String(result_text))
     }
 
     /// Detect if content is likely plain text/code (minimal HTML structure)
