@@ -985,7 +985,8 @@ pub fn set_inner_html(
         .borrow_mut()
         .set_inner_html(b.node, &html)
         .map_err(tree_error)?;
-    // Scripts inserted via innerHTML never run (per spec): no script hook here
+    // Scripts inserted via innerHTML never run (per spec), not even if moved later
+    crate::dom::script_runner::mark_already_started(&b.tree, &added);
     crate::dom::mutation_bridge::record_child_list(b, b.node, &added, &removed, context)?;
     Ok(JsValue::undefined())
 }
@@ -1039,6 +1040,7 @@ pub fn set_outer_html(
         }
         tree.remove(b.node).map_err(tree_error)?;
     }
+    crate::dom::script_runner::mark_already_started(&b.tree, &nodes);
     crate::dom::mutation_bridge::record_child_list(b, parent, &nodes, &[b.node], context)?;
     Ok(JsValue::undefined())
 }

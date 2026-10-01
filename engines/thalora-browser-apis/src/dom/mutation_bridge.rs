@@ -28,7 +28,8 @@ pub fn child_list_changed(
     removed: &[NodeId],
     context: &mut Context,
 ) -> JsResult<()> {
-    record_child_list(b, parent, added, removed, context)
+    record_child_list(b, parent, added, removed, context)?;
+    crate::dom::script_runner::after_child_list_change(b, parent, added, removed, context)
 }
 
 /// Child-list change that must not run scripts (innerHTML, outerHTML,
@@ -92,6 +93,14 @@ pub fn attribute_changed(
     _new: Option<String>,
     context: &mut Context,
 ) -> JsResult<()> {
+    // Custom element reaction first: the early returns below skip the end.
+    crate::web_components::custom_element_registry::attribute_changed_reaction(
+        b,
+        name,
+        old.as_deref(),
+        _new.as_deref(),
+        context,
+    )?;
     let interested = interested_observers(&b.tree, b.node, |config| {
         config
             .should_observe_attribute(name)

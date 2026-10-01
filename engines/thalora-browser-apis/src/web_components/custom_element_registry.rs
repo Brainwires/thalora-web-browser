@@ -5,12 +5,16 @@
 //!
 //! https://html.spec.whatwg.org/multipage/custom-elements.html#customelementregistry
 
+use boa_engine::object::JsObject;
 use boa_engine::{
     Context, JsArgs, JsNativeError, JsResult, NativeFunction, js_string, object::ObjectInitializer,
     property::Attribute, value::JsValue,
 };
 use std::collections::HashMap;
 use std::sync::RwLock;
+
+use crate::dom::binding;
+use crate::dom::tree::{NodeId, SharedTree};
 
 /// Global registry of custom elements (keyed by name)
 static REGISTRY: once_cell::sync::Lazy<RwLock<HashMap<String, CustomElementDefinition>>> =
@@ -307,4 +311,215 @@ impl CustomElementRegistry {
 
         Ok(JsValue::undefined())
     }
+}
+
+// ---------------------------------------------------------------------------
+// Custom element reactions (connected / disconnected / attributeChanged)
+// ---------------------------------------------------------------------------
+//
+// Minimal model, driven by `dom::script_runner` and `dom::mutation_bridge`:
+// - Definitions are looked up per realm through the global `customElements`
+//   object (the `__constructor_<name>__` slot `define` stores).
+// - "Upgrade" only sets the element wrapper's prototype to
+//   `constructor.prototype`; the constructor itself is not run, so class
+//   field initializers and constructor bodies do not execute.
+// - Elements are upgraded lazily, when they become connected through a
+//   script-running insertion API or when an observed attribute changes; not
+//   at createElement, not when `define` is called for existing elements, and
+//   not for parser/innerHTML-created elements until one of those happens.
+// - Reactions run synchronously right after the mutation (no element queue
+//   / CEReactions stack); callback exceptions are reported to stderr.
+// - `observedAttributes` is read from the constructor at each change rather
+//   than once at definition time.
+
+/// The constructor defined for `name` in this realm, if any.
+pub fn lookup_constructor(name: &str, context: &mut Context) -> Option<JsObject> {
+    if !name.contains('-') {
+        return None;
+    }
+    let registry = context
+        .global_object()
+        .get(js_string!("customElements"), context)
+        .ok()?
+        .as_object()?;
+    registry
+        .get(
+            js_string!(format!("__constructor_{}__", name).as_str()),
+            context,
+        )
+        .ok()?
+        .as_callable()
+}
+
+/// Elements in the subtrees of `roots` whose tag could name a custom
+/// element (contains a hyphen), in tree order.
+pub fn custom_element_candidates(tree: &SharedTree, roots: &[NodeId]) -> Vec<NodeId> {
+    let tree = tree.borrow();
+    let mut out = Vec::new();
+    for &root in roots {
+        for node in tree.descendants(root) {
+            if tree.tag(node).is_some_and(|t| t.contains('-')) && !out.contains(&node) {
+                out.push(node);
+            }
+        }
+    }
+    out
+}
+
+/// `constructor.prototype`, if it is an object.
+fn constructor_prototype(ctor: &JsObject, context: &mut Context) -> JsResult<Option<JsObject>> {
+    Ok(ctor.get(js_string!("prototype"), context)?.as_object())
+}
+
+fn is_upgraded(element: &JsObject, ctor: &JsObject, context: &mut Context) -> JsResult<bool> {
+    let Some(proto) = constructor_prototype(ctor, context)? else {
+        return Ok(false);
+    };
+    Ok(element
+        .prototype()
+        .is_some_and(|current| JsObject::equals(&current, &proto)))
+}
+
+/// Give `element` the definition's prototype (see the limits above).
+fn upgrade_element(element: &JsObject, ctor: &JsObject, context: &mut Context) -> JsResult<()> {
+    if let Some(proto) = constructor_prototype(ctor, context)? {
+        let already = element
+            .prototype()
+            .is_some_and(|current| JsObject::equals(&current, &proto));
+        if !already {
+            element.set_prototype(Some(proto));
+        }
+    }
+    Ok(())
+}
+
+/// Call `element[callback](...args)` if it is a function; exceptions are
+/// reported, not propagated.
+fn invoke_callback(element: &JsObject, callback: &str, args: &[JsValue], context: &mut Context) {
+    let result = element
+        .get(js_string!(callback), context)
+        .and_then(|f| match f.as_callable() {
+            Some(f) => f
+                .call(&JsValue::from(element.clone()), args, context)
+                .map(|_| ()),
+            None => Ok(()),
+        });
+    if let Err(err) = result {
+        eprintln!("console.error: Uncaught {err}");
+    }
+}
+
+/// The element wrapper and definition for a candidate node, if it is a
+/// defined custom element.
+fn defined_element(
+    document: &JsObject,
+    tree: &SharedTree,
+    node: NodeId,
+    context: &mut Context,
+) -> JsResult<Option<(JsObject, JsObject)>> {
+    let tag = tree.borrow().tag(node).map(str::to_string);
+    let Some(tag) = tag else {
+        return Ok(None);
+    };
+    let Some(ctor) = lookup_constructor(&tag, context) else {
+        return Ok(None);
+    };
+    let Some(element) = binding::wrapper_for(document, tree, node, context)?.as_object() else {
+        return Ok(None);
+    };
+    Ok(Some((element, ctor)))
+}
+
+/// Upgrade and call `connectedCallback` on the defined custom elements in
+/// `candidates` (from [`custom_element_candidates`]) that are connected.
+pub fn connected_reactions(
+    document: &JsObject,
+    tree: &SharedTree,
+    candidates: &[NodeId],
+    context: &mut Context,
+) -> JsResult<()> {
+    for &node in candidates {
+        if !tree.borrow().is_connected(node) {
+            continue;
+        }
+        let Some((element, ctor)) = defined_element(document, tree, node, context)? else {
+            continue;
+        };
+        upgrade_element(&element, &ctor, context)?;
+        invoke_callback(&element, "connectedCallback", &[], context);
+    }
+    Ok(())
+}
+
+/// Call `disconnectedCallback` on upgraded custom elements in the removed
+/// subtrees `roots`.
+pub fn disconnected_reactions(
+    document: &JsObject,
+    tree: &SharedTree,
+    roots: &[NodeId],
+    context: &mut Context,
+) -> JsResult<()> {
+    for node in custom_element_candidates(tree, roots) {
+        let Some((element, ctor)) = defined_element(document, tree, node, context)? else {
+            continue;
+        };
+        if is_upgraded(&element, &ctor, context)? {
+            invoke_callback(&element, "disconnectedCallback", &[], context);
+        }
+    }
+    Ok(())
+}
+
+/// Whether `name` is listed in `ctor.observedAttributes`.
+fn observes_attribute(ctor: &JsObject, name: &str, context: &mut Context) -> JsResult<bool> {
+    let Some(list) = ctor
+        .get(js_string!("observedAttributes"), context)?
+        .as_object()
+    else {
+        return Ok(false);
+    };
+    let length = list
+        .get(js_string!("length"), context)?
+        .to_length(context)?;
+    for index in 0..length {
+        let item = list.get(index, context)?;
+        if item.to_string(context)?.to_std_string_escaped() == name {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+/// `attributeChangedCallback(name, old, new)` for a bound element whose tag
+/// is a defined custom element and whose class observes `name`. The element
+/// is upgraded first if needed.
+pub fn attribute_changed_reaction(
+    b: &binding::DomBinding,
+    name: &str,
+    old: Option<&str>,
+    new: Option<&str>,
+    context: &mut Context,
+) -> JsResult<()> {
+    let Some((element, ctor)) = defined_element(&b.document, &b.tree, b.node, context)? else {
+        return Ok(());
+    };
+    let observed = match observes_attribute(&ctor, name, context) {
+        Ok(observed) => observed,
+        Err(err) => {
+            eprintln!("console.error: Uncaught {err}");
+            false
+        }
+    };
+    if !observed {
+        return Ok(());
+    }
+    upgrade_element(&element, &ctor, context)?;
+    let to_value = |v: Option<&str>| v.map_or(JsValue::null(), |s| js_string!(s).into());
+    invoke_callback(
+        &element,
+        "attributeChangedCallback",
+        &[js_string!(name).into(), to_value(old), to_value(new)],
+        context,
+    );
+    Ok(())
 }
