@@ -28,7 +28,10 @@ impl BrowserTools {
             return McpResponse::error(-32602, format!("Session ID validation failed: {}", e));
         }
 
-        let browser = self.get_or_create_session(session_id, false);
+        let browser = match self.get_session(session_id) {
+            Ok(browser) => browser,
+            Err(e) => return McpResponse::error(-32602, e),
+        };
         let selector_owned = selector.to_string();
         let self_ref = self;
         let session_id_owned = session_id.to_string();
@@ -128,7 +131,10 @@ impl BrowserTools {
             return McpResponse::error(-32602, format!("Session ID validation failed: {}", e));
         }
 
-        let browser = self.get_or_create_session(session_id, false);
+        let browser = match self.get_session(session_id) {
+            Ok(browser) => browser,
+            Err(e) => return McpResponse::error(-32602, e),
+        };
         let selector_owned = selector.to_string();
         let text_owned = text.to_string();
 
@@ -192,7 +198,10 @@ impl BrowserTools {
             }
         }
 
-        let browser = self.get_or_create_session(session_id, false);
+        let browser = match self.get_session(session_id) {
+            Ok(browser) => browser,
+            Err(e) => return McpResponse::error(-32602, e),
+        };
         let form_selector_owned = form_selector.to_string();
 
         tokio::task::block_in_place(|| {
@@ -258,7 +267,10 @@ impl BrowserTools {
             return McpResponse::error(-32602, format!("Session ID validation failed: {}", e));
         }
 
-        let browser = self.get_or_create_session(session_id, false);
+        let browser = match self.get_session(session_id) {
+            Ok(browser) => browser,
+            Err(e) => return McpResponse::error(-32602, e),
+        };
         let selector_owned = selector.to_string();
 
         tokio::task::block_in_place(|| {

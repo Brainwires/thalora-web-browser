@@ -67,6 +67,29 @@ impl BrowserTools {
         }
     }
 
+    /// Look up a session for tools that act on an existing page.
+    ///
+    /// Unlike [`get_or_create_session`](Self::get_or_create_session) this does
+    /// not silently create a blank browser for a mistyped ID: unknown IDs are
+    /// an error listing the sessions that do exist. The `"default"` session is
+    /// always available and is created on first use.
+    pub fn get_session(&self, session_id: &str) -> Result<BrowserHandle, String> {
+        if session_id == "default" {
+            return Ok(self.get_or_create_session(session_id, false));
+        }
+        if let Some(browser) = self.get_session_browser(session_id) {
+            return Ok(browser);
+        }
+        let mut known: Vec<String> = self.sessions.lock().unwrap().keys().cloned().collect();
+        known.sort();
+        Err(format!(
+            "Unknown session '{}'. Navigate with this session_id or create it via \
+             browser_session_management first. Existing sessions: [{}]",
+            session_id,
+            known.join(", ")
+        ))
+    }
+
     pub fn get_session_info(&self, session_id: &str) -> Option<BrowserSession> {
         let sessions = self.sessions.lock().unwrap();
         sessions.get(session_id).map(|(_, session)| session.clone())

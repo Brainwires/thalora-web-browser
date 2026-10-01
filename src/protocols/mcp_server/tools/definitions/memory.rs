@@ -72,6 +72,10 @@ pub(crate) fn get_memory_tool_definitions() -> Vec<Value> {
                         "type": "string",
                         "description": "Service name or identifier for the credentials"
                     },
+                    "key": {
+                        "type": "string",
+                        "description": "Storage key (optional; defaults to service)"
+                    },
                     "username": {
                         "type": "string",
                         "description": "Username or identifier"
@@ -95,13 +99,17 @@ pub(crate) fn get_memory_tool_definitions() -> Vec<Value> {
         }),
         serde_json::json!({
             "name": "ai_memory_get_credentials",
-            "description": "Retrieve stored credentials from encrypted AI memory",
+            "description": "Look up stored credentials in encrypted AI memory. Returns the service, username and whether a password is stored; secret values are never returned to the model.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "service": {
                         "type": "string",
                         "description": "Service name to retrieve credentials for"
+                    },
+                    "key": {
+                        "type": "string",
+                        "description": "Storage key (optional; defaults to service)"
                     },
                     "username": {
                         "type": "string",

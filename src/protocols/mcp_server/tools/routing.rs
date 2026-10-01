@@ -211,7 +211,10 @@ impl McpServer {
                     .and_then(|v| v.as_u64())
                     .unwrap_or(10) as usize;
 
-                let browser = self.browser_tools.get_or_create_session(session_id, false);
+                let browser = match self.browser_tools.get_session(session_id) {
+                    Ok(browser) => browser,
+                    Err(e) => return McpResponse::error(-32602, e),
+                };
                 match browser.lock() {
                     Ok(guard) => {
                         let content = guard.get_current_content();

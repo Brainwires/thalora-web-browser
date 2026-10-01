@@ -69,7 +69,7 @@ impl RuntimeTools {
         let session_id = args
             .get("session_id")
             .and_then(|v| v.as_str())
-            .unwrap_or("cdp_default");
+            .unwrap_or("default");
 
         // SECURITY: Validate input lengths to prevent DoS attacks
         if let Err(e) = limit_input_length(expression, MAX_JS_CODE_LENGTH, "JavaScript expression")
@@ -80,7 +80,10 @@ impl RuntimeTools {
             return McpResponse::error(-1, format!("Session ID validation failed: {}", e));
         }
 
-        let browser = self.browser_tools.get_or_create_session(session_id, false);
+        let browser = match self.browser_tools.get_session(session_id) {
+            Ok(browser) => browser,
+            Err(e) => return McpResponse::error(-32602, e),
+        };
 
         let response;
         let lock_res = browser.lock();

@@ -83,7 +83,10 @@ impl BrowserTools {
             return McpResponse::error(-32602, format!("Session ID validation failed: {}", e));
         }
 
-        let browser = self.get_or_create_session(session_id, false);
+        let browser = match self.get_session(session_id) {
+            Ok(browser) => browser,
+            Err(e) => return McpResponse::error(-32602, e),
+        };
         tokio::task::block_in_place(|| {
             let rt = tokio::runtime::Handle::current();
             if let Ok(mut guard) = browser.lock() {
@@ -119,7 +122,10 @@ impl BrowserTools {
             return McpResponse::error(-32602, format!("Session ID validation failed: {}", e));
         }
 
-        let browser = self.get_or_create_session(session_id, false);
+        let browser = match self.get_session(session_id) {
+            Ok(browser) => browser,
+            Err(e) => return McpResponse::error(-32602, e),
+        };
         tokio::task::block_in_place(|| {
             let rt = tokio::runtime::Handle::current();
             if let Ok(mut guard) = browser.lock() {
@@ -155,7 +161,10 @@ impl BrowserTools {
             return McpResponse::error(-32602, format!("Session ID validation failed: {}", e));
         }
 
-        let browser = self.get_or_create_session(session_id, false);
+        let browser = match self.get_session(session_id) {
+            Ok(browser) => browser,
+            Err(e) => return McpResponse::error(-32602, e),
+        };
         tokio::task::block_in_place(|| {
             let rt = tokio::runtime::Handle::current();
             if let Ok(mut guard) = browser.lock() {
