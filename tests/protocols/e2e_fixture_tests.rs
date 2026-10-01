@@ -346,3 +346,39 @@ fn e2e_snapshot_refs_drive_a_login_flow() {
     assert!(stale.is_error);
     assert!(text(&stale).contains("stale_ref"), "{}", text(&stale));
 }
+
+#[test]
+fn e2e_browser_wait_conditions() {
+    let (mut h, site) = fixture_harness();
+    call_ok(
+        &mut h,
+        "browser_navigate_to",
+        json!({"url": site.url("/index.html"), "session_id": "wait"}),
+    );
+    for condition in [
+        json!({"text": "Thalora Fixture Site"}),
+        json!({"selector": "#to-login"}),
+        json!({"url_contains": "index.html"}),
+        json!({"network_idle": true}),
+    ] {
+        let mut args = condition.clone();
+        args["session_id"] = json!("wait");
+        args["timeout_ms"] = json!(2000);
+        let out = call_ok(&mut h, "browser_wait", args);
+        assert!(out.contains("\"met\": true"), "{condition}: {out}");
+    }
+
+    let missing = call_ok(
+        &mut h,
+        "browser_wait",
+        json!({"session_id": "wait", "text": "never on this page", "timeout_ms": 300}),
+    );
+    assert!(missing.contains("\"met\": false"), "{missing}");
+
+    let both = call(
+        &mut h,
+        "browser_wait",
+        json!({"session_id": "wait", "text": "a", "selector": "b"}),
+    );
+    assert!(both.is_error, "two conditions should be rejected");
+}

@@ -86,6 +86,43 @@ pub(crate) fn get_browser_automation_tool_definitions() -> Vec<Value> {
             }
         }),
         serde_json::json!({
+            "name": "browser_wait",
+            "description": "Wait (running page timers and network) until a condition holds: an element by ref or selector exists, the page text contains a string, the URL contains a string, or the network is idle. Give exactly one condition. Returns met=false on timeout.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "ref": {
+                        "type": "string",
+                        "description": "Element ref from browser_snapshot"
+                    },
+                    "selector": {
+                        "type": "string",
+                        "description": "CSS selector that must match"
+                    },
+                    "text": {
+                        "type": "string",
+                        "description": "Text that must appear on the page"
+                    },
+                    "url_contains": {
+                        "type": "string",
+                        "description": "Substring the current URL must contain"
+                    },
+                    "network_idle": {
+                        "type": "boolean",
+                        "description": "Wait until no requests for 500 ms"
+                    },
+                    "timeout_ms": {
+                        "type": "integer",
+                        "description": "Maximum wait (default 5000, max 60000)"
+                    },
+                    "session_id": {
+                        "type": "string",
+                        "description": "Browser session ID (optional)"
+                    }
+                }
+            }
+        }),
+        serde_json::json!({
             "name": "browser_wait_for_element",
             "description": "Wait for an element to appear on the page",
             "inputSchema": {

@@ -368,6 +368,84 @@ impl BrowserTools {
         })
     }
 
+    /// `browser_wait`: wait for a selector/ref, text, URL fragment or network idle.
+    pub async fn handle_wait(&self, params: Value) -> McpResponse {
+        use crate::engine::browser::types::WaitCondition;
+
+        let params = match self.resolve_ref_param(params) {
+            Ok(params) => params,
+            Err(resp) => return resp,
+        };
+        let session_id = params
+            .get("session_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("default")
+            .to_string();
+        if let Err(e) = sanitize_session_id(&session_id) {
+            return McpResponse::error(-32602, format!("Session ID validation failed: {}", e));
+        }
+        let timeout_ms = params
+            .get("timeout_ms")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(5000)
+            .min(60_000);
+
+        let str_param = |key: &str| {
+            params
+                .get(key)
+                .and_then(|v| v.as_str())
+                .filter(|s| !s.is_empty())
+                .map(str::to_string)
+        };
+        let mut conditions = Vec::new();
+        if let Some(selector) = str_param("selector") {
+            if let Err(e) = limit_input_length(&selector, MAX_SELECTOR_LENGTH, "CSS selector") {
+                return McpResponse::error(-32602, format!("Input validation failed: {}", e));
+            }
+            conditions.push(WaitCondition::Selector(selector));
+        }
+        if let Some(text) = str_param("text") {
+            if let Err(e) = limit_input_length(&text, MAX_TEXT_INPUT_LENGTH, "Text") {
+                return McpResponse::error(-32602, format!("Input validation failed: {}", e));
+            }
+            conditions.push(WaitCondition::Text(text));
+        }
+        if let Some(url) = str_param("url_contains") {
+            conditions.push(WaitCondition::UrlContains(url));
+        }
+        if params.get("network_idle").and_then(|v| v.as_bool()) == Some(true) {
+            conditions.push(WaitCondition::NetworkIdle);
+        }
+        if conditions.len() != 1 {
+            return McpResponse::error(
+                -32602,
+                "Give exactly one of: ref, selector, text, url_contains, network_idle".to_string(),
+            );
+        }
+        let condition = conditions.remove(0);
+
+        let browser = match self.get_session(&session_id) {
+            Ok(browser) => browser,
+            Err(e) => return McpResponse::error(-32602, e),
+        };
+        tokio::task::block_in_place(|| {
+            let rt = tokio::runtime::Handle::current();
+            let Ok(mut guard) = browser.lock() else {
+                return McpResponse::error(-1, "Failed to acquire browser lock".to_string());
+            };
+            let started = std::time::Instant::now();
+            match rt.block_on(guard.wait_for_condition(&condition, timeout_ms)) {
+                Ok(met) => McpResponse::success(json!({
+                    "met": met,
+                    "condition": format!("{:?}", condition),
+                    "waited_ms": started.elapsed().as_millis() as u64,
+                    "url": guard.get_current_url(),
+                })),
+                Err(e) => McpResponse::error(-1, format!("Wait failed: {}", e)),
+            }
+        })
+    }
+
     pub async fn handle_wait_for_element(&self, params: Value) -> McpResponse {
         let params = match self.resolve_ref_param(params) {
             Ok(params) => params,

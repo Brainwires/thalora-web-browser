@@ -767,6 +767,73 @@ impl super::super::HeadlessWebBrowser {
         }
     }
 
+    /// Wait until `condition` holds, running the event loop meanwhile.
+    /// Returns Ok(true) if it held within `timeout_ms`, Ok(false) otherwise.
+    pub async fn wait_for_condition(
+        &mut self,
+        condition: &crate::engine::browser::types::WaitCondition,
+        timeout_ms: u64,
+    ) -> Result<bool> {
+        use crate::engine::browser::types::WaitCondition;
+        use thalora_browser_apis::event_loop::{PumpBudget, PumpOutcome};
+
+        match condition {
+            WaitCondition::Selector(selector) => self.wait_for_element(selector, timeout_ms).await,
+            WaitCondition::NetworkIdle => {
+                let budget = PumpBudget::until_network_idle(
+                    Duration::from_millis(timeout_ms),
+                    Duration::from_millis(500),
+                );
+                Ok(!matches!(
+                    self.pump_event_loop(budget),
+                    Some(PumpOutcome::BudgetExhausted)
+                ))
+            }
+            WaitCondition::Text(_) | WaitCondition::UrlContains(_) => {
+                let deadline = std::time::Instant::now() + Duration::from_millis(timeout_ms);
+                loop {
+                    if self.condition_holds(condition).await {
+                        return Ok(true);
+                    }
+                    if std::time::Instant::now() >= deadline {
+                        return Ok(false);
+                    }
+                    let pumped =
+                        self.pump_event_loop(PumpBudget::until_idle(Duration::from_millis(100)));
+                    if pumped.is_none() {
+                        sleep(Duration::from_millis(100)).await;
+                    }
+                }
+            }
+        }
+    }
+
+    async fn condition_holds(
+        &mut self,
+        condition: &crate::engine::browser::types::WaitCondition,
+    ) -> bool {
+        use crate::engine::browser::types::WaitCondition;
+        match condition {
+            WaitCondition::Text(text) => {
+                if self.current_content.contains(text.as_str()) {
+                    return true;
+                }
+                let js = format!(
+                    "(document.body ? document.body.textContent : '').indexOf({}) !== -1",
+                    super::forms::js_string_literal(text)
+                );
+                self.execute_javascript(&js)
+                    .await
+                    .is_ok_and(|r| r.trim() == "true")
+            }
+            WaitCondition::UrlContains(fragment) => self
+                .current_url
+                .as_deref()
+                .is_some_and(|url| url.contains(fragment.as_str())),
+            WaitCondition::Selector(_) | WaitCondition::NetworkIdle => false,
+        }
+    }
+
     /// Wait for an element matching `selector` to appear, running the event
     /// loop between checks. Returns true if found, false on timeout.
     pub async fn wait_for_element(&mut self, selector: &str, timeout_ms: u64) -> Result<bool> {

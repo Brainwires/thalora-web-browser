@@ -235,3 +235,16 @@ pub enum HistoryEvent {
         delta: i32,
     },
 }
+
+/// Condition for [`HeadlessWebBrowser::wait_for_condition`](crate::engine::browser::HeadlessWebBrowser).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum WaitCondition {
+    /// An element matching the CSS selector exists.
+    Selector(String),
+    /// The page text contains the string.
+    Text(String),
+    /// The current URL contains the string.
+    UrlContains(String),
+    /// No network activity for 500 ms and no short timers pending.
+    NetworkIdle,
+}

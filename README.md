@@ -194,6 +194,7 @@ against the server's tool registry by `tests/protocols/readme_tools_test.rs`.
 | `browser_click_element` | Click an element by snapshot ref or CSS selector; submit buttons submit their form and links navigate unless `preventDefault()` is called |
 | `browser_type_text` | Type into an input (fires `input`/`change`) |
 | `browser_fill_form` | Fill named fields of a form and (by default) submit it, including hidden fields such as CSRF tokens |
+| `browser_wait` | Wait for a ref/selector, page text, URL substring or network idle while running timers and fetches |
 | `browser_wait_for_element` | Wait until a selector matches |
 | `browser_prepare_form_submission` | Create a session for a form that opens a new window |
 | `browser_validate_session` | Check that a session exists and has the expected content |
