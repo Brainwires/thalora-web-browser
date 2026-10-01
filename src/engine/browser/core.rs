@@ -49,6 +49,10 @@ pub struct HeadlessWebBrowser {
     pub(super) referrer_policy: Option<String>,
     /// X-Content-Type-Options nosniff flag for the current page
     pub(super) nosniff: bool,
+    /// Field values typed via `type_text_into_element`, keyed by field name,
+    /// for the page at `filled_values_url`; merged into `submit_form`.
+    pub(super) filled_values: HashMap<String, String>,
+    pub(super) filled_values_url: Option<String>,
 }
 
 impl HeadlessWebBrowser {
@@ -120,6 +124,8 @@ impl HeadlessWebBrowser {
             hsts_store: super::navigation::hsts::HstsStore::new(),
             referrer_policy: None,
             nosniff: false,
+            filled_values: HashMap::new(),
+            filled_values_url: None,
         };
 
         let browser_rc = Rc::new(Mutex::new(browser));

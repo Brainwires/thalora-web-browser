@@ -203,6 +203,48 @@ impl BrowserTools {
             Err(e) => return McpResponse::error(-32602, e),
         };
         let form_selector_owned = form_selector.to_string();
+        let submit = params
+            .get("submit")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true);
+
+        if !submit {
+            // Fill only: type each value into `<form_selector> [name="…"]`.
+            return tokio::task::block_in_place(|| {
+                let rt = tokio::runtime::Handle::current();
+                let Ok(mut guard) = browser.lock() else {
+                    return McpResponse::error(-1, "Failed to acquire browser lock".to_string());
+                };
+                let mut fields = serde_json::Map::new();
+                for (name, value) in &form_map {
+                    let field_selector = format!(
+                        "{} [name=\"{}\"]",
+                        form_selector_owned,
+                        name.replace('\\', "\\\\").replace('"', "\\\"")
+                    );
+                    match rt.block_on(guard.type_text_into_element(&field_selector, value, true)) {
+                        Ok(resp) => {
+                            fields.insert(
+                                name.clone(),
+                                json!({"filled": resp.success, "message": resp.message}),
+                            );
+                        }
+                        Err(e) => {
+                            return McpResponse::error(
+                                -1,
+                                format!("Failed to fill field '{}': {}", name, e),
+                            );
+                        }
+                    }
+                }
+                let all_filled = fields.values().all(|f| f["filled"] == true);
+                McpResponse::success(json!({
+                    "success": all_filled,
+                    "submitted": false,
+                    "fields": fields,
+                }))
+            });
+        }
 
         tokio::task::block_in_place(|| {
             let rt = tokio::runtime::Handle::current();
@@ -240,6 +282,73 @@ impl BrowserTools {
                 }
             } else {
                 McpResponse::error(-1, "Failed to acquire browser lock".to_string())
+            }
+        })
+    }
+
+    /// `browser_fill`: set the value of a single field, optionally submitting
+    /// its form afterwards (with every other field of the form).
+    pub async fn handle_fill_field(&self, params: Value) -> McpResponse {
+        let Some(selector) = params.get("selector").and_then(|v| v.as_str()) else {
+            return McpResponse::error(-32602, "Missing required parameter: selector".to_string());
+        };
+        let Some(value) = params.get("value").and_then(|v| v.as_str()) else {
+            return McpResponse::error(-32602, "Missing required parameter: value".to_string());
+        };
+        let submit = params
+            .get("submit")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        let session_id = params
+            .get("session_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("default");
+
+        // SECURITY: Validate input lengths to prevent DoS attacks
+        if let Err(e) = limit_input_length(selector, MAX_SELECTOR_LENGTH, "CSS selector") {
+            return McpResponse::error(-32602, format!("Input validation failed: {}", e));
+        }
+        if let Err(e) = limit_input_length(value, MAX_FORM_VALUE_LENGTH, "Field value") {
+            return McpResponse::error(-32602, format!("Input validation failed: {}", e));
+        }
+        if let Err(e) = sanitize_session_id(session_id) {
+            return McpResponse::error(-32602, format!("Session ID validation failed: {}", e));
+        }
+
+        let browser = match self.get_session(session_id) {
+            Ok(browser) => browser,
+            Err(e) => return McpResponse::error(-32602, e),
+        };
+
+        tokio::task::block_in_place(|| {
+            let rt = tokio::runtime::Handle::current();
+            let Ok(mut guard) = browser.lock() else {
+                return McpResponse::error(-1, "Failed to acquire browser lock".to_string());
+            };
+            let filled = match rt.block_on(guard.type_text_into_element(selector, value, true)) {
+                Ok(resp) => resp,
+                Err(e) => return McpResponse::error(-1, format!("Failed to fill field: {}", e)),
+            };
+            if !filled.success || !submit {
+                return McpResponse::success(json!({
+                    "success": filled.success,
+                    "submitted": false,
+                    "message": filled.message,
+                }));
+            }
+
+            // Submit the form that contains the field
+            match rt.block_on(guard.submit_form_containing(selector)) {
+                Ok(resp) => McpResponse::success(json!({
+                    "success": resp.success,
+                    "submitted": true,
+                    "message": resp.message,
+                    "url": guard.get_current_url(),
+                })),
+                Err(e) => McpResponse::error(
+                    -1,
+                    format!("Field filled, but submitting its form failed: {}", e),
+                ),
             }
         })
     }

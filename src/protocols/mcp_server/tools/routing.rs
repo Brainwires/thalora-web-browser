@@ -171,7 +171,7 @@ impl McpServer {
             "browser_navigate" => self.browser_tools.handle_navigate_to(arguments).await,
             // Interaction
             "browser_click" => self.browser_tools.handle_click_element(arguments).await,
-            "browser_fill" => self.browser_tools.handle_fill_form(arguments).await,
+            "browser_fill" => self.browser_tools.handle_fill_field(arguments).await,
             // CDP
             "browser_eval" => {
                 self.cdp_tools

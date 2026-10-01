@@ -80,7 +80,7 @@ pub(crate) fn get_brainclaw_alias_tool_definitions() -> Vec<Value> {
         }),
         serde_json::json!({
             "name": "browser_fill",
-            "description": "Fill an input field in a browser session. Alias for `browser_fill_form`.",
+            "description": "Fill a single input field in a browser session (fires input and change events). Set submit=true to then submit the field's form, including every other field of that form.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -92,12 +92,16 @@ pub(crate) fn get_brainclaw_alias_tool_definitions() -> Vec<Value> {
                         "type": "string",
                         "description": "Value to fill into the field"
                     },
+                    "submit": {
+                        "type": "boolean",
+                        "description": "Submit the field's form after filling (default: false)"
+                    },
                     "session_id": {
                         "type": "string",
-                        "description": "Browser session ID"
+                        "description": "Browser session ID (default: \"default\")"
                     }
                 },
-                "required": ["selector", "value", "session_id"]
+                "required": ["selector", "value"]
             }
         }),
         // ── CDP aliases ──────────────────────────────────────────────────────────

@@ -818,64 +818,29 @@ impl super::super::HeadlessWebBrowser {
             selector, timeout_ms
         );
 
-        let escaped_selector = selector.replace("\"", "\\\"").replace("'", "\\'");
-
-        // Use MutationObserver to watch for element appearance
+        // Evaluate a synchronous boolean check and poll it. (Returning a
+        // Promise from the eval doesn't work: the result is stringified as
+        // "[object Promise]" before it can resolve.)
         let js_code = format!(
-            r#"
-        (function() {{
-            return new Promise(function(resolve, reject) {{
-                // Check if element already exists
-                var element = document.querySelector("{}");
-                if (element) {{
-                    resolve(true);
-                    return;
-                }}
-
-                // Set up timeout
-                var timeoutId = setTimeout(function() {{
-                    observer.disconnect();
-                    resolve(false); // Timeout - element not found
-                }}, {});
-
-                // Set up MutationObserver to watch for DOM changes
-                var observer = new MutationObserver(function(mutations) {{
-                    var element = document.querySelector("{}");
-                    if (element) {{
-                        clearTimeout(timeoutId);
-                        observer.disconnect();
-                        resolve(true);
-                    }}
-                }});
-
-                // Observe the entire document for child additions
-                observer.observe(document.body || document.documentElement, {{
-                    childList: true,
-                    subtree: true
-                }});
-            }});
-        }})()
-        "#,
-            escaped_selector, timeout_ms, escaped_selector
+            "!!document.querySelector({})",
+            super::forms::js_string_literal(selector)
         );
+        let deadline = std::time::Instant::now() + Duration::from_millis(timeout_ms);
 
-        match self.execute_javascript(&js_code).await {
-            Ok(result) => {
-                let found = result.trim() == "true";
-                if found {
-                    eprintln!("🔍 DEBUG: wait_for_element - element found: {}", selector);
-                } else {
-                    eprintln!(
-                        "🔍 DEBUG: wait_for_element - timeout reached, element not found: {}",
-                        selector
-                    );
-                }
-                Ok(found)
+        loop {
+            let found = self.execute_javascript(&js_code).await?.trim() == "true";
+            if found {
+                eprintln!("🔍 DEBUG: wait_for_element - element found: {}", selector);
+                return Ok(true);
             }
-            Err(e) => {
-                eprintln!("🔍 DEBUG: wait_for_element - error: {}", e);
-                Err(e)
+            if std::time::Instant::now() >= deadline {
+                eprintln!(
+                    "🔍 DEBUG: wait_for_element - timeout reached, element not found: {}",
+                    selector
+                );
+                return Ok(false);
             }
+            sleep(Duration::from_millis(100)).await;
         }
     }
 
