@@ -336,6 +336,12 @@ pub struct DocumentData {
     /// Adopted stylesheets (CSSStyleSheet objects)
     #[unsafe_ignore_trace]
     adopted_style_sheets: Arc<Mutex<Vec<JsObject>>>,
+    /// Persistent DOM tree, built when the page HTML is loaded
+    /// (absent for empty documents and with `THALORA_DOM=legacy`).
+    #[unsafe_ignore_trace]
+    tree: std::cell::RefCell<Option<crate::dom::tree::SharedTree>>,
+    /// JS wrapper per tree node, so each node keeps one identity.
+    wrappers: boa_gc::GcRefCell<HashMap<crate::dom::tree::NodeId, JsObject>>,
 }
 
 /// Cached layout rectangle for an element, computed by the layout engine
@@ -381,6 +387,8 @@ impl DocumentData {
             html_content: Arc::new(Mutex::new("".to_string())),
             layout_rects: Arc::new(Mutex::new(HashMap::new())),
             adopted_style_sheets: Arc::new(Mutex::new(Vec::new())),
+            tree: std::cell::RefCell::new(None),
+            wrappers: boa_gc::GcRefCell::new(HashMap::new()),
         };
 
         // Set up DOM sync bridge - connect Element changes to Document updates
@@ -409,6 +417,11 @@ impl DocumentData {
 
     pub fn set_html_content(&self, html: &str) {
         *self.html_content.lock().unwrap() = html.to_string();
+        // A new page gets a new tree; wrappers of the old one stay bound to it
+        self.wrappers.borrow_mut().clear();
+        *self.tree.borrow_mut() = (crate::dom::binding::tree_dom_enabled()
+            && !html.trim().is_empty())
+        .then(|| crate::dom::tree::DomTree::from_html(html).into_shared());
         // Clear stale layout data when HTML changes
         self.layout_rects.lock().unwrap().clear();
         self.process_forms_in_html(html);
@@ -430,7 +443,23 @@ impl DocumentData {
     }
 
     pub fn get_html_content(&self) -> String {
+        if let Some(tree) = self.tree() {
+            return tree.borrow().to_html();
+        }
         self.html_content.lock().unwrap().clone()
+    }
+
+    /// The document's persistent tree, if it has one.
+    pub fn tree(&self) -> Option<crate::dom::tree::SharedTree> {
+        self.tree.borrow().clone()
+    }
+
+    pub(crate) fn cached_wrapper(&self, node: crate::dom::tree::NodeId) -> Option<JsObject> {
+        self.wrappers.borrow().get(&node).cloned()
+    }
+
+    pub(crate) fn cache_wrapper(&self, node: crate::dom::tree::NodeId, object: JsObject) {
+        self.wrappers.borrow_mut().insert(node, object);
     }
 
     pub fn get_ready_state(&self) -> String {
@@ -621,6 +650,9 @@ fn set_title(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResul
 
 /// `Document.prototype.body` getter
 fn get_body(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::document_root(this) {
+        return crate::dom::binding::document_body(&b, context);
+    }
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Document.prototype.body called on non-object")
     })?;
@@ -644,6 +676,9 @@ fn get_body(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResul
 
 /// `Document.prototype.head` getter
 fn get_head(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::document_root(this) {
+        return crate::dom::binding::document_head(&b, context);
+    }
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Document.prototype.head called on non-object")
     })?;
@@ -682,13 +717,29 @@ fn create_element(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
         JsNativeError::typ().with_message("Document.prototype.createElement called on non-object")
     })?;
 
-    let _document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Document.prototype.createElement called on non-Document object")
-    })?;
+    let tree = this_obj
+        .downcast_ref::<DocumentData>()
+        .ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("Document.prototype.createElement called on non-Document object")
+        })?
+        .tree();
 
-    let tag_name = args.get_or_undefined(0).to_string(context)?;
-    let tag_name_upper = tag_name.to_std_string_escaped().to_uppercase();
+    let tag_name = args
+        .get_or_undefined(0)
+        .to_string(context)?
+        .to_std_string_escaped();
+    let element = build_element_object(&tag_name, context)?;
+    if let Some(tree) = tree {
+        crate::dom::binding::bind_new_element(&this_obj, &tree, &element, &tag_name);
+    }
+    Ok(element)
+}
+
+/// Build the JS object for an element named `tag_name` (not attached to
+/// any tree). Shared by `createElement` and tree wrappers.
+pub(crate) fn build_element_object(tag_name: &str, context: &mut Context) -> JsResult<JsValue> {
+    let tag_name_upper = tag_name.to_uppercase();
 
     // Create a proper Element object using Element constructor pattern
     let element_constructor = context.intrinsics().constructors().element().constructor();
@@ -769,31 +820,6 @@ fn create_element(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
                 .enumerable(true)
                 .writable(true)
                 .value(elements_collection)
-                .build(),
-            context,
-        )?;
-
-        // Add getAttribute method that Google's code uses
-        let get_attribute_func = BuiltInBuilder::callable(context.realm(), |_this, args, ctx| {
-            let attr_name = args.get_or_undefined(0).to_string(ctx)?;
-            let attr_name_str = attr_name.to_std_string_escaped();
-
-            // Return common attributes that Google checks
-            match attr_name_str.as_str() {
-                "data-submitfalse" => Ok(JsValue::null()), // Google checks this
-                _ => Ok(JsValue::null()),
-            }
-        })
-        .name(js_string!("getAttribute"))
-        .build();
-
-        element_obj.define_property_or_throw(
-            js_string!("getAttribute"),
-            PropertyDescriptorBuilder::new()
-                .configurable(true)
-                .enumerable(true)
-                .writable(true)
-                .value(get_attribute_func)
                 .build(),
             context,
         )?;
@@ -887,7 +913,7 @@ fn create_element(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
 }
 
 /// `Document.prototype.createTextNode(data)`
-fn create_text_node(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn create_text_node(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let data = args.get_or_undefined(0).to_string(context)?;
 
     // Create a Text node using the Text constructor
@@ -898,6 +924,9 @@ fn create_text_node(_this: &JsValue, args: &[JsValue], context: &mut Context) ->
         context,
     )?;
 
+    if let Some((document, tree)) = crate::dom::binding::document_tree(this) {
+        crate::dom::binding::bind_new_text(&document, &tree, &text);
+    }
     Ok(text)
 }
 
@@ -934,6 +963,9 @@ fn create_range(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> Js
 
 /// `Document.prototype.getElementById(id)`
 fn get_element_by_id(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::document_root(this) {
+        return crate::dom::binding::get_element_by_id(&b, args, context);
+    }
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Document.prototype.getElementById called on non-object")
     })?;
@@ -954,6 +986,9 @@ fn get_element_by_id(this: &JsValue, args: &[JsValue], context: &mut Context) ->
 
 /// `Document.prototype.querySelector(selector)`
 fn query_selector(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::document_root(this) {
+        return crate::dom::binding::query_selector(&b, args, context);
+    }
     eprintln!("DEBUG: query_selector called!");
 
     let this_obj = this.as_object().ok_or_else(|| {
@@ -1253,6 +1288,9 @@ fn query_selector_all(
     args: &[JsValue],
     context: &mut Context,
 ) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::document_root(this) {
+        return crate::dom::binding::query_selector_all(&b, args, context);
+    }
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ()
             .with_message("Document.prototype.querySelectorAll called on non-object")
@@ -1469,6 +1507,9 @@ fn get_elements_by_class_name(
     args: &[JsValue],
     context: &mut Context,
 ) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::document_root(this) {
+        return crate::dom::binding::get_elements_by_class_name(&b, args, context);
+    }
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ()
             .with_message("Document.prototype.getElementsByClassName called on non-object")
@@ -1577,6 +1618,9 @@ fn get_elements_by_tag_name(
     args: &[JsValue],
     context: &mut Context,
 ) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::document_root(this) {
+        return crate::dom::binding::get_elements_by_tag_name(&b, args, context);
+    }
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ()
             .with_message("Document.prototype.getElementsByTagName called on non-object")
@@ -1677,6 +1721,9 @@ fn get_elements_by_name(
     args: &[JsValue],
     context: &mut Context,
 ) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::document_root(this) {
+        return crate::dom::binding::get_elements_by_name(&b, args, context);
+    }
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ()
             .with_message("Document.prototype.getElementsByName called on non-object")
@@ -1757,7 +1804,12 @@ fn get_elements_by_name(
 /// `Document.prototype.createComment(data)`
 fn create_comment(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let data = args.get_or_undefined(0).to_string(context)?;
-    let data_str = data.to_std_string_escaped();
+    create_comment_object(&data.to_std_string_escaped(), context)
+}
+
+/// Build a Comment node object holding `data_str`.
+pub(crate) fn create_comment_object(data_str: &str, context: &mut Context) -> JsResult<JsValue> {
+    let data_str = data_str.to_string();
 
     // Create a Comment node object
     let comment = JsObject::default(context.intrinsics());
@@ -1932,6 +1984,11 @@ fn document_write(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
 
     // Skip empty writes
     if content.is_empty() {
+        return Ok(JsValue::undefined());
+    }
+
+    if let Some(b) = crate::dom::binding::document_root(this) {
+        crate::dom::binding::document_write(&b, &content, context)?;
         return Ok(JsValue::undefined());
     }
 
@@ -2769,6 +2826,9 @@ fn get_document_element(
     _args: &[JsValue],
     context: &mut Context,
 ) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::document_root(this) {
+        return crate::dom::binding::document_element(&b, context);
+    }
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Document.prototype.documentElement called on non-object")
     })?;
@@ -2811,6 +2871,9 @@ fn get_document_element(
 
 /// `Document.prototype.forms` getter - returns HTMLCollection of all form elements
 fn get_forms(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::document_root(this) {
+        return crate::dom::binding::document_collection(&b, "form", context);
+    }
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Document.prototype.forms called on non-object")
     })?;
@@ -2859,6 +2922,9 @@ fn get_forms(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResu
 
 /// `Document.prototype.images` getter - returns HTMLCollection of all img elements
 fn get_images(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::document_root(this) {
+        return crate::dom::binding::document_collection(&b, "img", context);
+    }
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Document.prototype.images called on non-object")
     })?;
@@ -2900,6 +2966,9 @@ fn get_images(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsRes
 
 /// `Document.prototype.links` getter - returns HTMLCollection of all a and area elements with href
 fn get_links(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::document_root(this) {
+        return crate::dom::binding::document_collection(&b, "a[href], area[href]", context);
+    }
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Document.prototype.links called on non-object")
     })?;
@@ -2938,6 +3007,9 @@ fn get_links(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResu
 
 /// `Document.prototype.scripts` getter - returns HTMLCollection of all script elements
 fn get_scripts(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::document_root(this) {
+        return crate::dom::binding::document_collection(&b, "script", context);
+    }
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Document.prototype.scripts called on non-object")
     })?;

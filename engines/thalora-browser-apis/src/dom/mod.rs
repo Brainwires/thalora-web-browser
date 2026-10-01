@@ -1,6 +1,7 @@
 //! DOM APIs - Document Object Model
 
 pub mod attr;
+pub mod binding;
 pub mod character_data;
 pub mod document;
 pub mod document_fragment;
@@ -25,6 +26,7 @@ pub use html_image_element_wasm as html_image_element;
 
 pub mod htmlcollection;
 pub mod image_bitmap;
+pub mod mutation_bridge;
 pub mod namednodemap;
 pub mod node;
 pub mod nodeiterator;
@@ -37,6 +39,8 @@ pub mod text;
 pub mod tree;
 pub mod treewalker;
 
+#[cfg(test)]
+mod binding_tests;
 #[cfg(test)]
 mod document_tests;
 
