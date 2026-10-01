@@ -14,9 +14,11 @@
 //! the inserting caller.
 //!
 //! Limits:
-//! - `src` scripts are not fetched (the crate has no script loader); they are
-//!   marked started and get an `error` event, like a failed fetch.
-//! - `type="module"` scripts and `nomodule` scripts are skipped.
+//! - `src` scripts are fetched asynchronously (SSRF-safe page client), run,
+//!   and get `load` (or `error`); `async`/`defer` ordering is not modelled.
+//! - `type="module"` scripts (inline or `src`) are parsed and evaluated as
+//!   modules; imports use the context's module loader. `nomodule` classic
+//!   scripts are skipped, as in module-capable browsers.
 //! - Inline scripts get no `load` event (per spec, only external ones do).
 //! - Scripts that were in a tree before its first DOM-API insertion
 //!   (parser-inserted ones) are treated as already started. Scripts created by
@@ -143,17 +145,12 @@ fn run_inserted_scripts(b: &DomBinding, added: &[NodeId], context: &mut Context)
         }
         // All borrows released: run JS.
         match action {
-            ScriptAction::Inline(text) => {
-                if let Err(err) = context.eval(Source::from_bytes(text.as_bytes())) {
-                    report_error(&err.to_string());
-                }
+            ScriptAction::Inline { text, module } => {
+                run_source(&text, module, context);
                 // Jobs queued by the script run at the caller's next checkpoint.
             }
-            ScriptAction::External => {
-                eprintln!(
-                    "console.warn: <script src> inserted via DOM is not fetched; firing error event"
-                );
-                fire_event(b, script, "error", context);
+            ScriptAction::External { src, module } => {
+                load_external(b, script, &src, module, context)
             }
         }
     }
@@ -161,8 +158,37 @@ fn run_inserted_scripts(b: &DomBinding, added: &[NodeId], context: &mut Context)
 }
 
 enum ScriptAction {
-    Inline(String),
-    External,
+    Inline { text: String, module: bool },
+    External { src: String, module: bool },
+}
+
+/// Run script source: classic scripts are evaluated, module scripts are
+/// parsed, linked (imports go through the context's module loader) and
+/// evaluated. Errors are reported, never thrown at the inserting caller.
+fn run_source(text: &str, module: bool, context: &mut Context) {
+    if !module {
+        if let Err(err) = context.eval(Source::from_bytes(text.as_bytes())) {
+            report_error(&err.to_string());
+        }
+        return;
+    }
+    let parsed = boa_engine::Module::parse(Source::from_bytes(text.as_bytes()), None, context);
+    match parsed {
+        Ok(module) => {
+            let promise = module.load_link_evaluate(context);
+            let on_rejected = boa_engine::NativeFunction::from_fn_ptr(|_, args, _context| {
+                let reason = args
+                    .first()
+                    .map(|v| v.display().to_string())
+                    .unwrap_or_default();
+                report_error(&reason);
+                Ok(JsValue::undefined())
+            });
+            let on_rejected = on_rejected.to_js_function(context.realm());
+            let _ = promise.catch(on_rejected, context);
+        }
+        Err(err) => report_error(&err.to_string()),
+    }
 }
 
 /// "Prepare the script element" for a candidate: `None` when it must not
@@ -171,21 +197,28 @@ fn prepare(tree: &DomTree, script: NodeId) -> Option<ScriptAction> {
     if !tree.is_connected(script) {
         return None;
     }
-    if !is_classic_javascript(tree.attr(script, "type"), tree.attr(script, "language")) {
+    let module = tree
+        .attr(script, "type")
+        .is_some_and(|t| t.trim().eq_ignore_ascii_case("module"));
+    if !module && !is_classic_javascript(tree.attr(script, "type"), tree.attr(script, "language")) {
         return None;
     }
-    if tree.attr(script, "nomodule").is_some() {
+    // Module-capable browsers skip `nomodule` classic scripts
+    if !module && tree.attr(script, "nomodule").is_some() {
         return None;
     }
-    if tree.attr(script, "src").is_some() {
-        return Some(ScriptAction::External);
+    if let Some(src) = tree.attr(script, "src") {
+        return Some(ScriptAction::External {
+            src: src.to_string(),
+            module,
+        });
     }
     let text = child_text_content(tree, script);
     if text.is_empty() {
         // Spec: returns without setting "already started".
         return None;
     }
-    Some(ScriptAction::Inline(text))
+    Some(ScriptAction::Inline { text, module })
 }
 
 /// Whether the type/language attributes select a classic JavaScript script.
@@ -261,6 +294,58 @@ fn connected_scripts_seed(tree: &SharedTree, added: &[NodeId]) -> HashSet<NodeId
 
 /// Dispatch a plain `Event(type)` on the node's wrapper through its
 /// JS-visible `dispatchEvent`. Failures are reported, not propagated.
+/// Fetch an external script (async, as for any DOM-inserted script), run
+/// it, then fire `load` on the element; `error` if it can't be fetched.
+#[cfg(feature = "native")]
+fn load_external(b: &DomBinding, script: NodeId, src: &str, module: bool, context: &mut Context) {
+    use boa_engine::job::NativeAsyncJob;
+
+    let Some(url) = crate::page_url::resolve_url(context, src) else {
+        report_error(&format!("<script src=\"{src}\">: invalid URL"));
+        fire_event(b, script, "error", context);
+        return;
+    };
+    let url = url.to_string();
+    let b = b.clone();
+    context.enqueue_job(
+        NativeAsyncJob::new(async move |context| {
+            // Same SSRF-safe client and network runtime as fetch()
+            let client = crate::net::page_client();
+            let request_url = url.clone();
+            let fetched = crate::net::io(async move {
+                let response = client
+                    .get(&request_url)
+                    .send()
+                    .await
+                    .map_err(|e| e.to_string())?;
+                if !response.status().is_success() {
+                    return Err(format!("HTTP {}", response.status()));
+                }
+                response.text().await.map_err(|e| e.to_string())
+            })
+            .await;
+            let context = &mut context.borrow_mut();
+            match fetched {
+                Ok(source) => {
+                    run_source(&source, module, context);
+                    fire_event(&b, script, "load", context);
+                }
+                Err(err) => {
+                    report_error(&format!("failed to load script {url}: {err}"));
+                    fire_event(&b, script, "error", context);
+                }
+            }
+            Ok(JsValue::undefined())
+        })
+        .into(),
+    );
+}
+
+#[cfg(not(feature = "native"))]
+fn load_external(b: &DomBinding, script: NodeId, _src: &str, _module: bool, context: &mut Context) {
+    fire_event(b, script, "error", context);
+}
+
 fn fire_event(b: &DomBinding, node: NodeId, event_type: &str, context: &mut Context) {
     let result = (|| -> JsResult<()> {
         let Some(target) = binding::wrapper_for(&b.document, &b.tree, node, context)?.as_object()

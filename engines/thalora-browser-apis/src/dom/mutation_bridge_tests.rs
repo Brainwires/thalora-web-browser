@@ -43,6 +43,9 @@ fn eval_string(context: &mut Context, code: &str) -> String {
 }
 
 fn run_jobs(context: &mut Context) {
+    // ThaloraJobExecutor flushes at each microtask checkpoint; these tests
+    // use Boa's default executor, so flush explicitly
+    crate::dom::mutation_bridge::flush_character_data(context);
     context.run_jobs().expect("jobs");
 }
 
@@ -243,4 +246,39 @@ fn disconnect_and_take_records_stop_delivery() {
     assert!(eval_bool(&mut ctx, "mo.takeRecords().length === 0"));
     run_jobs(&mut ctx);
     assert!(eval_bool(&mut ctx, "calls.a === 0"));
+}
+
+#[test]
+fn character_data_records_for_text_edits() {
+    let mut ctx = context_with_page();
+    eval(&mut ctx, OBSERVER_HELPERS);
+    eval(
+        &mut ctx,
+        r#"
+        globalThis.t = doc.getElementById('p1').firstChild;
+        makeObserver('text').observe(t, { characterData: true, characterDataOldValue: true });
+        makeObserver('tree').observe(doc.body, { characterData: true, subtree: true });
+        makeObserver('none').observe(t, { childList: true });
+        t.data = 'Uno';
+        t.appendData('!');
+        "#,
+    );
+    run_jobs(&mut ctx);
+    assert_eq!(
+        eval_string(
+            &mut ctx,
+            "logs.text.map(r => r.type + ':' + r.oldValue + ':' + (r.target === t)).join('|')"
+        ),
+        "characterData:One:true|characterData:Uno:true"
+    );
+    // subtree observer sees them without old values; childList-only doesn't
+    assert_eq!(
+        eval_string(&mut ctx, "logs.tree.map(r => String(r.oldValue)).join('|')"),
+        "null|null"
+    );
+    assert!(eval_bool(&mut ctx, "logs.none.length === 0"));
+    assert_eq!(
+        eval_string(&mut ctx, "doc.getElementById('p1').textContent"),
+        "Uno!"
+    );
 }

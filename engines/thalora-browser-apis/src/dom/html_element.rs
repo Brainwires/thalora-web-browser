@@ -86,19 +86,41 @@ impl BuiltInConstructor for HTMLElement {
                 .into());
         }
 
+        // super() during a custom element upgrade: hand back the element
+        // being upgraded
+        if let Some(element) =
+            crate::web_components::custom_element_registry::take_constructing_element()
+        {
+            return Ok(element.into());
+        }
+
+        // `new MyElement()`: the element is named after its definition
+        let name = new_target.as_object().and_then(|ctor| {
+            crate::web_components::custom_element_registry::name_for_constructor(&ctor, context)
+        });
         let proto = get_prototype_from_constructor(
             new_target,
             StandardConstructors::html_element,
             context,
         )?;
+        let tag = name.clone().unwrap_or_else(|| "div".to_string());
         // A real element, so everything on Element.prototype works on it
         // (and on custom elements whose class extends HTMLElement)
-        let element = JsObject::from_proto_and_data_with_shared_shape(
+        let element: JsValue = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
             proto,
-            ElementData::with_tag_name("DIV".to_string()),
-        );
-        Ok(element.upcast().into())
+            ElementData::with_tag_name(tag.to_uppercase()),
+        )
+        .upcast()
+        .into();
+        // Tree-backed (detached) when the page has a DOM tree
+        let document = context
+            .global_object()
+            .get(js_string!("document"), context)?;
+        if let Some((document, tree)) = crate::dom::binding::document_tree(&document) {
+            crate::dom::binding::bind_new_element(&document, &tree, &element, &tag);
+        }
+        Ok(element)
     }
 }
 

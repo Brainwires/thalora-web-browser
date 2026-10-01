@@ -59,7 +59,14 @@ impl CharacterDataData {
     fn sync_to_tree(&self) {
         if let Some(b) = self.binding() {
             let data = self.data.borrow().clone();
+            let old = b.tree.borrow().data(b.node).map(str::to_string);
+            if old.as_deref() == Some(data.as_str()) {
+                return;
+            }
             let _ = b.tree.borrow_mut().set_data(b.node, &data);
+            // No Context here: MutationObserver records are built at the
+            // next flush point (see mutation_bridge::flush_character_data)
+            crate::dom::mutation_bridge::defer_character_data(b, old);
         }
     }
 

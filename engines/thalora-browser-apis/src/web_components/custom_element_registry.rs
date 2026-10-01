@@ -10,23 +10,24 @@ use boa_engine::{
     Context, JsArgs, JsNativeError, JsResult, NativeFunction, js_string, object::ObjectInitializer,
     property::Attribute, value::JsValue,
 };
-use std::collections::HashMap;
-use std::sync::RwLock;
 
 use crate::dom::binding;
 use crate::dom::tree::{NodeId, SharedTree};
 
-/// Global registry of custom elements (keyed by name)
-static REGISTRY: once_cell::sync::Lazy<RwLock<HashMap<String, CustomElementDefinition>>> =
-    once_cell::sync::Lazy::new(|| RwLock::new(HashMap::new()));
+fn constructor_slot(name: &str) -> String {
+    format!("__constructor_{name}__")
+}
 
-/// Custom element definition
-#[derive(Clone)]
-pub struct CustomElementDefinition {
-    /// The constructor for this custom element
-    pub name: String,
-    /// Whether this element extends a built-in element
-    pub extends: Option<String>,
+fn extends_slot(name: &str) -> String {
+    format!("__extends_{name}__")
+}
+
+fn promise_slot(name: &str) -> String {
+    format!("__when_defined_{name}__")
+}
+
+fn resolve_slot(name: &str) -> String {
+    format!("__when_defined_resolve_{name}__")
 }
 
 /// JavaScript `CustomElementRegistry` implementation.
@@ -127,188 +128,154 @@ impl CustomElementRegistry {
 
     /// `customElements.define(name, constructor, options)`
     ///
-    /// Defines a new custom element.
+    /// Definitions live on this realm's `customElements` object, so every
+    /// page (each navigation gets a fresh realm) starts with an empty
+    /// registry. Elements of this name already in the document are upgraded
+    /// (connected ones get `connectedCallback`) and `whenDefined` promises
+    /// resolve.
     fn define(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let name = args
             .get_or_undefined(0)
             .to_string(context)?
             .to_std_string_escaped();
-
         let constructor = args.get_or_undefined(1);
         let options = args.get_or_undefined(2);
 
-        // Validate name
         if !Self::is_valid_custom_element_name(&name) {
             return Err(JsNativeError::syntax()
                 .with_message(format!("'{}' is not a valid custom element name", name))
                 .into());
         }
-
-        // Constructor must be a function
         if !constructor.is_callable() {
             return Err(JsNativeError::typ()
                 .with_message("Custom element constructor must be a function")
                 .into());
         }
+        let Some(registry) = this.as_object() else {
+            return Err(JsNativeError::typ()
+                .with_message("customElements.define called on non-object")
+                .into());
+        };
+        if registry.has_own_property(js_string!(constructor_slot(&name)), context)? {
+            return Err(JsNativeError::error()
+                .with_message(format!(
+                    "Custom element '{}' has already been defined",
+                    name
+                ))
+                .into());
+        }
 
-        // Check if already defined
-        {
-            let registry = REGISTRY.read().unwrap();
-            if registry.contains_key(&name) {
-                return Err(JsNativeError::error()
-                    .with_message(format!(
-                        "Custom element '{}' has already been defined",
-                        name
-                    ))
-                    .into());
+        if let Some(options_obj) = options.as_object() {
+            let extends = options_obj.get(js_string!("extends"), context)?;
+            if !extends.is_undefined() {
+                registry.set(js_string!(extends_slot(&name)), extends, false, context)?;
             }
         }
+        registry.set(
+            js_string!(constructor_slot(&name)),
+            constructor.clone(),
+            false,
+            context,
+        )?;
 
-        // Parse options
-        let extends = if let Some(options_obj) = options.as_object() {
-            let extends_val = options_obj.get(js_string!("extends"), context)?;
-            if !extends_val.is_undefined() {
-                Some(extends_val.to_string(context)?.to_std_string_escaped())
-            } else {
-                None
-            }
-        } else {
-            None
-        };
+        // Upgrade elements of this name that already exist in the document
+        upgrade_existing(&name, context)?;
 
-        // Store definition
-        let definition = CustomElementDefinition {
-            name: name.clone(),
-            extends,
-        };
-
-        {
-            let mut registry = REGISTRY.write().unwrap();
-            registry.insert(name.clone(), definition);
+        // Resolve pending whenDefined(name) promises
+        let resolve = registry.get(js_string!(resolve_slot(&name)), context)?;
+        if let Some(resolve) = resolve.as_callable() {
+            resolve.call(&JsValue::undefined(), &[constructor.clone()], context)?;
         }
-
-        // Store constructor on the this object (customElements)
-        if let Some(this_obj) = this.as_object() {
-            this_obj.set(
-                js_string!(format!("__constructor_{}__", name).as_str()),
-                constructor.clone(),
-                false,
-                context,
-            )?;
-        }
-
         Ok(JsValue::undefined())
     }
 
     /// `customElements.get(name)`
-    ///
-    /// Returns the constructor for the named custom element.
     fn get(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let name = args
             .get_or_undefined(0)
             .to_string(context)?
             .to_std_string_escaped();
-
-        // Check if defined
-        {
-            let registry = REGISTRY.read().unwrap();
-            if !registry.contains_key(&name) {
-                return Ok(JsValue::undefined());
-            }
+        match this.as_object() {
+            Some(registry) => registry.get(js_string!(constructor_slot(&name)), context),
+            None => Ok(JsValue::undefined()),
         }
-
-        // Return the stored constructor
-        if let Some(this_obj) = this.as_object() {
-            let constructor = this_obj.get(
-                js_string!(format!("__constructor_{}__", name).as_str()),
-                context,
-            )?;
-            return Ok(constructor);
-        }
-
-        Ok(JsValue::undefined())
     }
 
     /// `customElements.getName(constructor)`
-    ///
-    /// Returns the name of the custom element associated with a constructor.
     fn get_name(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let constructor = args.get_or_undefined(0);
-
         if !constructor.is_callable() {
             return Ok(JsValue::null());
         }
-
-        // Search for the constructor
-        let registry = REGISTRY.read().unwrap();
-        for name in registry.keys() {
-            if let Some(this_obj) = this.as_object() {
-                let stored_constructor = this_obj
-                    .get(
-                        js_string!(format!("__constructor_{}__", name).as_str()),
-                        context,
-                    )
-                    .ok();
-
-                if let Some(stored) = stored_constructor {
-                    // Simple reference equality check
-                    if stored == *constructor {
-                        return Ok(js_string!(name.as_str()).into());
-                    }
-                }
+        let Some(registry) = this.as_object() else {
+            return Ok(JsValue::null());
+        };
+        for key in registry.own_property_keys(context)? {
+            let key_string = key.to_string();
+            let Some(name) = key_string
+                .strip_prefix("__constructor_")
+                .and_then(|rest| rest.strip_suffix("__"))
+            else {
+                continue;
+            };
+            if registry.get(key.clone(), context)? == *constructor {
+                return Ok(js_string!(name).into());
             }
         }
-
         Ok(JsValue::null())
     }
 
-    /// `customElements.whenDefined(name)`
-    ///
-    /// Returns a Promise that resolves when the named custom element is defined.
-    fn when_defined(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    /// `customElements.whenDefined(name)`: resolves (with the constructor)
+    /// once `name` is defined.
+    fn when_defined(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+        use boa_engine::object::builtins::JsPromise;
+
         let name = args
             .get_or_undefined(0)
             .to_string(context)?
             .to_std_string_escaped();
-
-        // Validate name
         if !Self::is_valid_custom_element_name(&name) {
             return Err(JsNativeError::syntax()
                 .with_message(format!("'{}' is not a valid custom element name", name))
                 .into());
         }
-
-        // Check if already defined
-        let is_defined = {
-            let registry = REGISTRY.read().unwrap();
-            registry.contains_key(&name)
+        let Some(registry) = this.as_object() else {
+            return Ok(JsPromise::resolve(JsValue::undefined(), context)?.into());
         };
-
-        // Create a promise
-        use boa_engine::object::builtins::JsPromise;
-
-        if is_defined {
-            // Already defined, resolve immediately
-            let promise = JsPromise::resolve(JsValue::undefined(), context)?;
-            Ok(promise.into())
-        } else {
-            // Return a pending promise
-            // In a real implementation, this would be stored and resolved when define() is called
-            let promise = JsPromise::resolve(JsValue::undefined(), context)?;
-            Ok(promise.into())
+        let defined = registry.get(js_string!(constructor_slot(&name)), context)?;
+        if defined.is_callable() {
+            return Ok(JsPromise::resolve(defined, context)?.into());
         }
+        // One pending promise per name; define() calls its resolver
+        let existing = registry.get(js_string!(promise_slot(&name)), context)?;
+        if existing.is_object() {
+            return Ok(existing);
+        }
+        let (promise, resolvers) = JsPromise::new_pending(context);
+        registry.set(
+            js_string!(promise_slot(&name)),
+            promise.clone(),
+            false,
+            context,
+        )?;
+        registry.set(
+            js_string!(resolve_slot(&name)),
+            resolvers.resolve.clone(),
+            false,
+            context,
+        )?;
+        Ok(promise.into())
     }
 
-    /// `customElements.upgrade(root)`
-    ///
-    /// Upgrades all shadow-containing custom elements in a subtree.
-    fn upgrade(_this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-        let _root = args.get_or_undefined(0);
-
-        // In a real implementation, this would traverse the DOM tree
-        // and upgrade any custom elements that haven't been upgraded yet.
-        // For now, this is a no-op as we don't have full DOM integration.
-
+    /// `customElements.upgrade(root)`: upgrade defined custom elements in
+    /// `root`'s subtree (connected ones also get `connectedCallback`).
+    fn upgrade(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+        if let Some(root) = args.get_or_undefined(0).as_object()
+            && let Some(b) = binding::binding_of(&root)
+        {
+            let candidates = custom_element_candidates(&b.tree, &[b.node]);
+            upgrade_nodes(&b.document, &b.tree, &candidates, context)?;
+        }
         Ok(JsValue::undefined())
     }
 }
@@ -320,13 +287,14 @@ impl CustomElementRegistry {
 // Minimal model, driven by `dom::script_runner` and `dom::mutation_bridge`:
 // - Definitions are looked up per realm through the global `customElements`
 //   object (the `__constructor_<name>__` slot `define` stores).
-// - "Upgrade" only sets the element wrapper's prototype to
-//   `constructor.prototype`; the constructor itself is not run, so class
-//   field initializers and constructor bodies do not execute.
-// - Elements are upgraded lazily, when they become connected through a
-//   script-running insertion API or when an observed attribute changes; not
-//   at createElement, not when `define` is called for existing elements, and
-//   not for parser/innerHTML-created elements until one of those happens.
+// - "Upgrade" sets the element wrapper's prototype to
+//   `constructor.prototype` and runs the constructor on it through the
+//   element construction stack (HTMLElement's constructor hands back the
+//   element being upgraded), so class fields and constructor bodies run.
+// - Elements are upgraded when `define` runs (existing elements in the
+//   document), by `customElements.upgrade(root)`, when they become connected
+//   through a script-running insertion API, or when an observed attribute
+//   changes; not at createElement.
 // - Reactions run synchronously right after the mutation (no element queue
 //   / CEReactions stack); callback exceptions are reported to stderr.
 // - `observedAttributes` is read from the constructor at each change rather
@@ -343,10 +311,7 @@ pub fn lookup_constructor(name: &str, context: &mut Context) -> Option<JsObject>
         .ok()?
         .as_object()?;
     registry
-        .get(
-            js_string!(format!("__constructor_{}__", name).as_str()),
-            context,
-        )
+        .get(js_string!(constructor_slot(name)), context)
         .ok()?
         .as_callable()
 }
@@ -380,15 +345,93 @@ fn is_upgraded(element: &JsObject, ctor: &JsObject, context: &mut Context) -> Js
         .is_some_and(|current| JsObject::equals(&current, &proto)))
 }
 
-/// Give `element` the definition's prototype (see the limits above).
-fn upgrade_element(element: &JsObject, ctor: &JsObject, context: &mut Context) -> JsResult<()> {
-    if let Some(proto) = constructor_prototype(ctor, context)? {
-        let already = element
-            .prototype()
-            .is_some_and(|current| JsObject::equals(&current, &proto));
-        if !already {
-            element.set_prototype(Some(proto));
+thread_local! {
+    /// The HTML "element construction stack": elements being upgraded. The
+    /// HTMLElement constructor returns the top one instead of creating a
+    /// new element, so `super()` in a custom element class binds `this` to
+    /// the element being upgraded.
+    static CONSTRUCTION_STACK: std::cell::RefCell<Vec<JsObject>> =
+        const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// For the HTMLElement constructor: the element being upgraded, if any.
+pub(crate) fn take_constructing_element() -> Option<JsObject> {
+    CONSTRUCTION_STACK.with(|stack| stack.borrow_mut().pop())
+}
+
+/// The custom element name `ctor` was defined with in this realm.
+pub(crate) fn name_for_constructor(ctor: &JsObject, context: &mut Context) -> Option<String> {
+    let registry = context
+        .global_object()
+        .get(js_string!("customElements"), context)
+        .ok()?
+        .as_object()?;
+    for key in registry.own_property_keys(context).ok()? {
+        let key_string = key.to_string();
+        let Some(name) = key_string
+            .strip_prefix("__constructor_")
+            .and_then(|rest| rest.strip_suffix("__"))
+        else {
+            continue;
+        };
+        if let Ok(value) = registry.get(key.clone(), context)
+            && value
+                .as_object()
+                .is_some_and(|value| JsObject::equals(&value, ctor))
+        {
+            return Some(name.to_string());
         }
+    }
+    None
+}
+
+/// Upgrade `element`: give it the definition's prototype and run the
+/// constructor on it (via the construction stack). Constructor errors are
+/// reported, as for any failed upgrade.
+fn upgrade_element(element: &JsObject, ctor: &JsObject, context: &mut Context) -> JsResult<()> {
+    let Some(proto) = constructor_prototype(ctor, context)? else {
+        return Ok(());
+    };
+    if element
+        .prototype()
+        .is_some_and(|current| JsObject::equals(&current, &proto))
+    {
+        return Ok(());
+    }
+    element.set_prototype(Some(proto));
+    CONSTRUCTION_STACK.with(|stack| stack.borrow_mut().push(element.clone()));
+    let result = ctor.construct(&[], Some(ctor), context);
+    // If the constructor never reached HTMLElement (threw early), drop the entry
+    CONSTRUCTION_STACK.with(|stack| {
+        let mut stack = stack.borrow_mut();
+        if stack
+            .last()
+            .is_some_and(|top| JsObject::equals(top, element))
+        {
+            stack.pop();
+        }
+    });
+    match result {
+        Ok(constructed) if !JsObject::equals(&constructed, element) => {
+            eprintln!(
+                "console.error: custom element constructor did not produce the element being upgraded"
+            );
+        }
+        Ok(_) => {}
+        Err(err) => eprintln!("console.error: Uncaught {err}"),
+    }
+    Ok(())
+}
+
+/// `document.createElement(name)` for a defined custom element: construct
+/// it right away (synchronous custom element creation).
+pub(crate) fn construct_created_element(
+    element: &JsValue,
+    name: &str,
+    context: &mut Context,
+) -> JsResult<()> {
+    if let (Some(element), Some(ctor)) = (element.as_object(), lookup_constructor(name, context)) {
+        upgrade_element(&element, &ctor, context)?;
     }
     Ok(())
 }
@@ -428,6 +471,44 @@ fn defined_element(
         return Ok(None);
     };
     Ok(Some((element, ctor)))
+}
+
+/// Upgrade not-yet-upgraded defined custom elements among `candidates`;
+/// connected ones get `connectedCallback` (as for an upgrade per spec).
+fn upgrade_nodes(
+    document: &JsObject,
+    tree: &SharedTree,
+    candidates: &[NodeId],
+    context: &mut Context,
+) -> JsResult<()> {
+    for &node in candidates {
+        let Some((element, ctor)) = defined_element(document, tree, node, context)? else {
+            continue;
+        };
+        if is_upgraded(&element, &ctor, context)? {
+            continue;
+        }
+        upgrade_element(&element, &ctor, context)?;
+        if tree.borrow().is_connected(node) {
+            invoke_callback(&element, "connectedCallback", &[], context);
+        }
+    }
+    Ok(())
+}
+
+/// After `define(name)`: upgrade `<name>` elements in the global document.
+fn upgrade_existing(name: &str, context: &mut Context) -> JsResult<()> {
+    let document = context
+        .global_object()
+        .get(js_string!("document"), context)?;
+    let Some((document, tree)) = binding::document_tree(&document) else {
+        return Ok(());
+    };
+    let nodes = {
+        let t = tree.borrow();
+        t.elements_by_tag(t.document(), name)
+    };
+    upgrade_nodes(&document, &tree, &nodes, context)
 }
 
 /// Upgrade and call `connectedCallback` on the defined custom elements in

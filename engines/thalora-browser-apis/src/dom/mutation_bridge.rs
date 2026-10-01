@@ -41,6 +41,7 @@ pub fn record_child_list(
     removed: &[NodeId],
     context: &mut Context,
 ) -> JsResult<()> {
+    flush_character_data(context);
     if added.is_empty() && removed.is_empty() {
         return Ok(());
     }
@@ -93,6 +94,7 @@ pub fn attribute_changed(
     _new: Option<String>,
     context: &mut Context,
 ) -> JsResult<()> {
+    flush_character_data(context);
     // Custom element reaction first: the early returns below skip the end.
     crate::web_components::custom_element_registry::attribute_changed_reaction(
         b,
@@ -124,10 +126,31 @@ pub fn attribute_changed(
     Ok(())
 }
 
-/// The data of the text/comment node `b.node` changed from `old`.
-///
-/// Not wired up yet: `CharacterData::sync_to_tree` has no `Context`, so the
-/// caller must pass one in once the CharacterData natives can provide it.
+thread_local! {
+    /// characterData changes made without a Context (CharacterData stores
+    /// its data in plain Rust), waiting to become MutationObserver records.
+    static PENDING_CHARACTER_DATA: std::cell::RefCell<Vec<(DomBinding, Option<String>)>> =
+        const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// Remember a characterData change on a bound node (old value included)
+/// until [`flush_character_data`] runs with a Context.
+pub fn defer_character_data(b: DomBinding, old: Option<String>) {
+    PENDING_CHARACTER_DATA.with(|pending| pending.borrow_mut().push((b, old)));
+}
+
+/// Turn deferred characterData changes into MutationObserver records.
+/// Called at every microtask checkpoint and before other mutation records,
+/// so records stay in mutation order.
+pub fn flush_character_data(context: &mut Context) {
+    let pending = PENDING_CHARACTER_DATA.with(|pending| std::mem::take(&mut *pending.borrow_mut()));
+    for (b, old) in pending {
+        let _ = character_data_changed(&b, old, context);
+    }
+}
+
+/// The data of the text/comment node `b.node` changed from `old`
+/// (reached through [`flush_character_data`]).
 pub fn character_data_changed(
     b: &DomBinding,
     old: Option<String>,

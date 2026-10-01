@@ -820,6 +820,14 @@ fn create_element(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
     if let Some(tree) = tree {
         crate::dom::binding::bind_new_element(&this_obj, &tree, &element, &tag_name);
     }
+    // Defined custom elements are constructed synchronously
+    if tag_name.contains('-') {
+        crate::web_components::custom_element_registry::construct_created_element(
+            &element,
+            &tag_name.to_ascii_lowercase(),
+            context,
+        )?;
+    }
     Ok(element)
 }
 

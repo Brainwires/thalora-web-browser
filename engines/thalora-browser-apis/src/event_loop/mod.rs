@@ -290,6 +290,8 @@ impl ThaloraJobExecutor {
 
     /// Drain the microtask queue, including microtasks queued while draining.
     fn run_microtask_checkpoint(&self, context: &mut Context) {
+        // Text edits queue their MutationObserver records lazily
+        crate::dom::mutation_bridge::flush_character_data(context);
         let mut ran = 0usize;
         loop {
             // Release the borrow before running: the task may queue more.
