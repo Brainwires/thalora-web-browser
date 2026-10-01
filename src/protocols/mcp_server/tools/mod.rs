@@ -63,7 +63,11 @@ impl McpServer {
 
         // Chrome DevTools Protocol (CDP) Tools - Execute JavaScript, inspect DOM, manage cookies, capture screenshots, and retrieve console messages
         if is_cdp_enabled() {
-            tools.extend(get_cdp_tool_definitions());
+            tools.extend(
+                get_cdp_tool_definitions()
+                    .into_iter()
+                    .filter(|t| is_cdp_experimental_enabled() || !is_experimental_cdp_tool(t)),
+            );
         }
 
         // Web Scraping Tools - Unified scraping tool that combines all capabilities (enabled by default)
@@ -86,9 +90,9 @@ impl McpServer {
             tools.extend(get_session_tool_definitions());
         }
 
-        // Advanced Tools - PDF extraction, downloads, network interception
-        // Available when scraping or sessions are enabled
-        if is_scraping_enabled() || is_sessions_enabled() {
+        // Advanced Tools - PDF extraction, downloads, network interception.
+        // Not implemented yet (no handlers in routing.rs), so opt-in only.
+        if is_advanced_enabled() {
             tools.extend(get_advanced_tool_definitions());
         }
 
@@ -103,7 +107,11 @@ impl McpServer {
 
         // BrainClaw preset — add agent-friendly alias tools on top of the full toolset
         if is_brainclaw_preset() {
-            tools.extend(get_brainclaw_alias_tool_definitions());
+            tools.extend(
+                get_brainclaw_alias_tool_definitions()
+                    .into_iter()
+                    .filter(|t| is_cdp_experimental_enabled() || !is_experimental_cdp_tool(t)),
+            );
         }
 
         tools
@@ -242,4 +250,25 @@ impl McpServer {
 
         tools
     }
+}
+
+/// Tools served by the in-process CDP server's mock domains (canned data,
+/// no real browser behind them). Hidden unless THALORA_ENABLE_CDP_EXPERIMENTAL=true.
+const EXPERIMENTAL_CDP_TOOLS: &[&str] = &[
+    "cdp_dom_get_document",
+    "cdp_dom_query_selector",
+    "cdp_dom_get_attributes",
+    "cdp_dom_get_computed_style",
+    "cdp_network_get_cookies",
+    "cdp_network_set_cookie",
+    "cdp_console_get_messages",
+    "cdp_page_screenshot",
+    "cdp_page_reload",
+    "browser_screenshot",
+];
+
+fn is_experimental_cdp_tool(tool: &Value) -> bool {
+    tool.get("name")
+        .and_then(|n| n.as_str())
+        .is_some_and(|n| EXPERIMENTAL_CDP_TOOLS.contains(&n))
 }

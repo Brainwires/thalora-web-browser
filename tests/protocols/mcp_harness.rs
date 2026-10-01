@@ -31,6 +31,11 @@ impl Default for McpTestConfig {
         env_vars.insert("THALORA_ENABLE_SCRAPING".to_string(), "true".to_string());
         env_vars.insert("THALORA_ENABLE_SEARCH".to_string(), "true".to_string());
         env_vars.insert("THALORA_ENABLE_SESSIONS".to_string(), "true".to_string());
+        // Mock-backed CDP tools are hidden by default; existing CDP tests exercise them
+        env_vars.insert(
+            "THALORA_ENABLE_CDP_EXPERIMENTAL".to_string(),
+            "true".to_string(),
+        );
         // AI memory tools require a master password for encryption
         env_vars.insert(
             "THALORA_MASTER_PASSWORD".to_string(),
