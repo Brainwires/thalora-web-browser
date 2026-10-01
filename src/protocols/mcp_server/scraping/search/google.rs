@@ -17,31 +17,10 @@ pub async fn search(query: &str, num_results: usize) -> Result<SearchResults> {
     );
     eprintln!("🔍 DEBUG: Google search URL: {}", search_url);
 
-    // Create temporary browser for stateless search
-    eprintln!("🔍 DEBUG: Creating temporary browser");
-    let temp_browser = crate::engine::browser::HeadlessWebBrowser::new();
-    eprintln!("🔍 DEBUG: Temporary browser created, about to navigate");
-
-    // Navigate using the browser's full navigation system which includes stealth features
-    // Google requires JavaScript execution to display search results
-    tokio::task::block_in_place(|| {
-        let mut browser = temp_browser
-            .lock()
-            .map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
-        tokio::runtime::Handle::current().block_on(browser.navigate_to_with_js_option(
-            &search_url,
-            true,
-            true,
-        ))
-    })?;
-    eprintln!("🔍 DEBUG: Navigation completed, getting content");
-
-    let html = {
-        let browser = temp_browser
-            .lock()
-            .map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
-        browser.get_current_content()
-    };
+    // Temporary browser on its own thread for this stateless search.
+    // Google requires JavaScript execution to display search results.
+    let temp_browser = super::temporary_browser("google")?;
+    let html = super::navigate_and_read(&temp_browser, search_url.clone(), true).await?;
     eprintln!("🔍 DEBUG: Content retrieved");
 
     // Check for Google's bot detection challenges
@@ -87,22 +66,10 @@ pub async fn search(query: &str, num_results: usize) -> Result<SearchResults> {
 
                     eprintln!("🔍 DEBUG: Following redirect to: {}", full_redirect_url);
 
-                    // Reuse the existing browser to follow the redirect (avoid IndexedDB lock conflict)
-                    tokio::task::block_in_place(|| {
-                        let mut browser = temp_browser.lock().map_err(|_| {
-                            anyhow::anyhow!("Failed to acquire browser lock for redirect")
-                        })?;
-                        tokio::runtime::Handle::current().block_on(
-                            browser.navigate_to_with_js_option(&full_redirect_url, true, true),
-                        )
-                    })?;
-
-                    let redirect_html = {
-                        let browser = temp_browser.lock().map_err(|_| {
-                            anyhow::anyhow!("Failed to acquire browser lock for redirect")
-                        })?;
-                        browser.get_current_content()
-                    };
+                    // Reuse the same browser to follow the redirect (keeps cookies)
+                    let redirect_html =
+                        super::navigate_and_read(&temp_browser, full_redirect_url.clone(), true)
+                            .await?;
 
                     eprintln!(
                         "🔍 DEBUG: Redirect response length: {} chars",
@@ -260,25 +227,8 @@ pub async fn image_search(query: &str, num_results: usize) -> Result<ImageSearch
         query, search_url
     );
 
-    let temp_browser = crate::engine::browser::HeadlessWebBrowser::new();
-
-    tokio::task::block_in_place(|| {
-        let mut browser = temp_browser
-            .lock()
-            .map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
-        tokio::runtime::Handle::current().block_on(browser.navigate_to_with_js_option(
-            &search_url,
-            true,
-            true,
-        ))
-    })?;
-
-    let html = {
-        let browser = temp_browser
-            .lock()
-            .map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
-        browser.get_current_content()
-    };
+    let temp_browser = super::temporary_browser("google-images")?;
+    let html = super::navigate_and_read(&temp_browser, search_url.clone(), true).await?;
 
     drop(temp_browser);
 
