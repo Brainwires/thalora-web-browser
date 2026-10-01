@@ -111,6 +111,34 @@ impl RustRenderer {
         Some(executor.pump(context, budget))
     }
 
+    /// Recompute element geometry for `getBoundingClientRect()` / offset*
+    /// from `html` with the page's external stylesheets applied, without
+    /// touching the document content. Used after scripts have run.
+    pub fn refresh_layout(&mut self, html: &str, external_css: &[String], viewport: (f32, f32)) {
+        use thalora_browser_apis::boa_engine::js_string;
+
+        let Some(ctx) = self.js_context.as_mut() else {
+            return;
+        };
+        let Ok(layout) = super::page_layout::compute_page_layout_with_css(
+            html,
+            viewport.0,
+            viewport.1,
+            external_css,
+        ) else {
+            return;
+        };
+        let rects = super::layout_bridge::flatten_layout_to_rects(&layout);
+        let global = ctx.global_object().clone();
+        if let Ok(document_value) = global.get(js_string!("document"), ctx)
+            && let Some(document_obj) = document_value.as_object()
+            && let Some(document_data) =
+                document_obj.downcast_ref::<thalora_browser_apis::dom::document::DocumentData>()
+        {
+            document_data.set_layout_data(rects);
+        }
+    }
+
     /// Console messages logged by the page (oldest first, at most 500).
     pub fn console_messages(
         &mut self,

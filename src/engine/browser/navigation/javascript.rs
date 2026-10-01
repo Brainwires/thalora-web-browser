@@ -303,6 +303,12 @@ impl super::super::HeadlessWebBrowser {
             eprintln!("🔍 DEBUG: wait_for_js disabled, ready for direct DOM interaction");
         }
 
+        // Geometry for getBoundingClientRect()/offset* was computed from the
+        // pre-script HTML without external CSS; recompute it for the final page.
+        if wait_for_js && has_scripts {
+            self.refresh_layout();
+        }
+
         // Reset bypass_cache flag after navigation completes
         self.bypass_cache = false;
 

@@ -311,7 +311,7 @@ impl HeadlessWebBrowser {
 
         // Capture the JS-modified DOM
         let original_len = self.current_content.len();
-        match self
+        let changed = match self
             .execute_javascript("document.documentElement.outerHTML")
             .await
         {
@@ -325,10 +325,13 @@ impl HeadlessWebBrowser {
                 };
                 let changed = full_html.len() != original_len;
                 self.current_content = full_html;
-                Ok(changed)
+                changed
             }
-            _ => Ok(false),
-        }
+            _ => false,
+        };
+        // Geometry for the final, script-modified page with external CSS
+        self.refresh_layout();
+        Ok(changed)
     }
 
     /// Execute JavaScript in the internal renderer and return the raw string result.
@@ -371,6 +374,16 @@ impl HeadlessWebBrowser {
             &self.external_stylesheets,
         )?;
         crate::engine::renderer::paint::render_png(&layout, options)
+    }
+
+    /// Recompute JS-visible element geometry for the current content,
+    /// including external stylesheets (1024x768 viewport, as on load).
+    pub fn refresh_layout(&mut self) {
+        let content = self.current_content.clone();
+        let css = self.external_stylesheets.clone();
+        if let Some(renderer) = self.renderer.as_mut() {
+            renderer.refresh_layout(&content, &css, (1024.0, 768.0));
+        }
     }
 
     /// Console messages logged by the current page (oldest first, at most 500).
