@@ -113,9 +113,12 @@ pub struct PermissionEntry {
     pub mcp_granted: bool,
 }
 
+/// Granted permissions keyed by (origin, path, mode).
+type PermissionMap = HashMap<(String, PathBuf, PermissionMode), PermissionEntry>;
+
 #[derive(Debug)]
 pub struct FileSystemPermissions {
-    permissions: Arc<RwLock<HashMap<(String, PathBuf, PermissionMode), PermissionEntry>>>,
+    permissions: Arc<RwLock<PermissionMap>>,
 }
 
 impl Default for FileSystemPermissions {

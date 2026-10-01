@@ -17,10 +17,11 @@ pub fn detect() -> (String, Vec<String>) {
         .unwrap_or_else(|| "en-US".to_string());
 
     let mut languages = vec![primary.clone()];
-    if let Some((base, _)) = primary.split_once('-') {
-        if !base.is_empty() && base != primary {
-            languages.push(base.to_string());
-        }
+    if let Some((base, _)) = primary.split_once('-')
+        && !base.is_empty()
+        && base != primary
+    {
+        languages.push(base.to_string());
     }
     (primary, languages)
 }
@@ -30,11 +31,7 @@ pub fn detect() -> (String, Vec<String>) {
 /// - Strips `.codeset` / `@modifier` suffixes (POSIX form).
 /// - Replaces `_` with `-` (IETF form).
 fn normalize_bcp47(raw: String) -> String {
-    let trimmed = raw
-        .split(|c| c == '.' || c == '@')
-        .next()
-        .unwrap_or(&raw)
-        .trim();
+    let trimmed = raw.split(['.', '@']).next().unwrap_or(&raw).trim();
     trimmed.replace('_', "-")
 }
 

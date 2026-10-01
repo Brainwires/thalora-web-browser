@@ -899,12 +899,11 @@ fn apply_ua_defaults(tag: &str, styles: &mut ComputedStyles, doc_mode: DocumentM
                 });
             }
         }
-        "progress" | "meter" => {
+        "progress" | "meter"
             // Replaced elements: render as visible blocks with their specified dimensions
-            if styles.display.is_none() {
+            if styles.display.is_none() => {
                 styles.display = Some("block".to_string());
             }
-        }
         _ => {}
     }
 
@@ -1154,6 +1153,7 @@ const HOVER_INTERACTIVE_TAGS: &[&str] = &[
 /// this function keeps every element as a proper node in the tree. This allows the C#
 /// ControlTreeBuilder to style `<a>`, `<strong>`, `<em>`, `<code>`, `<span>` etc. individually.
 #[allow(clippy::only_used_in_recursion)]
+#[allow(clippy::too_many_arguments)] // recursive builder threading walk state
 fn build_styled_element_from_dom(
     element_ref: &ElementRef,
     css_processor: &mut CssProcessor,
@@ -1969,22 +1969,22 @@ fn normalize_length(css: &str) -> String {
         return s.to_string();
     }
     // px → bare number
-    if let Some(num) = s.strip_suffix("px") {
-        if let Ok(v) = num.trim().parse::<f32>() {
-            return format_px(v);
-        }
+    if let Some(num) = s.strip_suffix("px")
+        && let Ok(v) = num.trim().parse::<f32>()
+    {
+        return format_px(v);
     }
     // pt → px
-    if let Some(num) = s.strip_suffix("pt") {
-        if let Ok(v) = num.trim().parse::<f32>() {
-            return format_px(v * 4.0 / 3.0);
-        }
+    if let Some(num) = s.strip_suffix("pt")
+        && let Ok(v) = num.trim().parse::<f32>()
+    {
+        return format_px(v * 4.0 / 3.0);
     }
     // rem → px (root = 16px)
-    if let Some(num) = s.strip_suffix("rem") {
-        if let Ok(v) = num.trim().parse::<f32>() {
-            return format_px(v * 16.0);
-        }
+    if let Some(num) = s.strip_suffix("rem")
+        && let Ok(v) = num.trim().parse::<f32>()
+    {
+        return format_px(v * 16.0);
     }
     s.to_string()
 }

@@ -1,3 +1,8 @@
+// Browser jobs run one at a time on the session's own BrowserThread
+// (single-threaded), so holding the browser's MutexGuard across .await
+// cannot contend or deadlock.
+#![allow(clippy::await_holding_lock)]
+
 use futures::FutureExt;
 use serde_json::Value;
 
@@ -68,13 +73,12 @@ impl McpServer {
                 },
             )
             .await;
-            let html = match result {
+
+            match result {
                 Ok(Ok(html)) => html,
                 Ok(Err(e)) => return McpResponse::error(-1, e),
                 Err(e) => return McpResponse::error(-1, format!("Browser failed: {}", e)),
-            };
-
-            html
+            }
         } else {
             // Get content from existing session
             let session_id_str = session_id.unwrap(); // We know it exists from earlier check

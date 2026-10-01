@@ -184,7 +184,11 @@ impl CustomElementRegistry {
         // Resolve pending whenDefined(name) promises
         let resolve = registry.get(js_string!(resolve_slot(&name)), context)?;
         if let Some(resolve) = resolve.as_callable() {
-            resolve.call(&JsValue::undefined(), &[constructor.clone()], context)?;
+            resolve.call(
+                &JsValue::undefined(),
+                std::slice::from_ref(constructor),
+                context,
+            )?;
         }
         Ok(JsValue::undefined())
     }

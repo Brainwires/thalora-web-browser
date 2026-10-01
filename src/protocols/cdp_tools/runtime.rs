@@ -1,3 +1,8 @@
+// Browser jobs run one at a time on the session's own BrowserThread
+// (single-threaded), so holding the browser's MutexGuard across .await
+// cannot contend or deadlock.
+#![allow(clippy::await_holding_lock)]
+
 use crate::protocols::browser_tools::BrowserTools;
 use crate::protocols::cdp::{CdpCommand, CdpMessage, CdpServer};
 use crate::protocols::mcp::McpResponse;

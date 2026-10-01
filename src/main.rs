@@ -527,6 +527,8 @@ async fn run_browser_session(
         }
 
         /// Run `f` against the browser on its own thread.
+        // Runs on the browser's own thread, one job at a time (see BrowserThread)
+        #[allow(clippy::await_holding_lock)]
         async fn with_browser<R, F>(&self, f: F) -> Result<R>
         where
             R: Send + 'static,
@@ -542,7 +544,7 @@ async fn run_browser_session(
                         let mut guard = browser
                             .lock()
                             .map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
-                        f(&mut *guard).await
+                        f(&mut guard).await
                     }
                     .boxed_local()
                 })

@@ -98,7 +98,7 @@ impl BrowserTools {
 
                         response = McpResponse::success(json!({
                             "success": true,
-                            "message": format!("Predictive session created for form that opens new window"),
+                            "message": "Predictive session created for form that opens new window".to_string(),
                             "form_info": {
                                 "selector": form_info.selector,
                                 "action": form_info.action,

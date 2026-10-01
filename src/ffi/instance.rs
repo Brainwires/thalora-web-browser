@@ -45,6 +45,8 @@ impl ThalorInstance {
     }
 
     /// Run `f` with the browser on the browser's thread and wait for it.
+    // Runs on the browser's own thread, one job at a time (see BrowserThread)
+    #[allow(clippy::await_holding_lock)]
     pub(crate) fn with_browser<R, F>(&self, f: F) -> anyhow::Result<R>
     where
         R: Send + 'static,
@@ -57,7 +59,7 @@ impl ThalorInstance {
                 let mut guard = browser
                     .lock()
                     .map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))?;
-                f(&mut *guard).await
+                f(&mut guard).await
             }
             .boxed_local()
         })?

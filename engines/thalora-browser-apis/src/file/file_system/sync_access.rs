@@ -256,10 +256,10 @@ impl FileSystemSyncAccessHandle {
             .ok_or_else(|| JsNativeError::typ().with_message("file is not open"))?;
 
         use std::io::{Read, Seek, SeekFrom};
-        if let Some(pos) = at {
-            if let Err(e) = file.seek(SeekFrom::Start(pos)) {
-                return reject_with(super::errors::map_io_error(&e), &format!("{e}"), context);
-            }
+        if let Some(pos) = at
+            && let Err(e) = file.seek(SeekFrom::Start(pos))
+        {
+            return reject_with(super::errors::map_io_error(&e), &format!("{e}"), context);
         }
         let mut tmp = vec![0u8; max_len];
         let bytes_read = match file.read(&mut tmp) {
@@ -304,10 +304,10 @@ impl FileSystemSyncAccessHandle {
             .ok_or_else(|| JsNativeError::typ().with_message("file is not open"))?;
 
         use std::io::{Seek, SeekFrom, Write};
-        if let Some(pos) = at {
-            if let Err(e) = file.seek(SeekFrom::Start(pos)) {
-                return reject_with(super::errors::map_io_error(&e), &format!("{e}"), context);
-            }
+        if let Some(pos) = at
+            && let Err(e) = file.seek(SeekFrom::Start(pos))
+        {
+            return reject_with(super::errors::map_io_error(&e), &format!("{e}"), context);
         }
         let written = match file.write(&bytes) {
             Ok(n) => n,

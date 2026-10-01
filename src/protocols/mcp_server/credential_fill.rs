@@ -1,6 +1,11 @@
 //! `browser_fill_credential`: fill a stored credential into a page without
 //! the secret ever entering the model's context.
 
+// Browser jobs run one at a time on the session's own BrowserThread
+// (single-threaded), so holding the browser's MutexGuard across .await
+// cannot contend or deadlock.
+#![allow(clippy::await_holding_lock)]
+
 use futures::FutureExt;
 use serde_json::{Value, json};
 

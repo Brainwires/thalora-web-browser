@@ -408,13 +408,12 @@ pub extern "C" fn thalora_compute_styled_tree(
             );
             let serialize_start = Instant::now();
             serde_json::to_string(&styled_tree)
-                .map(|json| {
+                .inspect(|json| {
                     eprintln!(
                         "[TIMING] FFI serde_json::to_string: {}ms ({} bytes output)",
                         serialize_start.elapsed().as_millis(),
                         json.len()
                     );
-                    json
                 })
                 .map_err(|e| format!("Failed to serialize styled tree: {}", e))
         })

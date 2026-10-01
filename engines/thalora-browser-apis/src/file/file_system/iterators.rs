@@ -136,8 +136,7 @@ fn iterator_next(this: &JsValue, _args: &[JsValue], context: &mut Context) -> Js
     let value = match kind {
         IteratorKind::Keys => JsValue::from(boa_engine::JsString::from(item.name.clone())),
         IteratorKind::Values => {
-            let handle = build_child_handle(&item, &parent_path, &backend, is_opfs, context)?;
-            handle
+            build_child_handle(&item, &parent_path, &backend, is_opfs, context)?
         }
         IteratorKind::Entries => {
             let handle = build_child_handle(&item, &parent_path, &backend, is_opfs, context)?;

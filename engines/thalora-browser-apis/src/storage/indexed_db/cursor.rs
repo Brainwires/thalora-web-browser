@@ -403,14 +403,14 @@ impl IDBCursor {
 
             // Skip duplicates for unique directions
             match cursor.direction {
-                CursorDirection::NextUnique | CursorDirection::PrevUnique => {
-                    if state.current_index > 0 && state.current_index < state.keys.len() {
-                        let prev_key = state.keys[state.current_index - 1].clone();
-                        while state.current_index < state.keys.len()
-                            && state.keys[state.current_index] == prev_key
-                        {
-                            state.current_index += 1;
-                        }
+                CursorDirection::NextUnique | CursorDirection::PrevUnique
+                    if state.current_index > 0 && state.current_index < state.keys.len() =>
+                {
+                    let prev_key = state.keys[state.current_index - 1].clone();
+                    while state.current_index < state.keys.len()
+                        && state.keys[state.current_index] == prev_key
+                    {
+                        state.current_index += 1;
                     }
                 }
                 _ => {}

@@ -54,8 +54,12 @@ fn matches_research_criteria(entry: &ResearchEntry, criteria: &MemorySearchCrite
 
 fn sort_research_results(results: &mut Vec<(&String, &ResearchEntry)>, sort_by: &MemorySortBy) {
     match sort_by {
-        MemorySortBy::CreatedAt => results.sort_by(|a, b| b.1.created_at.cmp(&a.1.created_at)),
-        MemorySortBy::UpdatedAt => results.sort_by(|a, b| b.1.updated_at.cmp(&a.1.updated_at)),
+        MemorySortBy::CreatedAt => {
+            results.sort_by_key(|entry| std::cmp::Reverse(entry.1.created_at))
+        }
+        MemorySortBy::UpdatedAt => {
+            results.sort_by_key(|entry| std::cmp::Reverse(entry.1.updated_at))
+        }
         MemorySortBy::Relevance => results.sort_by(|a, b| {
             b.1.confidence_score
                 .partial_cmp(&a.1.confidence_score)
@@ -77,7 +81,7 @@ pub(super) fn search_bookmarks<'a>(
         .collect();
 
     // Sort by access count for bookmarks
-    results.sort_by(|a, b| b.1.access_count.cmp(&a.1.access_count));
+    results.sort_by_key(|entry| std::cmp::Reverse(entry.1.access_count));
 
     if let Some(limit) = criteria.limit {
         results.truncate(limit);
@@ -172,8 +176,12 @@ fn matches_note_criteria(entry: &NoteEntry, criteria: &MemorySearchCriteria) -> 
 
 fn sort_note_results(results: &mut Vec<(&String, &NoteEntry)>, sort_by: &MemorySortBy) {
     match sort_by {
-        MemorySortBy::CreatedAt => results.sort_by(|a, b| b.1.created_at.cmp(&a.1.created_at)),
-        MemorySortBy::UpdatedAt => results.sort_by(|a, b| b.1.updated_at.cmp(&a.1.updated_at)),
+        MemorySortBy::CreatedAt => {
+            results.sort_by_key(|entry| std::cmp::Reverse(entry.1.created_at))
+        }
+        MemorySortBy::UpdatedAt => {
+            results.sort_by_key(|entry| std::cmp::Reverse(entry.1.updated_at))
+        }
         MemorySortBy::Priority => results.sort_by(|a, b| {
             let a_priority = match a.1.priority {
                 NotePriority::Critical => 4,
