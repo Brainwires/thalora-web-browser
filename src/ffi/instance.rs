@@ -1,25 +1,31 @@
 //! Core FFI types and lifecycle management.
 //!
-//! Provides the ThalorInstance struct that holds a persistent tokio runtime
-//! and browser instance, bridging async Rust to synchronous C FFI calls.
+//! Provides the ThalorInstance struct that owns a browser running on its own
+//! thread, bridging async Rust to synchronous C FFI calls.
 
-use std::ffi::{CStr, CString, c_char, c_void};
+use std::ffi::{CStr, CString, c_char};
 use std::ptr;
-use std::rc::Rc;
 use std::sync::Mutex;
+
+use futures::FutureExt;
+use futures::future::LocalBoxFuture;
 
 #[cfg(unix)]
 extern crate libc;
 
 use crate::engine::HeadlessWebBrowser;
+use crate::engine::browser::BrowserThread;
 use crate::engine::browser::types::NavigationMode;
+use crate::engine::engine_trait::EngineType;
 
-/// Opaque instance holding the browser and async runtime.
-/// Each instance owns its own tokio runtime so that FFI callers
-/// (who have no async runtime) can call blocking functions.
+/// Opaque instance holding the browser.
+///
+/// The browser (and its Boa JS heap, whose GC is thread-local) lives on a
+/// dedicated 16 MB-stack thread for the instance's whole life. FFI entry
+/// points, which may arrive on any caller thread, hand work to that thread
+/// and block until it finishes.
 pub struct ThalorInstance {
-    pub(crate) runtime: tokio::runtime::Runtime,
-    pub(crate) browser: Rc<Mutex<HeadlessWebBrowser>>,
+    pub(crate) browser: BrowserThread,
     pub(crate) last_error: Mutex<Option<String>>,
 }
 
@@ -37,15 +43,49 @@ impl ThalorInstance {
             *err = None;
         }
     }
+
+    /// Run `f` with the browser on the browser's thread and wait for it.
+    // Runs on the browser's own thread, one job at a time (see BrowserThread)
+    #[allow(clippy::await_holding_lock)]
+    pub(crate) fn with_browser<R, F>(&self, f: F) -> anyhow::Result<R>
+    where
+        R: Send + 'static,
+        F: for<'a> FnOnce(&'a mut HeadlessWebBrowser) -> LocalBoxFuture<'a, anyhow::Result<R>>
+            + Send
+            + 'static,
+    {
+        self.browser.call_blocking(move |browser| {
+            async move {
+                let mut guard = browser
+                    .lock()
+                    .map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))?;
+                f(&mut guard).await
+            }
+            .boxed_local()
+        })?
+    }
+
+    /// Synchronous access to the browser (still on the browser's thread).
+    pub(crate) fn read_browser<R, F>(&self, f: F) -> anyhow::Result<R>
+    where
+        R: Send + 'static,
+        F: FnOnce(&mut HeadlessWebBrowser) -> R + Send + 'static,
+    {
+        self.with_browser(move |browser| {
+            let value = f(browser);
+            async move { Ok(value) }.boxed_local()
+        })
+    }
 }
 
-/// Run a unit of FFI work on a dedicated thread with a 16 MB stack and
-/// panic-catching so a stack overflow or panic can't take down the process.
+/// Run pure-Rust FFI work (no JS, no browser access) on a fresh thread with a
+/// 16 MB stack and panic-catching so a stack overflow or panic can't take
+/// down the process. Browser and JS work runs on the instance's
+/// [`BrowserThread`] instead, which has the same stack size.
 ///
 /// Why: the .NET ThreadPool worker that drives our FFI calls has a ~512 KB
-/// stack on macOS. The Boa JS engine and CSS selector matcher on real-world
-/// pages (Google, GitHub) recurse deeply enough to overflow that stack. This
-/// helper moves the work onto a fresh thread with a much larger stack.
+/// stack on macOS. The CSS selector matcher on real-world pages (Google,
+/// GitHub) recurses deeply enough to overflow that stack.
 ///
 /// `catch_unwind` does NOT catch stack overflows — the large stack is what
 /// prevents the overflow; `catch_unwind` only catches normal panics.
@@ -153,11 +193,17 @@ pub(crate) fn c_str_to_rust_safe<'a>(ptr: *const c_char) -> Option<&'a str> {
 
 /// Install Unix signal handlers for SIGSEGV, SIGBUS, and SIGABRT.
 ///
-/// When the Boa JS engine crashes (e.g. GC corruption → SIGSEGV), the default
-/// OS behavior is to generate a crash report and show a dialog to the user.
-/// Instead, we handle the signal ourselves: log the signal number and call
-/// `_exit(0)`. Exiting with code 0 prevents macOS CrashReporter from activating,
-/// and the BrowserController's PID-watcher detects the exit and relaunches the GUI.
+/// When the engine crashes, the default OS behavior is to generate a crash
+/// report and show a dialog to the user. Instead, we handle the signal
+/// ourselves: log the signal and call `_exit(0)`. Exiting with code 0 prevents
+/// macOS CrashReporter from activating, and the BrowserController's PID-watcher
+/// detects the exit and relaunches the GUI.
+///
+/// The main historical cause (Boa objects used after the thread that created
+/// them exited) is gone now that each instance's JS runs on one long-lived
+/// thread, so any crash caught here is a real bug: the message says so loudly
+/// and names the signal. Scheduled for removal once that has been confirmed in
+/// the field.
 ///
 /// SAFETY: Signal handlers must only call async-signal-safe functions.
 /// `libc::write` and `libc::_exit` are both async-signal-safe.
@@ -172,10 +218,16 @@ fn install_crash_handlers() {
     extern "C" fn crash_handler(sig: libc::c_int) {
         // Write a short message using write() — the only safe I/O in a signal handler.
         let msg: &[u8] = match sig {
-            libc::SIGSEGV => b"[thalora] Caught SIGSEGV - exiting cleanly\n",
-            libc::SIGBUS => b"[thalora] Caught SIGBUS - exiting cleanly\n",
-            libc::SIGABRT => b"[thalora] Caught SIGABRT - exiting cleanly\n",
-            _ => b"[thalora] Caught fatal signal - exiting cleanly\n",
+            libc::SIGSEGV => {
+                b"[thalora] FATAL: SIGSEGV in the browser engine (bug - please report)\n"
+            }
+            libc::SIGBUS => {
+                b"[thalora] FATAL: SIGBUS in the browser engine (bug - please report)\n"
+            }
+            libc::SIGABRT => {
+                b"[thalora] FATAL: SIGABRT in the browser engine (bug - please report)\n"
+            }
+            _ => b"[thalora] FATAL: signal in the browser engine (bug - please report)\n",
         };
         unsafe {
             libc::write(2, msg.as_ptr() as *const libc::c_void, msg.len());
@@ -191,7 +243,7 @@ fn install_crash_handlers() {
     for &sig in &signals {
         unsafe {
             let mut sa: libc::sigaction = std::mem::zeroed();
-            sa.sa_sigaction = crash_handler as libc::sighandler_t;
+            sa.sa_sigaction = crash_handler as *const () as libc::sighandler_t;
             libc::sigemptyset(&mut sa.sa_mask);
             // SA_RESETHAND: restore default after first delivery (prevents infinite loops).
             // SA_ONSTACK: use alternate signal stack if one is registered (safer for SIGSEGV).
@@ -219,30 +271,30 @@ pub extern "C" fn thalora_init() -> *mut ThalorInstance {
     // exit cleanly instead of triggering OS crash dialogs.
     install_crash_handlers();
 
-    // Build a multi-threaded tokio runtime for this instance
-    let runtime = match tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()
-    {
-        Ok(rt) => rt,
-        Err(_) => return ptr::null_mut(),
+    // The browser is created on, and only ever touched from, its own thread
+    let browser = match BrowserThread::spawn("ffi", EngineType::Boa) {
+        Ok(browser) => browser,
+        Err(e) => {
+            eprintln!("[ERROR] FFI thalora_init: {}", e);
+            return ptr::null_mut();
+        }
     };
 
-    // Create the browser (HeadlessWebBrowser::new() returns Arc<Mutex<..>>)
-    let browser = HeadlessWebBrowser::new();
-
-    // FFI is only used by the GUI — set Interactive mode to skip anti-bot delays
-    if let Ok(mut b) = browser.lock() {
-        b.set_navigation_mode(NavigationMode::Interactive);
-    }
-
-    let instance = Box::new(ThalorInstance {
-        runtime,
+    let instance = ThalorInstance {
         browser,
         last_error: Mutex::new(None),
-    });
+    };
 
-    Box::into_raw(instance)
+    // FFI is only used by the GUI — set Interactive mode to skip anti-bot delays
+    if let Err(e) =
+        instance.read_browser(|browser| browser.set_navigation_mode(NavigationMode::Interactive))
+    {
+        eprintln!("[ERROR] FFI thalora_init: {}", e);
+        instance.browser.shutdown_blocking();
+        return ptr::null_mut();
+    }
+
+    Box::into_raw(Box::new(instance))
 }
 
 /// Destroy a Thalora browser instance and free all resources.
@@ -256,21 +308,10 @@ pub extern "C" fn thalora_destroy(instance: *mut ThalorInstance) {
         None => return,
     };
 
-    // Leak the Boa JS renderer before dropping the instance.
-    //
-    // WHY: The renderer (and its Boa GC state) was last used on an 8MB OS thread
-    // created by NavigateAsync or ExecutePageScriptsAsync. thalora_destroy is called
-    // from the C# disposal path (UI thread or finalizer thread). Dropping the renderer
-    // on a different thread causes cross-thread Boa GC corruption → SIGSEGV, which
-    // triggers a crash dialog even as the app is shutting down.
-    //
-    // Leaking is safe here: the process exits immediately after destroy, so the OS
-    // reclaims the memory. The ~5–15MB per navigation is a one-time leak on exit.
-    if let Ok(mut browser) = inst.browser.lock() {
-        browser.leak_renderer();
-    }
-
-    drop(inst);
+    // Stop the browser thread; the browser (and its JS heap) is dropped on
+    // the thread that created it, whichever thread calls destroy.
+    let ThalorInstance { browser, .. } = *inst;
+    browser.shutdown_blocking();
 }
 
 /// Get the last error message from the instance.
@@ -319,4 +360,47 @@ pub extern "C" fn thalora_free_string(ptr: *mut c_char) {
 #[unsafe(no_mangle)]
 pub extern "C" fn thalora_set_prefers_dark(dark: i32) {
     crate::engine::renderer::css::set_prefers_dark(dark != 0);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ffi::{thalora_execute_js, thalora_get_current_url};
+
+    fn eval(instance: usize, code: &str) -> Option<String> {
+        let code = CString::new(code).unwrap();
+        let result = thalora_execute_js(instance as *mut ThalorInstance, code.as_ptr());
+        reclaim_c_string(result).map(|s| s.to_string_lossy().into_owned())
+    }
+
+    /// FFI calls arrive on arbitrary threads; JS must still run on the
+    /// instance's own thread against a live heap.
+    #[test]
+    fn js_calls_from_different_threads_share_one_browser() {
+        let instance = thalora_init();
+        assert!(!instance.is_null());
+        let addr = instance as usize;
+
+        let first = std::thread::spawn(move || eval(addr, "globalThis.__ffiTest = 41; 1 + 1"))
+            .join()
+            .unwrap();
+        assert_eq!(first.as_deref(), Some("2"));
+
+        let second = std::thread::spawn(move || eval(addr, "globalThis.__ffiTest + 1"))
+            .join()
+            .unwrap();
+        assert_eq!(second.as_deref(), Some("42"));
+
+        assert!(thalora_get_current_url(instance).is_null());
+        thalora_destroy(instance);
+    }
+
+    #[test]
+    fn destroy_from_another_thread() {
+        let addr = thalora_init() as usize;
+        assert_eq!(eval(addr, "1 + 1").as_deref(), Some("2"));
+        std::thread::spawn(move || thalora_destroy(addr as *mut ThalorInstance))
+            .join()
+            .unwrap();
+    }
 }

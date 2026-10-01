@@ -263,9 +263,8 @@ impl StorageManager {
         let origin = crate::realm_ext::current_origin(context);
         let backend = crate::file::file_system::opfs_backend::OpfsBackend::for_origin(&origin);
 
-        let dir_handle = crate::file::file_system::FileSystemDirectoryHandle::new_opfs_root(
-            backend,
-        );
+        let dir_handle =
+            crate::file::file_system::FileSystemDirectoryHandle::new_opfs_root(backend);
         let dir_obj = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
             context

@@ -50,19 +50,45 @@ impl SsrfProtection {
             ));
         }
 
-        // Get host
-        let host = url.host_str().ok_or_else(|| anyhow!("URL has no host"))?;
+        // Get host. IP literals come from `Url::host()` so IPv6 literals are
+        // handled without their brackets. Every resolved address must pass,
+        // not just the first one.
+        let ip_addrs = match url.host().ok_or_else(|| anyhow!("URL has no host"))? {
+            url::Host::Ipv4(ip) => vec![IpAddr::V4(ip)],
+            url::Host::Ipv6(ip) => vec![IpAddr::V6(ip)],
+            url::Host::Domain(host) => self.resolve_all(host)?,
+        };
 
-        // Resolve DNS to IP address
-        let ip_addr = self.resolve_host(host)?;
-
-        // Check if IP is in blocked ranges
-        self.check_ip_address(&ip_addr)?;
+        // Check if any IP is in blocked ranges
+        for ip_addr in &ip_addrs {
+            self.check_ip_address(ip_addr)?;
+        }
 
         Ok(())
     }
 
+    /// Resolve hostname to all of its IP addresses
+    fn resolve_all(&self, host: &str) -> Result<Vec<IpAddr>> {
+        if let Ok(ip_addr) = host.parse::<IpAddr>() {
+            return Ok(vec![ip_addr]);
+        }
+        let lower = host.to_ascii_lowercase();
+        if lower == "localhost" || lower.ends_with(".localhost") {
+            return Ok(vec![IpAddr::V4(Ipv4Addr::LOCALHOST)]);
+        }
+        let addrs: Vec<IpAddr> = format!("{}:443", host)
+            .to_socket_addrs()
+            .map_err(|e| anyhow!("Failed to resolve hostname '{}': {}", host, e))?
+            .map(|addr| addr.ip())
+            .collect();
+        if addrs.is_empty() {
+            return Err(anyhow!("No IP addresses resolved for host '{}'", host));
+        }
+        Ok(addrs)
+    }
+
     /// Resolve hostname to IP address
+    #[allow(dead_code)]
     fn resolve_host(&self, host: &str) -> Result<IpAddr> {
         // Try to parse as IP address first
         if let Ok(ip_addr) = host.parse::<IpAddr>() {
@@ -86,6 +112,15 @@ impl SsrfProtection {
 
     /// Check if IP address is in blocked ranges
     fn check_ip_address(&self, ip_addr: &IpAddr) -> Result<()> {
+        // IPv4-mapped IPv6 (::ffff:a.b.c.d) is checked as the embedded IPv4
+        if let IpAddr::V6(v6) = ip_addr
+            && let Some(v4) = v6.to_ipv4_mapped()
+        {
+            return self.check_ip_address(&IpAddr::V4(v4));
+        }
+        if super::is_loopback_ip(ip_addr) && super::loopback_override_enabled() {
+            return Ok(());
+        }
         let ip_network = match ip_addr {
             IpAddr::V4(ipv4) => IpNetwork::V4(Ipv4Network::new(*ipv4, 32).unwrap()),
             IpAddr::V6(ipv6) => IpNetwork::V6(Ipv6Network::new(*ipv6, 128).unwrap()),
@@ -222,5 +257,60 @@ mod tests {
 
         // 224.0.0.0/4 - Multicast
         assert!(ssrf.is_safe_url("http://224.0.0.1").is_err());
+    }
+}
+
+/// reqwest integration: a DNS resolver that only returns public addresses
+/// and a redirect policy that re-checks every hop.
+#[cfg(feature = "core")]
+pub mod http {
+    use super::SsrfProtection;
+    use reqwest::dns::{Addrs, Name, Resolve, Resolving};
+    use std::net::SocketAddr;
+
+    type BoxError = Box<dyn std::error::Error + Send + Sync>;
+
+    /// Resolves hostnames and drops internal addresses, so the connection is
+    /// made only to an address that passed the check (defeats DNS rebinding
+    /// between check and connect).
+    #[derive(Debug, Default)]
+    pub struct PublicOnlyResolver;
+
+    impl Resolve for PublicOnlyResolver {
+        fn resolve(&self, name: Name) -> Resolving {
+            let host = name.as_str().to_string();
+            Box::pin(async move {
+                let resolved: Vec<SocketAddr> =
+                    match tokio::net::lookup_host((host.as_str(), 0)).await {
+                        Ok(addrs) => addrs.collect(),
+                        Err(e) => return Err(BoxError::from(e)),
+                    };
+                let protection = SsrfProtection::new();
+                let allowed: Vec<SocketAddr> = resolved
+                    .into_iter()
+                    .filter(|addr| !protection.is_ip_blocked(&addr.ip()))
+                    .collect();
+                if allowed.is_empty() {
+                    return Err(BoxError::from(format!(
+                        "{host} resolves only to internal addresses (blocked by SSRF protection)"
+                    )));
+                }
+                let addrs: Addrs = Box::new(allowed.into_iter());
+                Ok::<Addrs, BoxError>(addrs)
+            })
+        }
+    }
+
+    /// Follow at most 10 redirects, re-validating each target URL.
+    pub fn redirect_policy() -> reqwest::redirect::Policy {
+        reqwest::redirect::Policy::custom(|attempt| {
+            if attempt.previous().len() >= 10 {
+                return attempt.error("too many redirects");
+            }
+            match SsrfProtection::new().is_safe_url(attempt.url().as_str()) {
+                Ok(()) => attempt.follow(),
+                Err(e) => attempt.error(e.to_string()),
+            }
+        })
     }
 }

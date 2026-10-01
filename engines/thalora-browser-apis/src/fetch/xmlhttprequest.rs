@@ -20,7 +20,6 @@ use boa_gc::{Finalize, Trace};
 use reqwest;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use url::Url;
 
 /// JavaScript `XMLHttpRequest` constructor implementation.
 #[derive(Debug, Copy, Clone)]
@@ -180,8 +179,9 @@ impl XmlHttpRequest {
         };
 
         // Validate URL
-        Url::parse(&url)
-            .map_err(|_| JsNativeError::syntax().with_message(format!("Invalid URL: {}", url)))?;
+        let url = crate::page_url::resolve_url(context, &url)
+            .ok_or_else(|| JsNativeError::syntax().with_message(format!("Invalid URL: {}", url)))?
+            .to_string();
 
         // Validate method
         match method.as_str() {
@@ -414,11 +414,19 @@ impl XmlHttpRequest {
         body: Option<String>,
         context: &RefCell<&mut Context>,
     ) -> JsResult<()> {
+        // SSRF: pages may not reach internal/private addresses
+        if let Err(reason) = crate::net::check_url(&url) {
+            eprintln!("🔒 XMLHttpRequest blocked: {}", reason);
+            return Err(JsNativeError::typ()
+                .with_message(format!("XMLHttpRequest blocked: {reason}"))
+                .into());
+        }
+
         // Update state to HEADERS_RECEIVED
         Self::update_ready_state(&xhr_obj, 2, *context.borrow_mut())?;
 
-        // Perform HTTP request (no context borrow needed)
-        let client = reqwest::Client::new();
+        // Perform HTTP request (no context borrow needed; redirects re-checked)
+        let client = crate::net::page_client();
         let mut request_builder = client.request(
             reqwest::Method::from_bytes(method.as_bytes()).unwrap_or(reqwest::Method::GET),
             &url,
@@ -435,7 +443,7 @@ impl XmlHttpRequest {
         }
 
         // Execute the request - collect all async results before borrowing context
-        let send_result = request_builder.send().await;
+        let send_result = crate::net::io(request_builder.send()).await;
 
         match send_result {
             Ok(response) => {
@@ -459,7 +467,7 @@ impl XmlHttpRequest {
                 }
 
                 // Await body without holding context borrow
-                let body_result = response.text().await;
+                let body_result = crate::net::io(response.text()).await;
 
                 // Now borrow context for the sync operations
                 let context = &mut *context.borrow_mut();

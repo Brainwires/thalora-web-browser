@@ -292,6 +292,29 @@ impl WindowData {
             .unwrap_or_default()
     }
 
+    /// Snapshot of the listeners for `event_type` as dispatch entries.
+    /// Window listeners carry no flags: they are bubble-phase, not `once`.
+    pub(crate) fn listener_entries(
+        &self,
+        event_type: &str,
+    ) -> Vec<crate::events::event_target::EventListener> {
+        self.get_event_listeners(event_type)
+            .into_iter()
+            .map(|callback| {
+                crate::events::event_target::EventListener::new(callback, false, false, false)
+            })
+            .collect()
+    }
+
+    /// Whether `listener` is registered for `event_type`.
+    pub(crate) fn has_listener_entry(&self, event_type: &str, listener: &JsValue) -> bool {
+        self.event_listeners
+            .lock()
+            .unwrap()
+            .get(event_type)
+            .is_some_and(|list| list.iter().any(|l| JsValue::same_value(l, listener)))
+    }
+
     pub fn set_current_url(&self, url: String) {
         *self.current_url.lock().unwrap() = url;
     }
@@ -567,26 +590,23 @@ fn get_navigator(this: &JsValue, _args: &[JsValue], context: &mut Context) -> Js
 
     // Initialize navigator object - check if we have a Navigator constructor registered externally
     if !navigator.has_property(js_string!("userAgent"), context)? {
-        eprintln!(
-            "🔍 DEBUG: navigator doesn't have userAgent, trying to create proper Navigator instance"
+        tracing::debug!(
+            "navigator doesn't have userAgent, trying to create proper Navigator instance"
         );
         // Try to create a proper Navigator instance from external constructor
         if let Some(nav_constructor) = context.realm().get_external_constructor("Navigator") {
-            eprintln!("🔍 DEBUG: Found Navigator constructor");
+            tracing::debug!("Found Navigator constructor");
             use crate::browser::navigator::Navigator;
             use boa_engine::builtins::BuiltInConstructor;
 
             let nav_args: &[JsValue] = &[];
             let nav_fn_value: JsValue = nav_constructor.constructor().clone().into();
-            eprintln!("🔍 DEBUG: About to call Navigator::constructor");
+            tracing::debug!("About to call Navigator::constructor");
             match Navigator::constructor(&nav_fn_value, nav_args, context) {
                 Ok(nav_instance) => {
-                    eprintln!(
-                        "🔍 DEBUG: Navigator::constructor succeeded: {:?}",
-                        nav_instance
-                    );
+                    tracing::debug!("Navigator::constructor succeeded: {:?}", nav_instance);
                     if let Some(nav_obj) = nav_instance.as_object() {
-                        eprintln!("🔍 DEBUG: Got navigator object, setting it on window");
+                        tracing::debug!("Got navigator object, setting it on window");
                         window.set_navigator(nav_obj.clone());
                         return Ok(nav_instance);
                     } else {
@@ -600,7 +620,7 @@ fn get_navigator(this: &JsValue, _args: &[JsValue], context: &mut Context) -> Js
         } else {
             eprintln!("❌ DEBUG: No Navigator constructor found in context.realm()");
         }
-        eprintln!("🔍 DEBUG: Falling back to manual navigator property creation");
+        tracing::debug!("Falling back to manual navigator property creation");
 
         // Fallback: manually add properties if Navigator constructor not available
         // Add userAgent property - use shared USER_AGENT constant
@@ -866,7 +886,7 @@ fn get_navigator(this: &JsValue, _args: &[JsValue], context: &mut Context) -> Js
             context,
         )?;
     } else {
-        eprintln!("🔍 DEBUG: navigator already has userAgent, using existing object");
+        tracing::debug!("navigator already has userAgent, using existing object");
     }
 
     Ok(navigator.into())

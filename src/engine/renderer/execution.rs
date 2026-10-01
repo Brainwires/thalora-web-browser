@@ -27,10 +27,16 @@ impl RustRenderer {
     /// Execute JavaScript from page-loaded `<script>` tags (trusted context).
     /// Uses relaxed security that allows eval, Function, document.write, WebAssembly
     /// since these are standard browser features used by real websites.
-    /// Timeout is 1s — scripts that take longer are typically failing Boa execution
-    /// (React bundles, etc.) and would produce no useful output anyway.
+    /// Each script gets `THALORA_PAGE_SCRIPT_TIMEOUT_MS` (default 3000 ms) of
+    /// synchronous execution; timers and async work run later in the event
+    /// loop and don't count against it. Large bundles regularly needed more
+    /// than the previous 1 s in the Boa interpreter.
     pub fn evaluate_page_javascript(&mut self, js_code: &str) -> Result<String> {
-        self.evaluate_page_javascript_with_timeout(js_code, Duration::from_secs(1))
+        let timeout_ms = std::env::var("THALORA_PAGE_SCRIPT_TIMEOUT_MS")
+            .ok()
+            .and_then(|v| v.parse::<u64>().ok())
+            .unwrap_or(3000);
+        self.evaluate_page_javascript_with_timeout(js_code, Duration::from_millis(timeout_ms))
     }
 
     /// Execute JavaScript for browser interactions without wrapper interference
@@ -42,29 +48,24 @@ impl RustRenderer {
 
         // Execute JavaScript directly without wrapper for form interactions
         let source = Source::from_bytes(js_code);
-        eprintln!(
-            "🔍 DEBUG: About to eval direct JavaScript: {}",
-            if js_code.len() > 200 {
-                &js_code[..200]
-            } else {
-                js_code
-            }
-        );
+        // Log sizes only: scripts and results can carry typed values (e.g.
+        // passwords filled into a form).
+        tracing::debug!("About to eval direct JavaScript ({} bytes)", js_code.len());
 
         if let Some(ctx) = &mut self.js_context {
             match ctx.eval(source) {
                 Ok(value) => {
-                    eprintln!(
-                        "🔍 DEBUG: Direct JavaScript eval succeeded, value type: {:?}",
+                    tracing::debug!(
+                        "Direct JavaScript eval succeeded, value type: {:?}",
                         value.get_type()
                     );
                     // Convert JS value to string - this should preserve JSON strings
                     let result = self.js_value_to_string(value);
-                    eprintln!("🔍 DEBUG: Direct conversion to string: {}", result);
+                    tracing::debug!("Direct JavaScript result ({} bytes)", result.len());
                     Ok(result)
                 }
                 Err(e) => {
-                    eprintln!("🔍 DEBUG: Direct JavaScript execution error: {:?}", e);
+                    tracing::debug!("Direct JavaScript execution error: {:?}", e);
                     Err(anyhow!("JavaScript execution failed: {}", e))
                 }
             }
@@ -125,7 +126,7 @@ impl RustRenderer {
 
         let result =
             self.evaluate_javascript_with_timeout(form_injection_code, Duration::from_secs(2))?;
-        eprintln!("🔍 DEBUG: Form injection result: {}", result);
+        tracing::debug!("Form injection result: {}", result);
         Ok(())
     }
 
@@ -182,14 +183,7 @@ impl RustRenderer {
 
         // Execute JavaScript directly without nested async handling
         let source = Source::from_bytes(&safe_wrapper);
-        eprintln!(
-            "🔍 DEBUG: About to eval JavaScript: {}",
-            if safe_wrapper.len() > 200 {
-                &safe_wrapper[..200]
-            } else {
-                &safe_wrapper
-            }
-        );
+        tracing::debug!("About to eval JavaScript ({} bytes)", safe_wrapper.len());
 
         // Run bot detection test BEFORE executing page scripts
         if safe_wrapper.contains("window.google") {
@@ -223,13 +217,13 @@ impl RustRenderer {
 
             match result {
                 Ok(value) => {
-                    eprintln!(
-                        "🔍 DEBUG: JavaScript eval succeeded, value type: {:?}",
+                    tracing::debug!(
+                        "JavaScript eval succeeded, value type: {:?}",
                         value.get_type()
                     );
                     // Convert JS value to string
                     let result = self.js_value_to_string(value);
-                    eprintln!("🔍 DEBUG: Converted to string: {}", result);
+                    tracing::debug!("JavaScript result ({} bytes)", result.len());
                     Ok(result)
                 }
                 Err(e) => {
@@ -242,10 +236,7 @@ impl RustRenderer {
                         ));
                     }
                     // For Google's JavaScript, we'll be more forgiving of errors
-                    eprintln!(
-                        "🔍 DEBUG: JavaScript execution had recoverable error: {:?}",
-                        e
-                    );
+                    tracing::debug!("JavaScript execution had recoverable error: {:?}", e);
                     eprintln!("🔴 JS ERROR DETAILS:");
                     eprintln!("   Error type: {}", e);
                     if let Some(cause) = e.source() {

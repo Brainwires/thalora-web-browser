@@ -331,10 +331,10 @@ async fn run_browser_session(
     engine_config: EngineConfig,
 ) -> Result<()> {
     use anyhow::Context;
-    use engine::browser::HeadlessWebBrowser;
+    use engine::browser::{BrowserThread, HeadlessWebBrowser};
+    use futures::FutureExt;
     use protocols::session_manager::{BrowserCommand, BrowserResponse};
     use std::rc::Rc;
-    use std::sync::Mutex;
     use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, split};
     use tokio::net::{UnixListener, UnixStream};
     use tracing::{debug, error, info};
@@ -342,21 +342,23 @@ async fn run_browser_session(
     /// Browser session handler (moved from separate binary)
     struct BrowserSessionHandler {
         session_id: String,
-        browser: Rc<Mutex<HeadlessWebBrowser>>,
+        browser: BrowserThread,
         persistent: bool,
         engine_config: EngineConfig,
     }
 
     impl BrowserSessionHandler {
-        fn new(session_id: String, persistent: bool, engine_config: EngineConfig) -> Self {
-            let browser = HeadlessWebBrowser::new(); // This already returns Rc<RefCell<HeadlessWebBrowser>>
+        fn new(session_id: String, persistent: bool, engine_config: EngineConfig) -> Result<Self> {
+            // The browser lives on its own thread so its JS heap is never
+            // touched from another one.
+            let browser = BrowserThread::spawn(&session_id, engine_config.engine_type)?;
 
-            Self {
+            Ok(Self {
                 session_id,
                 browser,
                 persistent,
                 engine_config,
-            }
+            })
         }
 
         /// Handle a browser command and return a response
@@ -524,65 +526,91 @@ async fn run_browser_session(
             }
         }
 
+        /// Run `f` against the browser on its own thread.
+        // Runs on the browser's own thread, one job at a time (see BrowserThread)
+        #[allow(clippy::await_holding_lock)]
+        async fn with_browser<R, F>(&self, f: F) -> Result<R>
+        where
+            R: Send + 'static,
+            F: for<'a> FnOnce(
+                    &'a mut HeadlessWebBrowser,
+                ) -> futures::future::LocalBoxFuture<'a, Result<R>>
+                + Send
+                + 'static,
+        {
+            self.browser
+                .call(move |browser| {
+                    async move {
+                        let mut guard = browser
+                            .lock()
+                            .map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
+                        f(&mut guard).await
+                    }
+                    .boxed_local()
+                })
+                .await?
+        }
+
         /// Navigate to a URL
         async fn navigate(&self, url: &str) -> Result<String> {
-            let browser = self.browser.clone();
             let url = url.to_string();
-            tokio::task::block_in_place(|| {
-                let rt = tokio::runtime::Handle::current();
-                let mut guard = browser.lock().unwrap();
-                rt.block_on(guard.navigate_to(&url))
-                    .context("Failed to navigate")
+            self.with_browser(move |browser| {
+                async move {
+                    browser
+                        .navigate_to(&url)
+                        .await
+                        .context("Failed to navigate")
+                }
+                .boxed_local()
             })
+            .await
         }
 
         /// Go back in navigation history
         async fn go_back(&self) -> Result<Option<String>> {
-            let browser = self.browser.clone();
-            tokio::task::block_in_place(|| {
-                let rt = tokio::runtime::Handle::current();
-                let mut guard = browser.lock().unwrap();
-                rt.block_on(guard.go_back()).context("Failed to go back")
+            self.with_browser(|browser| {
+                async move { browser.go_back().await.context("Failed to go back") }.boxed_local()
             })
+            .await
         }
 
         /// Go forward in navigation history
         async fn go_forward(&self) -> Result<Option<String>> {
-            let browser = self.browser.clone();
-            tokio::task::block_in_place(|| {
-                let rt = tokio::runtime::Handle::current();
-                let mut guard = browser.lock().unwrap();
-                rt.block_on(guard.go_forward())
-                    .context("Failed to go forward")
+            self.with_browser(|browser| {
+                async move { browser.go_forward().await.context("Failed to go forward") }
+                    .boxed_local()
             })
+            .await
         }
 
         /// Reload the current page
         async fn reload(&self) -> Result<String> {
-            let browser = self.browser.clone();
-            tokio::task::block_in_place(|| {
-                let rt = tokio::runtime::Handle::current();
-                let mut guard = browser.lock().unwrap();
-                rt.block_on(guard.reload()).context("Failed to reload")
+            self.with_browser(|browser| {
+                async move { browser.reload().await.context("Failed to reload") }.boxed_local()
             })
+            .await
+        }
+
+        /// Run a script in the page and return its string result.
+        async fn eval(&self, code: String) -> Result<String> {
+            self.with_browser(move |browser| {
+                async move { browser.execute_javascript(&code).await }.boxed_local()
+            })
+            .await
         }
 
         /// Execute JavaScript
         async fn execute_javascript(&self, code: &str) -> Result<serde_json::Value> {
-            let browser = self.browser.clone();
-            let code = code.to_string();
-            tokio::task::block_in_place(|| {
-                let rt = tokio::runtime::Handle::current();
-                let mut guard = browser.lock().unwrap();
-                let result = rt.block_on(guard.execute_javascript(&code))?;
-                Ok(serde_json::json!(result))
-            })
+            Ok(serde_json::json!(self.eval(code.to_string()).await?))
         }
 
         /// Get page content
         async fn get_page_content(&self) -> Result<String> {
-            let browser = self.browser.lock().unwrap();
-            Ok(browser.get_current_content())
+            self.with_browser(|browser| {
+                let content = browser.get_current_content();
+                async move { Ok(content) }.boxed_local()
+            })
+            .await
         }
 
         /// Click an element (simplified implementation)
@@ -591,14 +619,7 @@ async fn run_browser_session(
                 "document.querySelector('{}')?.click(); true",
                 selector.replace("'", "\\'")
             );
-
-            let browser = self.browser.clone();
-            tokio::task::block_in_place(|| {
-                let rt = tokio::runtime::Handle::current();
-                let mut guard = browser.lock().unwrap();
-                let result = rt.block_on(guard.execute_javascript(&click_js))?;
-                Ok(result.contains("true"))
-            })
+            Ok(self.eval(click_js).await?.contains("true"))
         }
 
         /// Fill a form element (simplified implementation)
@@ -608,51 +629,29 @@ async fn run_browser_session(
                 selector.replace("'", "\\'"),
                 value.replace("'", "\\'")
             );
-
-            let browser = self.browser.clone();
-            tokio::task::block_in_place(|| {
-                let rt = tokio::runtime::Handle::current();
-                let mut guard = browser.lock().unwrap();
-                let result = rt.block_on(guard.execute_javascript(&fill_js))?;
-                Ok(result.contains("true"))
-            })
+            Ok(self.eval(fill_js).await?.contains("true"))
         }
 
         /// Get cookies (simplified implementation)
         async fn get_cookies(&self) -> Result<Vec<String>> {
-            let browser = self.browser.clone();
-            tokio::task::block_in_place(|| {
-                let rt = tokio::runtime::Handle::current();
-                let mut guard = browser.lock().unwrap();
-                let result = rt.block_on(guard.execute_javascript("document.cookie"))?;
-                let cookies: Vec<String> = result
-                    .split(';')
-                    .map(|s| s.trim().to_string())
-                    .filter(|s| !s.is_empty())
-                    .collect();
-                Ok(cookies)
-            })
+            let result = self.eval("document.cookie".to_string()).await?;
+            Ok(result
+                .split(';')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect())
         }
 
         /// Set cookies (simplified implementation)
         async fn set_cookies(&self, cookies: Vec<String>) -> Result<usize> {
-            let browser = self.browser.clone();
-            tokio::task::block_in_place(|| {
-                let rt = tokio::runtime::Handle::current();
-                let mut guard = browser.lock().unwrap();
-                let mut count = 0;
-                for cookie in cookies {
-                    let set_cookie_js =
-                        format!("document.cookie = '{}'", cookie.replace("'", "\\'"));
-                    if rt
-                        .block_on(guard.execute_javascript(&set_cookie_js))
-                        .is_ok()
-                    {
-                        count += 1;
-                    }
+            let mut count = 0;
+            for cookie in cookies {
+                let set_cookie_js = format!("document.cookie = '{}'", cookie.replace("'", "\\'"));
+                if self.eval(set_cookie_js).await.is_ok() {
+                    count += 1;
                 }
-                Ok(count)
-            })
+            }
+            Ok(count)
         }
     }
 
@@ -742,7 +741,7 @@ async fn run_browser_session(
         session_id.clone(),
         persistent,
         engine_config,
-    ));
+    )?);
 
     // Remove existing socket file if it exists
     if std::path::Path::new(&socket_path).exists() {

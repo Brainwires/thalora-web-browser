@@ -5,6 +5,7 @@ use anyhow::Result;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use thalora_browser_apis::boa_engine::Context;
+use thalora_browser_apis::event_loop::{PumpBudget, PumpOutcome, ThaloraJobExecutor};
 // events API is now natively implemented in Boa engine
 // WebAssembly is now natively implemented in Boa engine
 
@@ -21,6 +22,15 @@ pub struct RustRenderer {
     // infinite recursion / stack overflows when JS evaluation or window getters
     // triggered additional document updates.
     pub(super) in_update: bool,
+    /// Event loop driving timers, microtasks and async jobs for `js_context`
+    /// (`None` for V8, or when THALORA_EVENT_LOOP=legacy).
+    pub(super) executor: Option<Rc<ThaloraJobExecutor>>,
+}
+
+/// `THALORA_EVENT_LOOP=legacy` restores the previous behaviour (Boa's simple
+/// executor, no event-loop pumping). Temporary escape hatch.
+fn legacy_event_loop() -> bool {
+    std::env::var("THALORA_EVENT_LOOP").is_ok_and(|v| v.eq_ignore_ascii_case("legacy"))
 }
 
 impl Default for RustRenderer {
@@ -37,10 +47,13 @@ impl RustRenderer {
     pub fn new_with_engine(engine_type: EngineType) -> Self {
         match engine_type {
             EngineType::Boa => {
-                let mut context = Context::builder()
-                    .module_loader(Rc::new(HttpModuleLoader::new("about:blank")))
-                    .build()
-                    .expect("failed to build JS context");
+                let executor = (!legacy_event_loop()).then(|| Rc::new(ThaloraJobExecutor::new()));
+                let mut builder =
+                    Context::builder().module_loader(Rc::new(HttpModuleLoader::new("about:blank")));
+                if let Some(executor) = &executor {
+                    builder = builder.job_executor(executor.clone());
+                }
+                let mut context = builder.build().expect("failed to build JS context");
 
                 let web_apis = WebApis::new();
 
@@ -67,6 +80,7 @@ impl RustRenderer {
                     web_apis,
                     history_initialized: false,
                     in_update: false,
+                    executor,
                 }
             }
             EngineType::V8 => {
@@ -83,8 +97,58 @@ impl RustRenderer {
                     web_apis,
                     history_initialized: false,
                     in_update: false,
+                    executor: None,
                 }
             }
+        }
+    }
+
+    /// Run the page's event loop (timers, microtasks, fetch/XHR) within
+    /// `budget`. Returns `None` when there is no event loop (V8 or legacy).
+    pub fn pump_event_loop(&mut self, budget: PumpBudget) -> Option<PumpOutcome> {
+        let executor = self.executor.clone()?;
+        let context = self.js_context.as_mut()?;
+        Some(executor.pump(context, budget))
+    }
+
+    /// Recompute element geometry for `getBoundingClientRect()` / offset*
+    /// from `html` with the page's external stylesheets applied, without
+    /// touching the document content. Used after scripts have run.
+    pub fn refresh_layout(&mut self, html: &str, external_css: &[String], viewport: (f32, f32)) {
+        use thalora_browser_apis::boa_engine::js_string;
+
+        let Some(ctx) = self.js_context.as_mut() else {
+            return;
+        };
+        let Ok(layout) = super::page_layout::compute_page_layout_with_css(
+            html,
+            viewport.0,
+            viewport.1,
+            external_css,
+        ) else {
+            return;
+        };
+        let rects = super::layout_bridge::flatten_layout_to_rects(&layout);
+        let global = ctx.global_object().clone();
+        if let Ok(document_value) = global.get(js_string!("document"), ctx)
+            && let Some(document_obj) = document_value.as_object()
+            && let Some(document_data) =
+                document_obj.downcast_ref::<thalora_browser_apis::dom::document::DocumentData>()
+        {
+            document_data.set_layout_data(rects);
+        }
+    }
+
+    /// Console messages logged by the page (oldest first, at most 500).
+    pub fn console_messages(
+        &mut self,
+        clear: bool,
+    ) -> Vec<thalora_browser_apis::console::console::ConsoleMessage> {
+        match self.js_context.as_mut() {
+            Some(context) => {
+                thalora_browser_apis::console::console::Console::messages(context, clear)
+            }
+            None => Vec::new(),
         }
     }
 
@@ -143,7 +207,7 @@ impl RustRenderer {
                             }
                         },
                     ));
-                    eprintln!("🔍 DEBUG: History API callback wired to event queue");
+                    tracing::debug!("History API callback wired to event queue");
                 }
             }
         }
@@ -229,14 +293,22 @@ impl RustRenderer {
         }
     }
 
+    /// Tell the page its URL (`location`, `document.URL`); relative URLs in
+    /// fetch/XHR resolve against it.
+    pub fn set_page_url(&mut self, url: &str) {
+        if let Some(ctx) = &mut self.js_context {
+            thalora_browser_apis::page_url::set_page_url(ctx, url);
+        }
+    }
+
     /// Update the document's HTML content to enable real DOM querying
     pub fn update_document_html(&mut self, html_content: &str) -> Result<()> {
         use thalora_browser_apis::boa_engine::js_string;
         // Prevent re-entrant updates which could cause infinite recursion by
         // a JS getter calling back into document update.
         if self.in_update {
-            eprintln!(
-                "🔍 DEBUG: update_document_html re-entrant call detected - skipping to avoid recursion"
+            tracing::debug!(
+                "update_document_html re-entrant call detected - skipping to avoid recursion"
             );
             return Ok(());
         }

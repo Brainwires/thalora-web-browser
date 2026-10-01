@@ -31,6 +31,11 @@ impl Default for McpTestConfig {
         env_vars.insert("THALORA_ENABLE_SCRAPING".to_string(), "true".to_string());
         env_vars.insert("THALORA_ENABLE_SEARCH".to_string(), "true".to_string());
         env_vars.insert("THALORA_ENABLE_SESSIONS".to_string(), "true".to_string());
+        // Mock-backed CDP tools are hidden by default; existing CDP tests exercise them
+        env_vars.insert(
+            "THALORA_ENABLE_CDP_EXPERIMENTAL".to_string(),
+            "true".to_string(),
+        );
         // AI memory tools require a master password for encryption
         env_vars.insert(
             "THALORA_MASTER_PASSWORD".to_string(),
@@ -69,9 +74,13 @@ impl McpTestHarness {
         let release_binary = project_root.join("target/release/thalora");
         let debug_binary = project_root.join("target/debug/thalora");
 
-        // Auto-detect available binary: prefer release if requested and available,
-        // fall back to debug binary, then fall back to cargo run
-        let mut cmd = if config.use_release_build && release_binary.exists() {
+        // Prefer the binary Cargo built for this test run (always up to date
+        // and built with the same features); otherwise auto-detect: release if
+        // requested and available, then debug, then `cargo run`.
+        let cargo_binary = option_env!("CARGO_BIN_EXE_thalora").map(std::path::PathBuf::from);
+        let mut cmd = if let Some(bin) = cargo_binary.filter(|b| b.exists()) {
+            Command::new(bin)
+        } else if config.use_release_build && release_binary.exists() {
             Command::new(&release_binary)
         } else if debug_binary.exists() {
             Command::new(&debug_binary)
@@ -91,10 +100,12 @@ impl McpTestHarness {
         let mut process = cmd
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
+            // Never pipe stderr without reading it: the server logs a lot,
+            // and a full pipe buffer blocks it mid-request
             .stderr(if config.debug_output {
                 Stdio::inherit()
             } else {
-                Stdio::piped()
+                Stdio::null()
             })
             .spawn()
             .context("Failed to spawn MCP server process")?;

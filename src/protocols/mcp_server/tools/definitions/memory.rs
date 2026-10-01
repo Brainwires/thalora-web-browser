@@ -72,6 +72,14 @@ pub(crate) fn get_memory_tool_definitions() -> Vec<Value> {
                         "type": "string",
                         "description": "Service name or identifier for the credentials"
                     },
+                    "key": {
+                        "type": "string",
+                        "description": "Storage key (optional; defaults to service)"
+                    },
+                    "origin": {
+                        "type": "string",
+                        "description": "Site the credential belongs to, e.g. https://github.com. Required for browser_fill_credential, which only fills into pages of this origin."
+                    },
                     "username": {
                         "type": "string",
                         "description": "Username or identifier"
@@ -95,7 +103,7 @@ pub(crate) fn get_memory_tool_definitions() -> Vec<Value> {
         }),
         serde_json::json!({
             "name": "ai_memory_get_credentials",
-            "description": "Retrieve stored credentials from encrypted AI memory",
+            "description": "Look up stored credentials in encrypted AI memory. Returns the service, username and whether a password is stored; secret values are never returned to the model.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -103,9 +111,47 @@ pub(crate) fn get_memory_tool_definitions() -> Vec<Value> {
                         "type": "string",
                         "description": "Service name to retrieve credentials for"
                     },
+                    "key": {
+                        "type": "string",
+                        "description": "Storage key (optional; defaults to service)"
+                    },
                     "username": {
                         "type": "string",
                         "description": "Username to filter by (optional)"
+                    }
+                },
+                "required": ["service"]
+            }
+        }),
+        serde_json::json!({
+            "name": "browser_fill_credential",
+            "description": "Fill a stored credential into the current page without revealing it: the password (and optionally the username) is typed into the given fields server-side and never returned. Only works on pages whose origin matches the origin the credential was stored with.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "service": {
+                        "type": "string",
+                        "description": "Credential to use (service name or storage key)"
+                    },
+                    "password_ref": {
+                        "type": "string",
+                        "description": "Snapshot ref of the password field"
+                    },
+                    "password_selector": {
+                        "type": "string",
+                        "description": "CSS selector of the password field (alternative to password_ref)"
+                    },
+                    "username_ref": {
+                        "type": "string",
+                        "description": "Snapshot ref of the username field (optional)"
+                    },
+                    "username_selector": {
+                        "type": "string",
+                        "description": "CSS selector of the username field (optional)"
+                    },
+                    "session_id": {
+                        "type": "string",
+                        "description": "Browser session ID (optional)"
                     }
                 },
                 "required": ["service"]

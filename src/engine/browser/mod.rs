@@ -9,7 +9,9 @@ pub mod core;
 
 pub mod form_analyzer;
 pub mod navigation;
+pub mod page_text;
 pub mod scraper;
+pub mod snapshot;
 
 // Re-export shared constants
 pub use thalora_constants::USER_AGENT;
@@ -20,5 +22,11 @@ pub use types::*;
 // Re-export browser for native builds only
 #[cfg(feature = "core")]
 pub use core::HeadlessWebBrowser;
+
+// One long-lived OS thread per browser (native builds)
+#[cfg(feature = "core")]
+pub mod session_thread;
+#[cfg(feature = "core")]
+pub use session_thread::BrowserThread;
 
 pub use form_analyzer::{FormAnalyzer, FormInfo};

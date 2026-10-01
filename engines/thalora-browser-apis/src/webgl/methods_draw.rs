@@ -28,7 +28,7 @@ pub fn add_draw_methods(obj: &JsObject, context: &mut Context) {
                 let b = (clear_color[2] * 255.0) as u8;
                 let a = (clear_color[3] * 255.0) as u8;
 
-                for chunk in render_target.chunks_exact_mut(4) {
+                for chunk in render_target.as_chunks_mut::<4>().0 {
                     chunk[0] = r;
                     chunk[1] = g;
                     chunk[2] = b;

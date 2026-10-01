@@ -80,15 +80,12 @@ impl std::fmt::Debug for FileSystemSyncAccessHandle {
 }
 
 impl FileSystemSyncAccessHandle {
-    pub fn open(
-        backend: Arc<OpfsBackend>,
-        virtual_path: PathBuf,
-    ) -> Result<Self, SyncOpenError> {
+    pub fn open(backend: Arc<OpfsBackend>, virtual_path: PathBuf) -> Result<Self, SyncOpenError> {
         let canonical = backend
             .resolve(&virtual_path)
             .map_err(|_| SyncOpenError::PathInvalid)?;
-        let lock = OpfsExclusiveLock::acquire(canonical.clone())
-            .ok_or(SyncOpenError::AlreadyLocked)?;
+        let lock =
+            OpfsExclusiveLock::acquire(canonical.clone()).ok_or(SyncOpenError::AlreadyLocked)?;
         let file = backend
             .open_file_rw(&virtual_path, true)
             .map_err(SyncOpenError::Io)?;
@@ -259,15 +256,17 @@ impl FileSystemSyncAccessHandle {
             .ok_or_else(|| JsNativeError::typ().with_message("file is not open"))?;
 
         use std::io::{Read, Seek, SeekFrom};
-        if let Some(pos) = at {
-            if let Err(e) = file.seek(SeekFrom::Start(pos)) {
-                return reject_with(super::errors::map_io_error(&e), &format!("{e}"), context);
-            }
+        if let Some(pos) = at
+            && let Err(e) = file.seek(SeekFrom::Start(pos))
+        {
+            return reject_with(super::errors::map_io_error(&e), &format!("{e}"), context);
         }
         let mut tmp = vec![0u8; max_len];
         let bytes_read = match file.read(&mut tmp) {
             Ok(n) => n,
-            Err(e) => return reject_with(super::errors::map_io_error(&e), &format!("{e}"), context),
+            Err(e) => {
+                return reject_with(super::errors::map_io_error(&e), &format!("{e}"), context);
+            }
         };
         drop(inner);
         if let Some(mut data) = buf_handle.data_mut() {
@@ -305,14 +304,16 @@ impl FileSystemSyncAccessHandle {
             .ok_or_else(|| JsNativeError::typ().with_message("file is not open"))?;
 
         use std::io::{Seek, SeekFrom, Write};
-        if let Some(pos) = at {
-            if let Err(e) = file.seek(SeekFrom::Start(pos)) {
-                return reject_with(super::errors::map_io_error(&e), &format!("{e}"), context);
-            }
+        if let Some(pos) = at
+            && let Err(e) = file.seek(SeekFrom::Start(pos))
+        {
+            return reject_with(super::errors::map_io_error(&e), &format!("{e}"), context);
         }
         let written = match file.write(&bytes) {
             Ok(n) => n,
-            Err(e) => return reject_with(super::errors::map_io_error(&e), &format!("{e}"), context),
+            Err(e) => {
+                return reject_with(super::errors::map_io_error(&e), &format!("{e}"), context);
+            }
         };
         // Mark variables used to silence dead-code warnings.
         let _ = &inner.backend;

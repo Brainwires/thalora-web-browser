@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Menu</title></head>
+<body>
+  <nav id="menu"><button data-action="open">Open</button><button data-action="save">Save</button></nav>
+  <p id="log">Waiting</p>
+  <script>
+    // One delegated listener on the document handles every button
+    document.addEventListener('click', event => {
+      const action = event.target.getAttribute && event.target.getAttribute('data-action');
+      if (action) document.getElementById('log').textContent = 'Delegated ' + action + ' handled';
+    });
+    document.querySelector('[data-action="save"]').click();
+  </script>
+</body>
+</html>

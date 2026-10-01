@@ -235,3 +235,32 @@ pub enum HistoryEvent {
         delta: i32,
     },
 }
+
+/// Condition for [`HeadlessWebBrowser::wait_for_condition`](crate::engine::browser::HeadlessWebBrowser).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum WaitCondition {
+    /// An element matching the CSS selector exists.
+    Selector(String),
+    /// The page text contains the string.
+    Text(String),
+    /// The current URL contains the string.
+    UrlContains(String),
+    /// No network activity for 500 ms and no short timers pending.
+    NetworkIdle,
+}
+
+/// A simulated user action on an element (see `HeadlessWebBrowser::perform_action`).
+#[derive(Debug, Clone, PartialEq)]
+pub enum ElementAction {
+    /// Choose the `<option>` whose value or visible text equals the string.
+    SelectOption(String),
+    /// Check (true) or uncheck (false) a checkbox or radio button.
+    SetChecked(bool),
+    /// Press a key (e.g. "Enter", "Escape", "a") on the element, or on the
+    /// focused element / body when no selector is given.
+    PressKey(String),
+    /// Move the pointer over the element.
+    Hover,
+    /// Scroll the element into view, or the page by this many pixels.
+    Scroll(i64),
+}

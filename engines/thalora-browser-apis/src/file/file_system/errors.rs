@@ -24,11 +24,7 @@ pub mod names {
 
 /// Build a DOMException-shaped JsValue suitable for promise rejection.
 pub fn dom_exception(name: &str, message: &str, context: &mut Context) -> JsResult<JsValue> {
-    let error_proto = context
-        .intrinsics()
-        .constructors()
-        .error()
-        .prototype();
+    let error_proto = context.intrinsics().constructors().error().prototype();
     let obj = JsObject::with_object_proto(context.intrinsics());
     obj.set_prototype(Some(error_proto));
 

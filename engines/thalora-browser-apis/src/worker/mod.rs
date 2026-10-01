@@ -45,6 +45,9 @@ mod tests;
 mod worker_thread_tests;
 
 #[cfg(all(test, feature = "native"))]
+mod worker_event_loop_tests;
+
+#[cfg(all(test, feature = "native"))]
 mod worker_message_tests;
 
 #[cfg(all(test, feature = "native"))]

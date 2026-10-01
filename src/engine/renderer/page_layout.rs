@@ -899,12 +899,11 @@ fn apply_ua_defaults(tag: &str, styles: &mut ComputedStyles, doc_mode: DocumentM
                 });
             }
         }
-        "progress" | "meter" => {
+        "progress" | "meter"
             // Replaced elements: render as visible blocks with their specified dimensions
-            if styles.display.is_none() {
+            if styles.display.is_none() => {
                 styles.display = Some("block".to_string());
             }
-        }
         _ => {}
     }
 
@@ -1154,6 +1153,7 @@ const HOVER_INTERACTIVE_TAGS: &[&str] = &[
 /// this function keeps every element as a proper node in the tree. This allows the C#
 /// ControlTreeBuilder to style `<a>`, `<strong>`, `<em>`, `<code>`, `<span>` etc. individually.
 #[allow(clippy::only_used_in_recursion)]
+#[allow(clippy::too_many_arguments)] // recursive builder threading walk state
 fn build_styled_element_from_dom(
     element_ref: &ElementRef,
     css_processor: &mut CssProcessor,
@@ -1735,7 +1735,7 @@ fn normalize_color(css: &str) -> String {
     }
 }
 
-fn parse_color_to_rgba(s: &str) -> Option<(u8, u8, u8, u8)> {
+pub(crate) fn parse_color_to_rgba(s: &str) -> Option<(u8, u8, u8, u8)> {
     // Hex: #rgb  #rgba  #rrggbb  #rrggbbaa
     if let Some(hex) = s.strip_prefix('#') {
         let chars: Vec<char> = hex.chars().collect();
@@ -1969,22 +1969,22 @@ fn normalize_length(css: &str) -> String {
         return s.to_string();
     }
     // px → bare number
-    if let Some(num) = s.strip_suffix("px") {
-        if let Ok(v) = num.trim().parse::<f32>() {
-            return format_px(v);
-        }
+    if let Some(num) = s.strip_suffix("px")
+        && let Ok(v) = num.trim().parse::<f32>()
+    {
+        return format_px(v);
     }
     // pt → px
-    if let Some(num) = s.strip_suffix("pt") {
-        if let Ok(v) = num.trim().parse::<f32>() {
-            return format_px(v * 4.0 / 3.0);
-        }
+    if let Some(num) = s.strip_suffix("pt")
+        && let Ok(v) = num.trim().parse::<f32>()
+    {
+        return format_px(v * 4.0 / 3.0);
     }
     // rem → px (root = 16px)
-    if let Some(num) = s.strip_suffix("rem") {
-        if let Ok(v) = num.trim().parse::<f32>() {
-            return format_px(v * 16.0);
-        }
+    if let Some(num) = s.strip_suffix("rem")
+        && let Ok(v) = num.trim().parse::<f32>()
+    {
+        return format_px(v * 16.0);
     }
     s.to_string()
 }
@@ -3374,8 +3374,9 @@ mod tests {
         assert!(div.is_some(), "Should find div element");
         let div = div.unwrap();
 
-        // Should have max-width from CSS
-        assert_eq!(div.styles.max_width.as_deref(), Some("600px"));
+        // Should have max-width from CSS (px lengths are normalized to bare
+        // numbers at the Rust boundary, see normalize_length)
+        assert_eq!(div.styles.max_width.as_deref(), Some("600"));
         // Should have background-color from CSS
         assert_eq!(div.styles.background_color.as_deref(), Some("#fdfdff"));
     }
@@ -3704,7 +3705,7 @@ mod tests {
         );
         assert_eq!(
             grid.styles.gap.as_deref(),
-            Some("24px"),
+            Some("24"), // px normalized to a bare number (normalize_length)
             "Should have gap from column-gap"
         );
 

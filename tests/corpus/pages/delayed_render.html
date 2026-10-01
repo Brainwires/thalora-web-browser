@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Dashboard</title></head>
+<body>
+  <h1>Dashboard</h1>
+  <div id="skeleton">Loading widgets…</div>
+  <script>
+    // Typical "skeleton then content" rendering: timers, rAF and promises
+    setTimeout(() => {
+      requestAnimationFrame(() => {
+        Promise.resolve().then(() => {
+          const s = document.getElementById('skeleton');
+          s.id = 'widgets';
+          s.innerHTML = '<section><h2>Wind</h2><p>18 knots from the south-west</p></section>' +
+                        '<section><h2>Swell</h2><p>1.2 m at 9 s</p></section>';
+        });
+      });
+    }, 150);
+  </script>
+</body>
+</html>

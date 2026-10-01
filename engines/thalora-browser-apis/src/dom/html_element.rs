@@ -4,7 +4,7 @@
 //! https://html.spec.whatwg.org/multipage/dom.html#htmlelement
 
 use boa_engine::{
-    Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
+    Context, JsArgs, JsNativeError, JsResult, JsString,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     js_string,
@@ -14,7 +14,8 @@ use boa_engine::{
     string::StaticJsStrings,
     value::JsValue,
 };
-use boa_gc::{Finalize, Trace};
+
+use crate::dom::element::ElementData;
 
 /// JavaScript `HTMLElement` builtin implementation.
 #[derive(Debug, Copy, Clone)]
@@ -36,11 +37,11 @@ impl IntrinsicObject for HTMLElement {
             .name(js_string!("set hidden"))
             .build();
 
-        let style_getter = BuiltInBuilder::callable(realm, get_style)
-            .name(js_string!("get style"))
-            .build();
-
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
+            // HTMLElement.prototype -> Element.prototype, as in browsers
+            .inherits(Some(
+                realm.intrinsics().constructors().element().prototype(),
+            ))
             .accessor(
                 js_string!("innerText"),
                 Some(inner_text_getter),
@@ -53,15 +54,7 @@ impl IntrinsicObject for HTMLElement {
                 Some(hidden_setter),
                 Attribute::CONFIGURABLE,
             )
-            .accessor(
-                js_string!("style"),
-                Some(style_getter),
-                None,
-                Attribute::CONFIGURABLE,
-            )
-            .method(click, js_string!("click"), 0)
-            .method(focus, js_string!("focus"), 0)
-            .method(blur, js_string!("blur"), 0)
+            // style/click/focus/blur come from Element.prototype
             .build();
     }
 
@@ -93,134 +86,99 @@ impl BuiltInConstructor for HTMLElement {
                 .into());
         }
 
+        // super() during a custom element upgrade: hand back the element
+        // being upgraded
+        if let Some(element) =
+            crate::web_components::custom_element_registry::take_constructing_element()
+        {
+            return Ok(element.into());
+        }
+
+        // `new MyElement()`: the element is named after its definition
+        let name = new_target.as_object().and_then(|ctor| {
+            crate::web_components::custom_element_registry::name_for_constructor(&ctor, context)
+        });
         let proto = get_prototype_from_constructor(
             new_target,
             StandardConstructors::html_element,
             context,
         )?;
-        let html_element_data = HTMLElementData::new();
-        let html_element_obj = JsObject::from_proto_and_data_with_shared_shape(
+        let tag = name.clone().unwrap_or_else(|| "div".to_string());
+        // A real element, so everything on Element.prototype works on it
+        // (and on custom elements whose class extends HTMLElement)
+        let element: JsValue = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
             proto,
-            html_element_data,
-        );
-
-        let html_element_generic = html_element_obj.upcast();
-
-        // Set Element interface properties
-        html_element_generic.set(js_string!("tagName"), js_string!("DIV"), false, context)?;
-        html_element_generic.set(js_string!("nodeName"), js_string!("DIV"), false, context)?;
-        html_element_generic.set(js_string!("nodeType"), 1, false, context)?; // ELEMENT_NODE
-
-        Ok(html_element_generic.into())
-    }
-}
-
-/// Internal data for HTMLElement instances
-#[derive(Debug, Trace, Finalize, JsData)]
-pub struct HTMLElementData {
-    #[unsafe_ignore_trace]
-    inner_text: String,
-    #[unsafe_ignore_trace]
-    hidden: bool,
-}
-
-impl Default for HTMLElementData {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl HTMLElementData {
-    pub fn new() -> Self {
-        Self {
-            inner_text: String::new(),
-            hidden: false,
+            ElementData::with_tag_name(tag.to_uppercase()),
+        )
+        .upcast()
+        .into();
+        // Tree-backed (detached) when the page has a DOM tree
+        let document = context
+            .global_object()
+            .get(js_string!("document"), context)?;
+        if let Some((document, tree)) = crate::dom::binding::document_tree(&document) {
+            crate::dom::binding::bind_new_element(&document, &tree, &element, &tag);
         }
+        Ok(element)
     }
 }
 
+fn element_data(this: &JsValue, what: &str) -> JsResult<JsObject> {
+    this.as_object()
+        .filter(|obj| obj.downcast_ref::<ElementData>().is_some())
+        .ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message(format!(
+                    "HTMLElement.prototype.{what} called on non-element"
+                ))
+                .into()
+        })
+}
+
+/// `HTMLElement.prototype.innerText` getter (approximated by textContent)
 fn get_inner_text(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("HTMLElement.prototype.innerText called on non-object")
-    })?;
-
-    if let Some(data) = this_obj.downcast_ref::<HTMLElementData>() {
-        Ok(js_string!(data.inner_text.clone()).into())
-    } else {
-        Ok(js_string!("").into())
-    }
+    let obj = element_data(this, "innerText")?;
+    let text = obj
+        .downcast_ref::<ElementData>()
+        .map(|e| e.get_text_content())
+        .unwrap_or_default();
+    Ok(js_string!(text).into())
 }
 
+/// `HTMLElement.prototype.innerText` setter
 fn set_inner_text(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("HTMLElement.prototype.innerText called on non-object")
-    })?;
-
+    let obj = element_data(this, "innerText")?;
     let text = args
         .get_or_undefined(0)
         .to_string(context)?
         .to_std_string_escaped();
-
-    if let Some(mut data) = this_obj.downcast_mut::<HTMLElementData>() {
-        data.inner_text = text;
+    if let Some(element) = obj.downcast_ref::<ElementData>() {
+        element.set_text_content(text);
     }
-
     Ok(JsValue::undefined())
 }
 
+/// `HTMLElement.prototype.hidden` getter (reflects the `hidden` attribute)
 fn get_hidden(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("HTMLElement.prototype.hidden called on non-object")
-    })?;
-
-    if let Some(data) = this_obj.downcast_ref::<HTMLElementData>() {
-        Ok(JsValue::from(data.hidden))
-    } else {
-        Ok(JsValue::from(false))
-    }
+    let obj = element_data(this, "hidden")?;
+    let hidden = obj
+        .downcast_ref::<ElementData>()
+        .is_some_and(|e| e.has_attribute("hidden"));
+    Ok(hidden.into())
 }
 
+/// `HTMLElement.prototype.hidden` setter
 fn set_hidden(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("HTMLElement.prototype.hidden called on non-object")
-    })?;
-
+    let obj = element_data(this, "hidden")?;
     let hidden = args.get_or_undefined(0).to_boolean();
-
-    if let Some(mut data) = this_obj.downcast_mut::<HTMLElementData>() {
-        data.hidden = hidden;
+    if let Some(element) = obj.downcast_ref::<ElementData>() {
+        if hidden {
+            element.set_attribute("hidden".to_string(), String::new());
+        } else {
+            element.remove_attribute("hidden");
+        }
     }
-
-    Ok(JsValue::undefined())
-}
-
-fn get_style(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    // Return a CSSStyleDeclaration object
-    let style_constructor = context
-        .intrinsics()
-        .constructors()
-        .css_style_declaration()
-        .constructor();
-    crate::browser::cssom::CSSStyleDeclaration::constructor(
-        &style_constructor.clone().into(),
-        &[],
-        context,
-    )
-}
-
-fn click(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    // In a headless browser, click is a no-op but valid
-    Ok(JsValue::undefined())
-}
-
-fn focus(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    // In a headless browser, focus is a no-op but valid
-    Ok(JsValue::undefined())
-}
-
-fn blur(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    // In a headless browser, blur is a no-op but valid
     Ok(JsValue::undefined())
 }
 

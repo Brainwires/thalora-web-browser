@@ -49,6 +49,15 @@ impl LocationData {
         Self { href }
     }
 
+    /// Point this location at `href` (the page's URL after navigation).
+    pub fn set_href(&mut self, href: String) {
+        self.href = href;
+    }
+
+    pub fn href(&self) -> &str {
+        &self.href
+    }
+
     /// Parse URL components from href
     fn parse_url(&self) -> ParsedUrl {
         // Simple URL parsing - in production would use url crate

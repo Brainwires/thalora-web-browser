@@ -41,6 +41,21 @@ pub(super) fn is_search_enabled() -> bool {
         || env::var("THALORA_ENABLE_SEARCH").unwrap_or_else(|_| "false".to_string()) == "true"
 }
 
+/// Check if experimental CDP tools are enabled.
+///
+/// Only `cdp_runtime_evaluate` is backed by a real browser session; the other
+/// CDP tools (DOM, network, console, page) currently return canned data from
+/// the in-process CDP server, so they are hidden unless explicitly requested.
+pub(super) fn is_cdp_experimental_enabled() -> bool {
+    env::var("THALORA_ENABLE_CDP_EXPERIMENTAL").unwrap_or_else(|_| "false".to_string()) == "true"
+}
+
+/// Check if advanced tools (PDF extraction, downloads, request interception)
+/// are enabled. They have no handlers yet, so they are off in every preset.
+pub(super) fn is_advanced_enabled() -> bool {
+    env::var("THALORA_ENABLE_ADVANCED").unwrap_or_else(|_| "false".to_string()) == "true"
+}
+
 /// Get MCP mode - minimal (default for MCP) or full (all features)
 pub(super) fn get_mcp_mode() -> String {
     env::var("THALORA_MCP_MODE").unwrap_or_else(|_| "minimal".to_string())
