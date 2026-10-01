@@ -5,14 +5,16 @@
   <h1>Fetch after load</h1>
   <div id="status">loading</div>
   <script>
+    var fetchResult = 'pending';
+    function show(text) {
+      fetchResult = text;
+      var el = document.querySelector('#status');
+      if (el) { el.textContent = text; }
+    }
     fetch('/api/data?delay=200')
       .then(function (r) { return r.json(); })
-      .then(function (data) {
-        document.getElementById('status').textContent = data.message;
-      })
-      .catch(function (e) {
-        document.getElementById('status').textContent = 'error: ' + e;
-      });
+      .then(function (data) { show(data.message); })
+      .catch(function (e) { show('error: ' + e); });
   </script>
 </body>
 </html>

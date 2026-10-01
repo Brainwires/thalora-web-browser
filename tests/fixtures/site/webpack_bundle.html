@@ -25,7 +25,9 @@
         function App() {}
         _inherits(App, Base);
         var mode = process.env.NODE_ENV;
-        document.getElementById('app').textContent = 'bundle rendered (' + mode + ')';
+        window.bundleResult = 'bundle rendered (' + mode + ')';
+        var app = document.querySelector('#app');
+        if (app) { app.textContent = window.bundleResult; }
         module.exports = App;
       }
     ]);

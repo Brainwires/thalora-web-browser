@@ -7,15 +7,17 @@
   <div id="microtask">pending</div>
   <div id="raf">pending</div>
   <script>
-    setTimeout(function () {
-      document.getElementById('timeout').textContent = 'timeout fired';
-    }, 50);
-    Promise.resolve().then(function () {
-      document.getElementById('microtask').textContent = 'microtask ran';
-    });
-    requestAnimationFrame(function () {
-      document.getElementById('raf').textContent = 'raf fired';
-    });
+    // Results are recorded in a global (window.fixtureLog) as well as the DOM
+    // so tests can check the event loop independently of DOM persistence.
+    var fixtureLog = [];
+    function mark(id, text) {
+      fixtureLog.push(id);
+      var el = document.querySelector('#' + id);
+      if (el) { el.textContent = text; }
+    }
+    setTimeout(function () { mark('timeout', 'timeout fired'); }, 50);
+    Promise.resolve().then(function () { mark('microtask', 'microtask ran'); });
+    requestAnimationFrame(function () { mark('raf', 'raf fired'); });
   </script>
 </body>
 </html>

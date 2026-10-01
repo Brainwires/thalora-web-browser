@@ -5,6 +5,7 @@ use anyhow::Result;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use thalora_browser_apis::boa_engine::Context;
+use thalora_browser_apis::event_loop::{PumpBudget, PumpOutcome, ThaloraJobExecutor};
 // events API is now natively implemented in Boa engine
 // WebAssembly is now natively implemented in Boa engine
 
@@ -21,6 +22,15 @@ pub struct RustRenderer {
     // infinite recursion / stack overflows when JS evaluation or window getters
     // triggered additional document updates.
     pub(super) in_update: bool,
+    /// Event loop driving timers, microtasks and async jobs for `js_context`
+    /// (`None` for V8, or when THALORA_EVENT_LOOP=legacy).
+    pub(super) executor: Option<Rc<ThaloraJobExecutor>>,
+}
+
+/// `THALORA_EVENT_LOOP=legacy` restores the previous behaviour (Boa's simple
+/// executor, no event-loop pumping). Temporary escape hatch.
+fn legacy_event_loop() -> bool {
+    std::env::var("THALORA_EVENT_LOOP").is_ok_and(|v| v.eq_ignore_ascii_case("legacy"))
 }
 
 impl Default for RustRenderer {
@@ -37,10 +47,13 @@ impl RustRenderer {
     pub fn new_with_engine(engine_type: EngineType) -> Self {
         match engine_type {
             EngineType::Boa => {
-                let mut context = Context::builder()
-                    .module_loader(Rc::new(HttpModuleLoader::new("about:blank")))
-                    .build()
-                    .expect("failed to build JS context");
+                let executor = (!legacy_event_loop()).then(|| Rc::new(ThaloraJobExecutor::new()));
+                let mut builder =
+                    Context::builder().module_loader(Rc::new(HttpModuleLoader::new("about:blank")));
+                if let Some(executor) = &executor {
+                    builder = builder.job_executor(executor.clone());
+                }
+                let mut context = builder.build().expect("failed to build JS context");
 
                 let web_apis = WebApis::new();
 
@@ -67,6 +80,7 @@ impl RustRenderer {
                     web_apis,
                     history_initialized: false,
                     in_update: false,
+                    executor,
                 }
             }
             EngineType::V8 => {
@@ -83,9 +97,18 @@ impl RustRenderer {
                     web_apis,
                     history_initialized: false,
                     in_update: false,
+                    executor: None,
                 }
             }
         }
+    }
+
+    /// Run the page's event loop (timers, microtasks, fetch/XHR) within
+    /// `budget`. Returns `None` when there is no event loop (V8 or legacy).
+    pub fn pump_event_loop(&mut self, budget: PumpBudget) -> Option<PumpOutcome> {
+        let executor = self.executor.clone()?;
+        let context = self.js_context.as_mut()?;
+        Some(executor.pump(context, budget))
     }
 
     /// Check whether the renderer is currently performing an update.

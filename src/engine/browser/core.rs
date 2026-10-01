@@ -297,13 +297,9 @@ impl HeadlessWebBrowser {
             renderer.install_csp_eval_block();
         }
 
-        // Run non-deferred scripts, fire DOMContentLoaded, then deferred scripts
-        self.execute_page_scripts(&content, false).await?;
-        self.fire_dom_content_loaded().await?;
-        self.execute_page_scripts(&content, true).await?;
-
-        // Wait for JS to settle (non-fatal timeout)
-        let _ = self.wait_for_js_execution(2000).await;
+        // Scripts, DOMContentLoaded, deferred scripts, load, then let the
+        // event loop settle (non-fatal timeout)
+        self.run_page_load_sequence(&content, 2000).await?;
 
         // Capture the JS-modified DOM
         let original_len = self.current_content.len();
@@ -342,10 +338,22 @@ impl HeadlessWebBrowser {
     /// Uses relaxed security that allows eval, Function, document.write, WebAssembly.
     pub async fn execute_page_javascript(&mut self, js_code: &str) -> Result<String> {
         if let Some(ref mut renderer) = self.renderer {
-            renderer.evaluate_page_javascript(js_code)
+            let result = renderer.evaluate_page_javascript(js_code);
+            // Microtask checkpoint after each script, as in HTML.
+            renderer.pump_event_loop(thalora_browser_apis::event_loop::PumpBudget::no_wait());
+            result
         } else {
             Err(anyhow::anyhow!("Renderer not available"))
         }
+    }
+
+    /// Run the page's event loop (timers, microtasks, fetch/XHR) within
+    /// `budget`. Returns `None` if the renderer has no event loop.
+    pub fn pump_event_loop(
+        &mut self,
+        budget: thalora_browser_apis::event_loop::PumpBudget,
+    ) -> Option<thalora_browser_apis::event_loop::PumpOutcome> {
+        self.renderer.as_mut()?.pump_event_loop(budget)
     }
 
     /// Execute JavaScript source as an ES module (trusted page context).

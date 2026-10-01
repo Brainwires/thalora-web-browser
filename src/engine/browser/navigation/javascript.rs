@@ -255,28 +255,15 @@ impl super::super::HeadlessWebBrowser {
                 renderer.install_csp_eval_block();
             }
 
-            // Execute non-deferred inline scripts from the page
-            self.execute_page_scripts(&content, false).await?;
-
-            // Fire DOMContentLoaded event
-            eprintln!("🔍 DEBUG: Firing DOMContentLoaded event");
-            self.fire_dom_content_loaded().await?;
-
-            // Execute deferred scripts AFTER DOMContentLoaded
-            self.execute_page_scripts(&content, true).await?;
-
-            // Wait for JavaScript execution to settle.
-            // Use a short timeout in Interactive mode (GUI) to keep page loads fast.
-            // Stealth mode (MCP/headless) can afford a longer wait.
+            // Run scripts and fire load events, then let timers, promises and
+            // fetches settle. Use a short budget in Interactive mode (GUI) to
+            // keep page loads fast; MCP/headless can afford a longer wait.
             let js_timeout = if self.navigation_mode == NavigationMode::Stealth {
                 5000
             } else {
                 2000
             };
-            match self.wait_for_js_execution(js_timeout).await {
-                Ok(_) => eprintln!("🔍 DEBUG: JavaScript execution completed successfully"),
-                Err(e) => eprintln!("🔍 DEBUG: JavaScript execution timeout (non-fatal): {}", e),
-            }
+            self.run_page_load_sequence(&content, js_timeout).await?;
 
             // After JS execution, capture the modified DOM back into current_content.
             // JavaScript may have added/removed elements (e.g., sidebar TOC, UI panels).
@@ -655,167 +642,133 @@ impl super::super::HeadlessWebBrowser {
             mode, scripts_executed, scripts_failed, external_scripts_fetched
         );
 
-        // Give scripts time to settle after execution
-        sleep(Duration::from_millis(100)).await;
+        // Run microtasks queued by the scripts (the old fixed 100ms sleep is
+        // only kept when there is no event loop)
+        if self
+            .pump_event_loop(thalora_browser_apis::event_loop::PumpBudget::no_wait())
+            .is_none()
+        {
+            sleep(Duration::from_millis(100)).await;
+        }
 
         Ok(())
     }
 
-    /// Fire DOMContentLoaded event
-    /// This signals that the DOM is fully parsed and deferred scripts should execute
+    /// Run a freshly loaded page: classic scripts, DOMContentLoaded, deferred
+    /// scripts, the window `load` event, then pump the event loop until the
+    /// network is quiet or `settle_ms` elapses (non-fatal).
+    pub(crate) async fn run_page_load_sequence(
+        &mut self,
+        content: &str,
+        settle_ms: u64,
+    ) -> Result<()> {
+        // Non-deferred scripts (each followed by a microtask checkpoint)
+        self.execute_page_scripts(content, false).await?;
+
+        eprintln!("🔍 DEBUG: Firing DOMContentLoaded event");
+        self.fire_dom_content_loaded().await?;
+
+        // Deferred scripts run after DOMContentLoaded
+        self.execute_page_scripts(content, true).await?;
+
+        self.fire_load_event().await?;
+
+        // One settle pump: async jobs (fetch/XHR) only progress inside a pump
+        // and are cancelled if its budget ends, so don't split this up.
+
+        match self.wait_for_js_execution(settle_ms).await {
+            Ok(()) => eprintln!("🔍 DEBUG: JavaScript execution settled"),
+            Err(e) => eprintln!(
+                "🔍 DEBUG: JavaScript execution did not settle (non-fatal): {}",
+                e
+            ),
+        }
+        Ok(())
+    }
+
+    /// Set `document.readyState` to "interactive" and dispatch DOMContentLoaded.
     pub(crate) async fn fire_dom_content_loaded(&mut self) -> Result<()> {
         let js_code = r#"
         (function() {
             try {
-                // Set document.readyState to 'interactive' first
                 Object.defineProperty(document, 'readyState', {
                     value: 'interactive',
                     writable: true,
                     configurable: true
                 });
-
-                // Create and dispatch DOMContentLoaded event
-                var event = new Event('DOMContentLoaded', {
+                document.dispatchEvent(new Event('DOMContentLoaded', {
                     bubbles: true,
                     cancelable: false
-                });
-                document.dispatchEvent(event);
-
-                // Then set readyState to 'complete'
-                Object.defineProperty(document, 'readyState', {
-                    value: 'complete',
-                    writable: true,
-                    configurable: true
-                });
-
-                // Fire load event on window
-                var loadEvent = new Event('load', {
-                    bubbles: false,
-                    cancelable: false
-                });
-                window.dispatchEvent(loadEvent);
-
-                return 'DOMContentLoaded and load events fired';
+                }));
+                return 'DOMContentLoaded fired';
             } catch(e) {
                 return 'Error: ' + e.message;
             }
         })()
         "#;
+        self.fire_lifecycle_event(js_code, "DOMContentLoaded").await
+    }
 
+    /// Set `document.readyState` to "complete" and dispatch the window `load` event.
+    pub(crate) async fn fire_load_event(&mut self) -> Result<()> {
+        let js_code = r#"
+        (function() {
+            try {
+                Object.defineProperty(document, 'readyState', {
+                    value: 'complete',
+                    writable: true,
+                    configurable: true
+                });
+                window.dispatchEvent(new Event('load', {
+                    bubbles: false,
+                    cancelable: false
+                }));
+                return 'load fired';
+            } catch(e) {
+                return 'Error: ' + e.message;
+            }
+        })()
+        "#;
+        self.fire_lifecycle_event(js_code, "load").await
+    }
+
+    async fn fire_lifecycle_event(&mut self, js_code: &str, name: &str) -> Result<()> {
         match self.execute_javascript(js_code).await {
             Ok(result) => {
-                eprintln!("🔍 DEBUG: DOMContentLoaded event result: {}", result);
-                Ok(())
+                eprintln!("🔍 DEBUG: {} event result: {}", name, result);
             }
             Err(e) => {
-                eprintln!("⚠️  WARNING: Failed to fire DOMContentLoaded: {}", e);
-                Ok(()) // Non-fatal
+                eprintln!("⚠️  WARNING: Failed to fire {}: {}", name, e);
             }
         }
+        // Run handlers' promise reactions before continuing
+        self.pump_event_loop(thalora_browser_apis::event_loop::PumpBudget::no_wait());
+        Ok(()) // Non-fatal
     }
 
-    /// Wait for JavaScript execution to complete and DOM to stabilize using events
+    /// Run the event loop until the network has been quiet for 500 ms and no
+    /// short one-shot timers are pending, or until `timeout_ms` elapses.
     pub async fn wait_for_js_execution(&mut self, timeout_ms: u64) -> Result<()> {
+        use thalora_browser_apis::event_loop::{PumpBudget, PumpOutcome};
         eprintln!(
-            "🔍 DEBUG: wait_for_js_execution - waiting for JS to complete (timeout: {}ms)",
+            "🔍 DEBUG: wait_for_js_execution - pumping event loop (timeout: {}ms)",
             timeout_ms
         );
-
-        let js_code = format!(
-            r#"
-        (function() {{
-            return new Promise(function(resolve, reject) {{
-                var timeoutId = setTimeout(function() {{
-                    resolve(false); // Timeout
-                }}, {});
-
-                function checkReady() {{
-                    try {{
-                        // Check if document is ready
-                        if (typeof document === 'undefined') return false;
-                        if (document.readyState !== 'complete') return false;
-
-                        // Check if there are pending AJAX requests (jQuery)
-                        if (typeof jQuery !== 'undefined' && jQuery.active > 0) return false;
-
-                        // Check for Angular pending requests
-                        if (typeof angular !== 'undefined') {{
-                            try {{
-                                var ng = angular.element(document.body).injector();
-                                if (ng && ng.get('$http').pendingRequests.length > 0) return false;
-                            }} catch(e) {{
-                                // Angular not fully initialized
-                            }}
-                        }}
-
-                        // Check for pending fetch/XHR using performance API
-                        if (typeof performance !== 'undefined' && performance.getEntriesByType) {{
-                            try {{
-                                var nav = performance.getEntriesByType('navigation')[0];
-                                if (nav && nav.loadEventEnd === 0) return false;
-                            }} catch(e) {{
-                                // Performance API not fully supported
-                            }}
-                        }}
-
-                        return true; // Ready
-                    }} catch(e) {{
-                        return false;
-                    }}
-                }}
-
-                // If already ready, resolve immediately
-                if (checkReady()) {{
-                    clearTimeout(timeoutId);
-                    resolve(true);
-                    return;
-                }}
-
-                // Listen for readystatechange event
-                document.addEventListener('readystatechange', function handler() {{
-                    if (checkReady()) {{
-                        clearTimeout(timeoutId);
-                        document.removeEventListener('readystatechange', handler);
-                        resolve(true);
-                    }}
-                }});
-
-                // Also listen for load event as fallback
-                window.addEventListener('load', function handler() {{
-                    // Give a small delay for final scripts to execute
-                    setTimeout(function() {{
-                        if (checkReady()) {{
-                            clearTimeout(timeoutId);
-                            window.removeEventListener('load', handler);
-                            resolve(true);
-                        }}
-                    }}, 100);
-                }});
-            }});
-        }})()
-        "#,
-            timeout_ms
+        let budget = PumpBudget::until_network_idle(
+            Duration::from_millis(timeout_ms),
+            Duration::from_millis(500),
         );
-
-        match self.execute_javascript(&js_code).await {
-            Ok(result) => {
-                if result.trim() == "true" {
-                    eprintln!("🔍 DEBUG: wait_for_js_execution - JavaScript execution complete");
-                    Ok(())
-                } else {
-                    eprintln!("🔍 DEBUG: wait_for_js_execution - timeout reached");
-                    Err(anyhow!("Timeout waiting for JavaScript execution"))
-                }
-            }
-            Err(e) => {
-                eprintln!("🔍 DEBUG: wait_for_js_execution - error: {}", e);
-                Err(e)
-            }
+        match self.pump_event_loop(budget) {
+            Some(PumpOutcome::BudgetExhausted) => Err(anyhow!(
+                "page still had pending timers or network activity after {}ms",
+                timeout_ms
+            )),
+            _ => Ok(()),
         }
     }
 
-    /// Wait for an element to appear in the DOM using MutationObserver
-    /// Returns true if element found, false if timeout reached
+    /// Wait for an element matching `selector` to appear, running the event
+    /// loop between checks. Returns true if found, false on timeout.
     pub async fn wait_for_element(&mut self, selector: &str, timeout_ms: u64) -> Result<bool> {
         eprintln!(
             "🔍 DEBUG: wait_for_element - waiting for selector: {} (timeout: {}ms)",
@@ -844,7 +797,14 @@ impl super::super::HeadlessWebBrowser {
                 );
                 return Ok(false);
             }
-            sleep(Duration::from_millis(100)).await;
+            // Let timers/fetches make progress between checks
+            let pumped =
+                self.pump_event_loop(thalora_browser_apis::event_loop::PumpBudget::until_idle(
+                    Duration::from_millis(100),
+                ));
+            if pumped.is_none() {
+                sleep(Duration::from_millis(100)).await;
+            }
         }
     }
 

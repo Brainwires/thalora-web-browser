@@ -227,3 +227,53 @@ fn e2e_eval_runs_in_default_session() {
         "eval should see the navigated page: {result}"
     );
 }
+
+// ── Event loop (Phase 1) ────────────────────────────────────────────────────
+
+fn navigate_with_js(h: &mut McpTestHarness, url: String, session_id: &str) {
+    call_ok(
+        h,
+        "browser_navigate_to",
+        json!({"url": url, "session_id": session_id, "wait_for_js": true}),
+    );
+}
+
+fn eval_in(h: &mut McpTestHarness, session_id: &str, expression: &str) -> String {
+    call_ok(
+        h,
+        "cdp_runtime_evaluate",
+        json!({"expression": expression, "session_id": session_id}),
+    )
+}
+
+#[test]
+fn e2e_timers_microtasks_and_animation_frames_run_during_navigation() {
+    let (mut h, site) = fixture_harness();
+    navigate_with_js(&mut h, site.url("/timers.html"), "timers");
+    let log = eval_in(&mut h, "timers", "fixtureLog.join(',')");
+    for entry in ["microtask", "raf", "timeout"] {
+        assert!(log.contains(entry), "{entry} did not run: {log}");
+    }
+}
+
+#[test]
+fn e2e_fetch_settles_during_navigation() {
+    let (mut h, site) = fixture_harness();
+    navigate_with_js(&mut h, site.url("/spa_fetch.html"), "fetch");
+    let result = eval_in(&mut h, "fetch", "fetchResult");
+    assert!(
+        result.contains("fixture data loaded"),
+        "fetch did not settle: {result}"
+    );
+}
+
+#[test]
+fn e2e_bundled_code_runs() {
+    let (mut h, site) = fixture_harness();
+    navigate_with_js(&mut h, site.url("/webpack_bundle.html"), "bundle");
+    let result = eval_in(&mut h, "bundle", "String(window.bundleResult)");
+    assert!(
+        result.contains("bundle rendered (production)"),
+        "bundle did not run: {result}"
+    );
+}

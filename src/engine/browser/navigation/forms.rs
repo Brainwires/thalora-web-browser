@@ -170,6 +170,8 @@ impl super::super::HeadlessWebBrowser {
                             .and_then(|v| v.as_str())
                             .unwrap_or("Text entered");
 
+                        self.settle_after_interaction();
+
                         // The JS DOM does not yet persist values across
                         // queries, so remember filled values on the Rust side
                         // for a later submit_form on this page.
@@ -333,6 +335,17 @@ impl super::super::HeadlessWebBrowser {
                 new_content: Some(content),
             })
         }
+    }
+
+    /// Run the event loop briefly after a simulated user action so async
+    /// handlers (timers, promises, fetch) can update the page.
+    fn settle_after_interaction(&mut self) {
+        self.pump_event_loop(
+            thalora_browser_apis::event_loop::PumpBudget::until_network_idle(
+                std::time::Duration::from_secs(2),
+                std::time::Duration::from_millis(300),
+            ),
+        );
     }
 
     /// Remember a value typed into the field `name` on the current page.
@@ -586,6 +599,9 @@ impl super::super::HeadlessWebBrowser {
                             .get("default_prevented")
                             .and_then(|v| v.as_bool())
                             .unwrap_or(false);
+
+                        // Let handlers' timers, promises and fetches run
+                        self.settle_after_interaction();
 
                         // Perform the click's default action (form submission
                         // or link navigation) unless a handler prevented it.
