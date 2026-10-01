@@ -3374,8 +3374,9 @@ mod tests {
         assert!(div.is_some(), "Should find div element");
         let div = div.unwrap();
 
-        // Should have max-width from CSS
-        assert_eq!(div.styles.max_width.as_deref(), Some("600px"));
+        // Should have max-width from CSS (px lengths are normalized to bare
+        // numbers at the Rust boundary, see normalize_length)
+        assert_eq!(div.styles.max_width.as_deref(), Some("600"));
         // Should have background-color from CSS
         assert_eq!(div.styles.background_color.as_deref(), Some("#fdfdff"));
     }
@@ -3704,7 +3705,7 @@ mod tests {
         );
         assert_eq!(
             grid.styles.gap.as_deref(),
-            Some("24px"),
+            Some("24"), // px normalized to a bare number (normalize_length)
             "Should have gap from column-gap"
         );
 

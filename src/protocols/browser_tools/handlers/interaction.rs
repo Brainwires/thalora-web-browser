@@ -53,12 +53,11 @@ impl BrowserTools {
                         if let Some(form_info) = guard.find_form_by_submit_button(&selector_owned)
                             && form_info.opens_new_window
                         {
-                            eprintln!(
-                                "🔍 DEBUG: Click on submit button for new window form detected"
-                            );
-                            eprintln!(
-                                "🔍 DEBUG: Form target: {}, action: {}",
-                                form_info.target, form_info.action
+                            tracing::debug!("Click on submit button for new window form detected");
+                            tracing::debug!(
+                                "Form target: {}, action: {}",
+                                form_info.target,
+                                form_info.action
                             );
 
                             if let Some(ref predicted_url) = form_info.predicted_url {
@@ -71,9 +70,10 @@ impl BrowserTools {
                                         .as_millis()
                                 );
 
-                                eprintln!(
-                                    "🔍 DEBUG: Creating predictive session: {} for URL: {}",
-                                    predictive_session_id, predicted_url
+                                tracing::debug!(
+                                    "Creating predictive session: {} for URL: {}",
+                                    predictive_session_id,
+                                    predicted_url
                                 );
 
                                 predictive_session = Some(predictive_session_id.clone());

@@ -47,25 +47,22 @@ pub async fn perform_search(
     num_results: usize,
     search_engine: &str,
 ) -> Result<SearchResults> {
-    eprintln!(
-        "🔍 DEBUG: perform_web_search called with engine: {}",
-        search_engine
-    );
+    tracing::debug!("perform_web_search called with engine: {}", search_engine);
     match search_engine {
         "duckduckgo" => {
-            eprintln!("🔍 DEBUG: Calling search_duckduckgo");
+            tracing::debug!("Calling search_duckduckgo");
             duckduckgo::search(query, num_results).await
         }
         "bing" => {
-            eprintln!("🔍 DEBUG: Calling search_bing");
+            tracing::debug!("Calling search_bing");
             bing::search(query, num_results).await
         }
         "google" => {
-            eprintln!("🔍 DEBUG: Calling search_google");
+            tracing::debug!("Calling search_google");
             google::search(query, num_results).await
         }
         "startpage" => {
-            eprintln!("🔍 DEBUG: Calling search_startpage");
+            tracing::debug!("Calling search_startpage");
             startpage::search(query, num_results).await
         }
         _ => Err(anyhow::anyhow!(

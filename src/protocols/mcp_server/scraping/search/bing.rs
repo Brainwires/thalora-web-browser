@@ -34,19 +34,13 @@ pub async fn search(query: &str, num_results: usize) -> Result<SearchResults> {
 }
 
 pub fn parse_results(html: &str, query: &str, num_results: usize) -> Result<SearchResults> {
-    eprintln!("🔍 DEBUG: Bing HTML length: {}", html.len());
-    eprintln!(
-        "🔍 DEBUG: Bing HTML contains .b_algo: {}",
-        html.contains(".b_algo")
-    );
-    eprintln!(
-        "🔍 DEBUG: Bing HTML contains cloudflare: {}",
+    tracing::debug!("Bing HTML length: {}", html.len());
+    tracing::debug!("Bing HTML contains .b_algo: {}", html.contains(".b_algo"));
+    tracing::debug!(
+        "Bing HTML contains cloudflare: {}",
         html.contains("cloudflare")
     );
-    eprintln!(
-        "🔍 DEBUG: First 500 chars: {}",
-        &html[..html.len().min(500)]
-    );
+    tracing::debug!("First 500 chars: {}", &html[..html.len().min(500)]);
 
     let document = Html::parse_document(html);
     let mut results = Vec::new();

@@ -991,7 +991,7 @@ impl ElementData {
     /// Update the document's HTML content to reflect DOM changes
     /// This is CRITICAL for querySelector to find dynamically added content
     fn update_document_html_content(&self) {
-        eprintln!("DEBUG: update_document_html_content called - implementing PROPER fix");
+        tracing::debug!("update_document_html_content called - implementing PROPER fix");
 
         // REAL FIX: The bug was that serialize_to_html() only builds HTML for this one element,
         // but then we were overwriting the ENTIRE document with just that element's HTML.
@@ -1006,8 +1006,8 @@ impl ElementData {
         // This allows querySelector to continue working on the full document while
         // recognizing that individual elements may have been modified in memory.
 
-        eprintln!(
-            "DEBUG: Element {} content updated - document HTML preserved",
+        tracing::debug!(
+            "Element {} content updated - document HTML preserved",
             self.get_tag_name()
         );
 

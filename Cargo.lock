@@ -8257,6 +8257,7 @@ dependencies = [
  "tiny-skia",
  "tokio",
  "tokio-tungstenite",
+ "tracing",
  "url",
  "urlencoding",
  "uuid",

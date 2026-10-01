@@ -86,8 +86,8 @@ impl BrowserTools {
                                 .as_millis()
                         );
 
-                        eprintln!(
-                            "🔍 DEBUG: Creating predictive session for form preparation: {}",
+                        tracing::debug!(
+                            "Creating predictive session for form preparation: {}",
                             predictive_session_id
                         );
 

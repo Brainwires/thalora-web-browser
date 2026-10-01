@@ -516,8 +516,8 @@ impl DocumentData {
     /// Process all forms in HTML content and prepare elements collections
     /// This ensures that forms accessed via DOM events have proper elements collections
     fn process_forms_in_html(&self, html_content: &str) {
-        eprintln!(
-            "🔍 DEBUG: process_forms_in_html called with {} characters of HTML",
+        tracing::debug!(
+            "process_forms_in_html called with {} characters of HTML",
             html_content.len()
         );
 
@@ -527,7 +527,7 @@ impl DocumentData {
         // Find all form elements
         if let Ok(form_selector) = scraper::Selector::parse("form") {
             let form_count = document.select(&form_selector).count();
-            eprintln!("🔍 DEBUG: Found {} forms in HTML", form_count);
+            tracing::debug!("Found {} forms in HTML", form_count);
 
             for (form_index, form_element) in document.select(&form_selector).enumerate() {
                 // Create a unique ID for this form if it doesn't have one
@@ -577,16 +577,9 @@ impl DocumentData {
         // For now, store the metadata - we'll need a context to create the actual objects
         // This processing happens at document level so all forms are known before JavaScript queries them
         // TODO: This needs to be enhanced to create actual JavaScript objects when we have a context
-        eprintln!(
-            "🔍 DEBUG: Found form '{}' with {} inputs",
-            form_id,
-            inputs.len()
-        );
+        tracing::debug!("Found form '{}' with {} inputs", form_id, inputs.len());
         for (name, value, input_type) in &inputs {
-            eprintln!(
-                "🔍 DEBUG: - Input '{}' = '{}' (type: {})",
-                name, value, input_type
-            );
+            tracing::debug!("- Input '{}' = '{}' (type: {})", name, value, input_type);
         }
     }
 
@@ -1084,7 +1077,7 @@ fn query_selector(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
     if let Some(b) = crate::dom::binding::document_root(this) {
         return crate::dom::binding::query_selector(&b, args, context);
     }
-    eprintln!("DEBUG: query_selector called!");
+    tracing::debug!("query_selector called!");
 
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Document.prototype.querySelector called on non-object")
@@ -1097,14 +1090,11 @@ fn query_selector(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
 
     let selector = args.get_or_undefined(0).to_string(context)?;
     let selector_str = selector.to_std_string_escaped();
-    eprintln!("DEBUG: query_selector selector: {}", selector_str);
+    tracing::debug!("query_selector selector: {}", selector_str);
 
     // Get the HTML content from the document
     let html_content = document.get_html_content();
-    eprintln!(
-        "DEBUG: query_selector HTML content length: {}",
-        html_content.len()
-    );
+    tracing::debug!("query_selector HTML content length: {}", html_content.len());
 
     // Get cached layout data for geometry injection
     let layout_rects = document.layout_rects.lock().unwrap().clone();
@@ -1116,7 +1106,7 @@ fn query_selector(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
         return Ok(element.into());
     }
 
-    eprintln!("DEBUG: query_selector returning null - no element found");
+    tracing::debug!("query_selector returning null - no element found");
     Ok(JsValue::null())
 }
 
@@ -1133,21 +1123,21 @@ fn create_real_element_from_html(
     if let Ok(css_selector) = scraper::Selector::parse(selector)
         && let Some(element_ref) = document.select(&css_selector).next()
     {
-        eprintln!("DEBUG: querySelector creating element using Element constructor");
+        tracing::debug!("querySelector creating element using Element constructor");
 
         // Actually construct a new Element instance using the Element constructor
         let element_constructor = context.intrinsics().constructors().element().constructor();
         let element_obj =
             element_constructor.construct(&[], Some(&element_constructor), context)?;
 
-        eprintln!("DEBUG: Element created, checking for dispatchEvent...");
+        tracing::debug!("Element created, checking for dispatchEvent...");
         if let Ok(dispatch_event) = element_obj.get(js_string!("dispatchEvent"), context) {
-            eprintln!(
-                "DEBUG: dispatchEvent found on created element: {:?}",
+            tracing::debug!(
+                "dispatchEvent found on created element: {:?}",
                 dispatch_event.type_of()
             );
         } else {
-            eprintln!("DEBUG: dispatchEvent NOT found on created element!");
+            tracing::debug!("dispatchEvent NOT found on created element!");
         }
 
         // Set real properties from the actual HTML element

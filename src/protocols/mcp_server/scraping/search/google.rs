@@ -9,19 +9,19 @@ use crate::protocols::mcp_server::scraping::utils::{
 };
 
 pub async fn search(query: &str, num_results: usize) -> Result<SearchResults> {
-    eprintln!("🔍 DEBUG: search_google started");
+    tracing::debug!("search_google started");
     let search_url = format!(
         "https://www.google.com/search?q={}&num={}&hl=en&gl=us",
         urlencoding::encode(query),
         num_results
     );
-    eprintln!("🔍 DEBUG: Google search URL: {}", search_url);
+    tracing::debug!("Google search URL: {}", search_url);
 
     // Temporary browser on its own thread for this stateless search.
     // Google requires JavaScript execution to display search results.
     let temp_browser = super::temporary_browser("google")?;
     let html = super::navigate_and_read(&temp_browser, search_url.clone(), true).await?;
-    eprintln!("🔍 DEBUG: Content retrieved");
+    tracing::debug!("Content retrieved");
 
     // Check for Google's bot detection challenges
     if html.contains("Our systems have detected unusual traffic")
@@ -40,10 +40,10 @@ pub async fn search(query: &str, num_results: usize) -> Result<SearchResults> {
         || (html.contains("<style>table,div,span,p{display:none}</style>")
             && html.contains("refresh"))
     {
-        eprintln!(
-            "🔍 DEBUG: Google returned JavaScript challenge page, but attempting to parse anyway"
+        tracing::debug!(
+            "Google returned JavaScript challenge page, but attempting to parse anyway"
         );
-        eprintln!("🔍 DEBUG: Challenge page length: {} chars", html.len());
+        tracing::debug!("Challenge page length: {} chars", html.len());
         // Instead of failing, let's try to follow the redirect or parse what we can
 
         // Try to extract the redirect URL and follow it
@@ -55,7 +55,7 @@ pub async fn search(query: &str, num_results: usize) -> Result<SearchResults> {
                 let url_part = &content_part[url_start + 4..];
                 if let Some(url_end) = url_part.find("\"") {
                     let redirect_url = &url_part[..url_end];
-                    eprintln!("🔍 DEBUG: Found redirect URL: {}", redirect_url);
+                    tracing::debug!("Found redirect URL: {}", redirect_url);
 
                     // Make a new request to the redirect URL
                     let full_redirect_url = if redirect_url.starts_with("/") {
@@ -64,19 +64,16 @@ pub async fn search(query: &str, num_results: usize) -> Result<SearchResults> {
                         redirect_url.to_string()
                     };
 
-                    eprintln!("🔍 DEBUG: Following redirect to: {}", full_redirect_url);
+                    tracing::debug!("Following redirect to: {}", full_redirect_url);
 
                     // Reuse the same browser to follow the redirect (keeps cookies)
                     let redirect_html =
                         super::navigate_and_read(&temp_browser, full_redirect_url.clone(), true)
                             .await?;
 
-                    eprintln!(
-                        "🔍 DEBUG: Redirect response length: {} chars",
-                        redirect_html.len()
-                    );
-                    eprintln!(
-                        "🔍 DEBUG: Redirect response preview: {}",
+                    tracing::debug!("Redirect response length: {} chars", redirect_html.len());
+                    tracing::debug!(
+                        "Redirect response preview: {}",
                         redirect_html
                             .char_indices()
                             .nth(500)
@@ -93,17 +90,14 @@ pub async fn search(query: &str, num_results: usize) -> Result<SearchResults> {
         }
 
         // If we can't follow the redirect, just try to parse what we have
-        eprintln!("🔍 DEBUG: Could not extract redirect URL, parsing challenge page directly");
+        tracing::debug!("Could not extract redirect URL, parsing challenge page directly");
     }
 
     // Let's also check if we got valid search results
     if !html.contains("</html>") || html.len() < 1000 {
-        eprintln!(
-            "🔍 DEBUG: Got incomplete HTML response: {} chars",
-            html.len()
-        );
-        eprintln!(
-            "🔍 DEBUG: HTML content: {}",
+        tracing::debug!("Got incomplete HTML response: {} chars", html.len());
+        tracing::debug!(
+            "HTML content: {}",
             html.char_indices()
                 .nth(500)
                 .map_or(html.as_str(), |(i, _)| &html[..i])
@@ -117,19 +111,13 @@ pub async fn search(query: &str, num_results: usize) -> Result<SearchResults> {
 }
 
 pub fn parse_results(html: &str, query: &str, num_results: usize) -> Result<SearchResults> {
-    eprintln!("🔍 DEBUG: Google HTML length: {}", html.len());
-    eprintln!(
-        "🔍 DEBUG: Google HTML contains .g class: {}",
+    tracing::debug!("Google HTML length: {}", html.len());
+    tracing::debug!(
+        "Google HTML contains .g class: {}",
         html.contains("class=\"g\"")
     );
-    eprintln!(
-        "🔍 DEBUG: Google HTML contains .tF2Cxc: {}",
-        html.contains("tF2Cxc")
-    );
-    eprintln!(
-        "🔍 DEBUG: First 500 chars: {}",
-        &html[..html.len().min(500)]
-    );
+    tracing::debug!("Google HTML contains .tF2Cxc: {}", html.contains("tF2Cxc"));
+    tracing::debug!("First 500 chars: {}", &html[..html.len().min(500)]);
 
     let document = Html::parse_document(html);
     let mut results = Vec::new();

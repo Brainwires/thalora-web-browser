@@ -207,7 +207,7 @@ impl RustRenderer {
                             }
                         },
                     ));
-                    eprintln!("🔍 DEBUG: History API callback wired to event queue");
+                    tracing::debug!("History API callback wired to event queue");
                 }
             }
         }
@@ -307,8 +307,8 @@ impl RustRenderer {
         // Prevent re-entrant updates which could cause infinite recursion by
         // a JS getter calling back into document update.
         if self.in_update {
-            eprintln!(
-                "🔍 DEBUG: update_document_html re-entrant call detected - skipping to avoid recursion"
+            tracing::debug!(
+                "update_document_html re-entrant call detected - skipping to avoid recursion"
             );
             return Ok(());
         }

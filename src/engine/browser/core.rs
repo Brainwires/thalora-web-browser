@@ -640,7 +640,7 @@ impl HeadlessWebBrowser {
             let activation_value = match renderer.eval_js(&activation_script) {
                 Ok(val) => Some(val),
                 Err(e) => {
-                    eprintln!("🔍 DEBUG: Failed to create navigation activation: {:?}", e);
+                    tracing::debug!("Failed to create navigation activation: {:?}", e);
                     None
                 }
             };
@@ -673,7 +673,7 @@ impl HeadlessWebBrowser {
             match renderer.eval_js(dispatch_script) {
                 Ok(result) => {
                     let result_str = renderer.js_value_to_string(result);
-                    eprintln!("🔍 DEBUG: PageSwap event dispatch result: {}", result_str);
+                    tracing::debug!("PageSwap event dispatch result: {}", result_str);
 
                     // Call the dispatch function with activation data
                     if let Some(activation) = activation_value {
@@ -683,15 +683,15 @@ impl HeadlessWebBrowser {
                             renderer.js_value_to_string(activation)
                         );
                         if let Ok(call_res) = renderer.eval_js(&call_script) {
-                            eprintln!(
-                                "🔍 DEBUG: PageSwap event with activation result: {}",
+                            tracing::debug!(
+                                "PageSwap event with activation result: {}",
                                 renderer.js_value_to_string(call_res)
                             );
                         }
                     }
                 }
                 Err(e) => {
-                    eprintln!("🔍 DEBUG: Failed to dispatch pageswap event: {:?}", e);
+                    tracing::debug!("Failed to dispatch pageswap event: {:?}", e);
                 }
             }
         }

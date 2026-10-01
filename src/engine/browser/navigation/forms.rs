@@ -12,12 +12,12 @@ impl super::super::HeadlessWebBrowser {
         clear_first: bool,
     ) -> Result<InteractionResponse> {
         // Debug logging for session state
-        eprintln!(
-            "🔍 DEBUG: type_text_into_element - current_content length: {}",
+        tracing::debug!(
+            "type_text_into_element - current_content length: {}",
             self.current_content.len()
         );
-        eprintln!(
-            "🔍 DEBUG: type_text_into_element - current_url: {:?}",
+        tracing::debug!(
+            "type_text_into_element - current_url: {:?}",
             self.current_url
         );
 
@@ -584,12 +584,9 @@ impl super::super::HeadlessWebBrowser {
             return Err(anyhow!("No current page loaded"));
         }
 
-        eprintln!(
-            "🔍 DEBUG: click_element - attempting to click selector: {}",
-            selector
-        );
-        eprintln!(
-            "🔍 DEBUG: click_element - current_content length: {}",
+        tracing::debug!("click_element - attempting to click selector: {}", selector);
+        tracing::debug!(
+            "click_element - current_content length: {}",
             self.current_content.len()
         );
 
@@ -791,10 +788,10 @@ impl super::super::HeadlessWebBrowser {
 
         // Execute the JavaScript in the browser engine
         if let Some(ref mut renderer) = self.renderer {
-            eprintln!("🔍 DEBUG: click_element - executing JavaScript to click element");
+            tracing::debug!("click_element - executing JavaScript to click element");
             match renderer.evaluate_javascript_direct(&js_code) {
                 Ok(result) => {
-                    eprintln!("🔍 DEBUG: click_element - JavaScript result: {}", result);
+                    tracing::debug!("click_element - JavaScript result: {}", result);
 
                     // Try to parse the result as JSON
                     if let Ok(json_result) = serde_json::from_str::<serde_json::Value>(&result) {
@@ -863,10 +860,7 @@ impl super::super::HeadlessWebBrowser {
                     }
                 }
                 Err(e) => {
-                    eprintln!(
-                        "🔍 DEBUG: click_element - JavaScript execution error: {}",
-                        e
-                    );
+                    tracing::debug!("click_element - JavaScript execution error: {}", e);
                     Err(anyhow!("Failed to execute element click JavaScript: {}", e))
                 }
             }

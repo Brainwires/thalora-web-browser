@@ -379,7 +379,10 @@ fn module_scripts_inserted_via_dom_run_as_modules() {
     );
     ctx.run_jobs().expect("jobs");
     // Module code: `this` is undefined and top-level vars stay module-scoped
-    assert_eq!(eval_string(&mut ctx, "globalThis.moduleRan"), "ran:undefined");
+    assert_eq!(
+        eval_string(&mut ctx, "globalThis.moduleRan"),
+        "ran:undefined"
+    );
     assert_eq!(
         eval_string(&mut ctx, "typeof globalThis.moduleLocal"),
         "undefined"

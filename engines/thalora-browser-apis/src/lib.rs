@@ -1577,7 +1577,7 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     );
 
     // Set lock_manager on navigator_data BEFORE creating the object
-    eprintln!("DEBUG: Setting lock_manager on Navigator data structure");
+    tracing::debug!("Setting lock_manager on Navigator data structure");
     let lock_manager_generic = lock_manager_obj.upcast();
     navigator_data.set_lock_manager(lock_manager_generic.clone());
 
@@ -1602,8 +1602,8 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     let check_storage = navigator_generic
         .get(boa_engine::js_string!("storage"), context)
         .unwrap();
-    eprintln!(
-        "DEBUG: After setting navigator.storage, get('storage') = {:?}",
+    tracing::debug!(
+        "After setting navigator.storage, get('storage') = {:?}",
         check_storage
     );
 

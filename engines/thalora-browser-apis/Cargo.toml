@@ -34,6 +34,9 @@ wasm = [
 ]
 
 [dependencies]
+# Diagnostics (debug output is off unless RUST_LOG enables it)
+tracing = "0.1"
+
 # Shared constants
 thalora-constants = { path = "../../shared/thalora-constants" }
 
