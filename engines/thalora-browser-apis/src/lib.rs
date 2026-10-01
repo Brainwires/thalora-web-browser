@@ -51,6 +51,9 @@ pub mod console;
 // Timer APIs
 pub mod timers;
 
+// Event loop (job executor with microtask/timer/async queues)
+pub mod event_loop;
+
 // WebRTC APIs
 pub mod webrtc;
 
