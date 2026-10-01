@@ -12,7 +12,8 @@
 pub fn detect() -> (String, Vec<String>) {
     let primary = sys_locale::get_locale()
         .map(normalize_bcp47)
-        .filter(|s| !s.is_empty())
+        // "C" / "POSIX" are not languages (common in containers and CI)
+        .filter(|s| !s.is_empty() && s != "C" && s != "POSIX")
         .unwrap_or_else(|| "en-US".to_string());
 
     let mut languages = vec![primary.clone()];

@@ -141,7 +141,7 @@ pub(crate) fn window_path_entry(context: &mut Context) -> Option<PathEntry> {
 /// UI event subclass). Returns `None` for objects without event data.
 fn with_event_data<R>(event: &JsObject, f: impl FnOnce(&mut EventData) -> R) -> Option<R> {
     if let Some(mut data) = event.downcast_mut::<EventData>() {
-        return Some(f(&mut *data));
+        return Some(f(&mut data));
     }
     if let Some(mut data) = event.downcast_mut::<UIEventData>() {
         return Some(f(&mut data.event));

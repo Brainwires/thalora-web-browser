@@ -267,7 +267,7 @@ pub fn node_of(b: &DomBinding, value: &JsValue, context: &mut Context) -> JsResu
     {
         return Ok(existing.node);
     }
-    adopt(b, &obj, context)?.ok_or_else(|| {
+    adopt(b, &obj)?.ok_or_else(|| {
         JsNativeError::typ()
             .with_message("HierarchyRequestError: argument is not a Node")
             .into()
@@ -288,7 +288,7 @@ fn optional_node(
 }
 
 /// Copy an object that isn't in `b`'s tree into it.
-fn adopt(b: &DomBinding, obj: &JsObject, context: &mut Context) -> JsResult<Option<NodeId>> {
+fn adopt(b: &DomBinding, obj: &JsObject) -> JsResult<Option<NodeId>> {
     // Text
     let text = obj
         .downcast_ref::<TextData>()
@@ -334,7 +334,7 @@ fn adopt(b: &DomBinding, obj: &JsObject, context: &mut Context) -> JsResult<Opti
                 }
             } else {
                 for child in children {
-                    if let Some(child_node) = adopt(b, &child, context)? {
+                    if let Some(child_node) = adopt(b, &child)? {
                         b.tree
                             .borrow_mut()
                             .append(node, child_node)

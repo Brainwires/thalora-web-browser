@@ -10,13 +10,19 @@ fn convert(node: &scraper::Node) -> Option<NodeKind> {
             public_id: doctype.public_id().to_string(),
             system_id: doctype.system_id().to_string(),
         },
-        scraper::Node::Element(element) => NodeKind::Element {
-            tag: element.name().to_string(),
-            attrs: element
+        scraper::Node::Element(element) => {
+            // scraper stores attributes in a hash map; sort them so
+            // serialization is deterministic
+            let mut attrs: Vec<(String, String)> = element
                 .attrs()
                 .map(|(name, value)| (name.to_string(), value.to_string()))
-                .collect(),
-        },
+                .collect();
+            attrs.sort();
+            NodeKind::Element {
+                tag: element.name().to_string(),
+                attrs,
+            }
+        }
         scraper::Node::Text(text) => NodeKind::Text(text.to_string()),
         scraper::Node::Comment(comment) => NodeKind::Comment(comment.to_string()),
         _ => return None,

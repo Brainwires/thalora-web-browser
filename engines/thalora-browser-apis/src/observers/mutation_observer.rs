@@ -125,12 +125,16 @@ impl MutationObserver {
             }
 
             // Parse attributes option
-            if let Ok(attributes) = options_obj.get(js_string!("attributes"), context) {
+            if let Ok(attributes) = options_obj.get(js_string!("attributes"), context)
+                && !attributes.is_undefined()
+            {
                 config.attributes = Some(attributes.to_boolean());
             }
 
             // Parse characterData option
-            if let Ok(character_data) = options_obj.get(js_string!("characterData"), context) {
+            if let Ok(character_data) = options_obj.get(js_string!("characterData"), context)
+                && !character_data.is_undefined()
+            {
                 config.character_data = Some(character_data.to_boolean());
             }
 
@@ -140,13 +144,16 @@ impl MutationObserver {
             }
 
             // Parse attributeOldValue option
-            if let Ok(attr_old_value) = options_obj.get(js_string!("attributeOldValue"), context) {
+            if let Ok(attr_old_value) = options_obj.get(js_string!("attributeOldValue"), context)
+                && !attr_old_value.is_undefined()
+            {
                 config.attribute_old_value = Some(attr_old_value.to_boolean());
             }
 
             // Parse characterDataOldValue option
             if let Ok(char_old_value) =
                 options_obj.get(js_string!("characterDataOldValue"), context)
+                && !char_old_value.is_undefined()
             {
                 config.character_data_old_value = Some(char_old_value.to_boolean());
             }

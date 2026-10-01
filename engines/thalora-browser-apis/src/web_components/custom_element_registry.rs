@@ -241,7 +241,7 @@ impl CustomElementRegistry {
 
         // Search for the constructor
         let registry = REGISTRY.read().unwrap();
-        for (name, _) in registry.iter() {
+        for name in registry.keys() {
             if let Some(this_obj) = this.as_object() {
                 let stored_constructor = this_obj
                     .get(

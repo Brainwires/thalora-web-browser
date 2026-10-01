@@ -202,7 +202,7 @@ fn interested_observers(
 /// document with a tree).
 fn target_node(obj: &JsObject) -> Option<(SharedTree, NodeId)> {
     if let Some(b) = binding::binding_of(obj) {
-        return Some((b.tree, b.node));
+        return Some((b.tree.clone(), b.node));
     }
     let tree = obj.downcast_ref::<DocumentData>()?.tree()?;
     let node = tree.borrow().document();

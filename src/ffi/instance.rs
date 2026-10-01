@@ -241,7 +241,7 @@ fn install_crash_handlers() {
     for &sig in &signals {
         unsafe {
             let mut sa: libc::sigaction = std::mem::zeroed();
-            sa.sa_sigaction = crash_handler as libc::sighandler_t;
+            sa.sa_sigaction = crash_handler as *const () as libc::sighandler_t;
             libc::sigemptyset(&mut sa.sa_mask);
             // SA_RESETHAND: restore default after first delivery (prevents infinite loops).
             // SA_ONSTACK: use alternate signal stack if one is registered (safer for SIGSEGV).
