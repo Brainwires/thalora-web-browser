@@ -9,6 +9,7 @@ pub mod core;
 
 pub mod form_analyzer;
 pub mod navigation;
+pub mod page_text;
 pub mod scraper;
 pub mod snapshot;
 

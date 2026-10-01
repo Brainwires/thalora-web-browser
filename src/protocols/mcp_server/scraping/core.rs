@@ -757,7 +757,7 @@ impl McpServer {
     }
 
     /// Truncate text at the nearest paragraph or sentence boundary
-    fn truncate_at_boundary(text: &str, max_len: usize) -> String {
+    pub(crate) fn truncate_at_boundary(text: &str, max_len: usize) -> String {
         if text.len() <= max_len {
             return text.to_string();
         }

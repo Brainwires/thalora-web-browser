@@ -82,7 +82,7 @@ pub(crate) fn get_session_tool_definitions() -> Vec<Value> {
         }),
         serde_json::json!({
             "name": "browser_get_page_content",
-            "description": "Get the current page content and URL from a browser session",
+            "description": "Get the current page's visible text (scripts, styles and hidden content removed; one block per line) and URL from a browser session. Set include_html for the raw HTML. Output is capped at max_length bytes (default 20000) and reports truncated: true when cut.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -97,6 +97,10 @@ pub(crate) fn get_session_tool_definitions() -> Vec<Value> {
                     "include_text": {
                         "type": "boolean",
                         "description": "Whether to include extracted text (default: true)"
+                    },
+                    "max_length": {
+                        "type": "integer",
+                        "description": "Maximum bytes of text/HTML to return (default: 20000)"
                     }
                 }
             }

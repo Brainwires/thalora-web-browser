@@ -3,6 +3,7 @@
 // Serves files from tests/fixtures/site plus a few dynamic routes, using only
 // std so it works without extra dependencies:
 //   GET  /<file>            static file from tests/fixtures/site
+//   GET  /corpus/<file>     static file from tests/corpus
 //   GET  /api/data?delay=MS JSON payload after an optional delay
 //   *    /echo              HTML page echoing the method, query and body
 //   GET  /redirect?to=URL   302 redirect to URL (percent-decoded)
@@ -38,6 +39,10 @@ impl FixtureServer {
     pub fn url(&self, path: &str) -> String {
         format!("http://127.0.0.1:{}{}", self.port, path)
     }
+}
+
+pub fn corpus_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/corpus")
 }
 
 fn site_root() -> PathBuf {
@@ -119,10 +124,15 @@ fn handle(mut stream: TcpStream) -> std::io::Result<()> {
             } else {
                 relative
             };
+            // /corpus/... serves the real-world-pattern corpus (tests/corpus)
+            let (root, relative) = match relative.strip_prefix("corpus/") {
+                Some(rest) => (corpus_root(), rest),
+                None => (site_root(), relative),
+            };
             if relative.contains("..") {
                 ("403 Forbidden", "text/plain", "forbidden".to_string())
             } else {
-                match std::fs::read_to_string(site_root().join(relative)) {
+                match std::fs::read_to_string(root.join(relative)) {
                     Ok(content) => ("200 OK", content_type_for(relative), content),
                     Err(_) => ("404 Not Found", "text/plain", "not found".to_string()),
                 }
