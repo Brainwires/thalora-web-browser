@@ -184,8 +184,12 @@ impl super::super::HeadlessWebBrowser {
             }
         }
 
-        // Add human-like navigation delays only in Stealth mode (MCP/headless)
-        if self.navigation_mode == NavigationMode::Stealth {
+        // Human-like random delays (1.5-5s per navigation) are opt-in: they
+        // only help against some bot detection and make every agent action
+        // slow. Enable with THALORA_STEALTH_DELAYS=true in Stealth mode.
+        let stealth_delays = std::env::var("THALORA_STEALTH_DELAYS")
+            .is_ok_and(|v| v == "1" || v.eq_ignore_ascii_case("true"));
+        if self.navigation_mode == NavigationMode::Stealth && stealth_delays {
             let navigation_delay = 1000 + (rand::random::<u64>() % 2000); // 1-3 seconds
             eprintln!(
                 "🔍 DEBUG: Adding human-like navigation delay: {}ms",
@@ -200,7 +204,7 @@ impl super::super::HeadlessWebBrowser {
             );
             sleep(Duration::from_millis(processing_delay)).await;
         } else {
-            eprintln!("🔍 DEBUG: Interactive mode - skipping anti-bot delays");
+            eprintln!("🔍 DEBUG: Skipping anti-bot delays (THALORA_STEALTH_DELAYS not set)");
         }
 
         // Analyze forms for target="_blank" detection

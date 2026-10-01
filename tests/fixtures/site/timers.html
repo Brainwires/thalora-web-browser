@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Fixture Timers</title></head>
+<body>
+  <h1>Timers</h1>
+  <div id="timeout">pending</div>
+  <div id="microtask">pending</div>
+  <div id="raf">pending</div>
+  <script>
+    setTimeout(function () {
+      document.getElementById('timeout').textContent = 'timeout fired';
+    }, 50);
+    Promise.resolve().then(function () {
+      document.getElementById('microtask').textContent = 'microtask ran';
+    });
+    requestAnimationFrame(function () {
+      document.getElementById('raf').textContent = 'raf fired';
+    });
+  </script>
+</body>
+</html>

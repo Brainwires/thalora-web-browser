@@ -50,11 +50,13 @@ impl SsrfProtection {
             ));
         }
 
-        // Get host
-        let host = url.host_str().ok_or_else(|| anyhow!("URL has no host"))?;
-
-        // Resolve DNS to IP address
-        let ip_addr = self.resolve_host(host)?;
+        // Get host. IP literals come from `Url::host()` so IPv6 literals are
+        // handled without their brackets.
+        let ip_addr = match url.host().ok_or_else(|| anyhow!("URL has no host"))? {
+            url::Host::Ipv4(ip) => IpAddr::V4(ip),
+            url::Host::Ipv6(ip) => IpAddr::V6(ip),
+            url::Host::Domain(host) => self.resolve_host(host)?,
+        };
 
         // Check if IP is in blocked ranges
         self.check_ip_address(&ip_addr)?;
@@ -86,6 +88,15 @@ impl SsrfProtection {
 
     /// Check if IP address is in blocked ranges
     fn check_ip_address(&self, ip_addr: &IpAddr) -> Result<()> {
+        // IPv4-mapped IPv6 (::ffff:a.b.c.d) is checked as the embedded IPv4
+        if let IpAddr::V6(v6) = ip_addr
+            && let Some(v4) = v6.to_ipv4_mapped()
+        {
+            return self.check_ip_address(&IpAddr::V4(v4));
+        }
+        if super::is_loopback_ip(ip_addr) && super::loopback_override_enabled() {
+            return Ok(());
+        }
         let ip_network = match ip_addr {
             IpAddr::V4(ipv4) => IpNetwork::V4(Ipv4Network::new(*ipv4, 32).unwrap()),
             IpAddr::V6(ipv6) => IpNetwork::V6(Ipv6Network::new(*ipv6, 128).unwrap()),

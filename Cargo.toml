@@ -227,6 +227,10 @@ core = [
 # Desktop build — MCP server binary + FFI library for .NET GUI
 desktop = ["core", "_bin", "http-transport"]
 
+# Allow THALORA_ALLOW_LOOPBACK=1 to permit navigation to loopback addresses in
+# release builds (debug builds honour it without this feature). Test-only.
+test-hooks = []
+
 # Full native build — all platform-specific dependencies (may require ffmpeg)
 native = [
     "desktop",

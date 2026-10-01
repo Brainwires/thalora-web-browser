@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Fixture Fetch</title></head>
+<body>
+  <h1>Fetch after load</h1>
+  <div id="status">loading</div>
+  <script>
+    fetch('/api/data?delay=200')
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        document.getElementById('status').textContent = data.message;
+      })
+      .catch(function (e) {
+        document.getElementById('status').textContent = 'error: ' + e;
+      });
+  </script>
+</body>
+</html>

@@ -89,6 +89,8 @@ unset THALORA_ENABLE_AI_MEMORY
 | `THALORA_ENABLE_CDP_EXPERIMENTAL` | `false` | Also list the mock-backed CDP tools (`cdp_dom_*`, `cdp_network_*`, `cdp_console_get_messages`, `cdp_page_*`, `browser_screenshot`) |
 | `THALORA_ENABLE_ADVANCED` | `false` | List the not-yet-implemented advanced tools (`extract_pdf`, `download_file`, …); calls fail with "Tool not found" |
 | `THALORA_EXPOSE_PASSWORDS` | `false` | **Unsafe.** Make `ai_memory_get_credentials` return stored secrets to the model |
+| `THALORA_STEALTH_DELAYS` | `false` | Add 1.5–5 s of random "human-like" delay to every navigation (anti-bot evasion) |
+| `THALORA_ALLOW_LOOPBACK` | unset | Test-only: allow navigation to 127.0.0.1/localhost. Honoured only in debug builds or with the `test-hooks` feature |
 
 ## Engine Configuration
 

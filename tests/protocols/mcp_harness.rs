@@ -74,9 +74,13 @@ impl McpTestHarness {
         let release_binary = project_root.join("target/release/thalora");
         let debug_binary = project_root.join("target/debug/thalora");
 
-        // Auto-detect available binary: prefer release if requested and available,
-        // fall back to debug binary, then fall back to cargo run
-        let mut cmd = if config.use_release_build && release_binary.exists() {
+        // Prefer the binary Cargo built for this test run (always up to date
+        // and built with the same features); otherwise auto-detect: release if
+        // requested and available, then debug, then `cargo run`.
+        let cargo_binary = option_env!("CARGO_BIN_EXE_thalora").map(std::path::PathBuf::from);
+        let mut cmd = if let Some(bin) = cargo_binary.filter(|b| b.exists()) {
+            Command::new(bin)
+        } else if config.use_release_build && release_binary.exists() {
             Command::new(&release_binary)
         } else if debug_binary.exists() {
             Command::new(&debug_binary)

@@ -1,0 +1,229 @@
+// End-to-end MCP tests: spawn the real `thalora` binary over stdio and drive
+// it against the local fixture site (tests/fixtures/site).
+//
+// The binary is started with THALORA_ALLOW_LOOPBACK=1, which is honoured in
+// debug builds (or with the `test-hooks` feature) so 127.0.0.1 is reachable.
+
+use super::fixture_server::FixtureServer;
+use super::mcp_harness::{McpTestHarness, McpToolResponse, create_harness_with_raw_env};
+use serde_json::{Value, json};
+use std::collections::HashMap;
+
+fn fixture_harness() -> (McpTestHarness, FixtureServer) {
+    let server = FixtureServer::start();
+    let mut env = HashMap::new();
+    env.insert("THALORA_PRESET".to_string(), "brainclaw".to_string());
+    env.insert("THALORA_ALLOW_LOOPBACK".to_string(), "1".to_string());
+    let harness = create_harness_with_raw_env(env).expect("Failed to create harness");
+    (harness, server)
+}
+
+fn call(harness: &mut McpTestHarness, tool: &str, args: Value) -> McpToolResponse {
+    harness
+        .call_tool(tool, args)
+        .unwrap_or_else(|e| panic!("{tool} failed at transport level: {e}"))
+}
+
+fn text(resp: &McpToolResponse) -> String {
+    resp.content
+        .iter()
+        .filter_map(|c| c["text"].as_str())
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn call_ok(harness: &mut McpTestHarness, tool: &str, args: Value) -> String {
+    let resp = call(harness, tool, args);
+    assert!(!resp.content.is_empty(), "{tool} returned empty content");
+    let body = text(&resp);
+    assert!(!resp.is_error, "{tool} returned an error: {body}");
+    body
+}
+
+fn page_content(harness: &mut McpTestHarness, session_id: &str) -> String {
+    call_ok(
+        harness,
+        "browser_get_page_content",
+        json!({"session_id": session_id}),
+    )
+}
+
+#[test]
+fn e2e_navigate_and_read_page_content() {
+    let (mut h, site) = fixture_harness();
+    let nav = call_ok(
+        &mut h,
+        "browser_navigate_to",
+        json!({"url": site.url("/index.html"), "session_id": "e2e"}),
+    );
+    assert!(
+        nav.contains("Thalora Fixture Site"),
+        "navigate output: {nav}"
+    );
+
+    let content = page_content(&mut h, "e2e");
+    assert!(
+        content.contains("Thalora Fixture Site"),
+        "page content: {content}"
+    );
+}
+
+#[test]
+fn e2e_snapshot_url_returns_page_text() {
+    let (mut h, site) = fixture_harness();
+    let snapshot = call_ok(
+        &mut h,
+        "snapshot_url",
+        json!({"url": site.url("/index.html"), "wait_for_js": false}),
+    );
+    assert!(
+        snapshot.contains("Thalora Fixture Site"),
+        "snapshot output: {snapshot}"
+    );
+}
+
+#[test]
+fn e2e_fill_then_click_submit_posts_every_field() {
+    let (mut h, site) = fixture_harness();
+    call_ok(
+        &mut h,
+        "browser_navigate",
+        json!({"url": site.url("/login.html"), "session_id": "login"}),
+    );
+    call_ok(
+        &mut h,
+        "browser_fill",
+        json!({"selector": "#username", "value": "agent", "session_id": "login"}),
+    );
+    call_ok(
+        &mut h,
+        "browser_fill",
+        json!({"selector": "#password", "value": "pw123", "session_id": "login"}),
+    );
+    call_ok(
+        &mut h,
+        "browser_click",
+        json!({"selector": "#signin", "session_id": "login"}),
+    );
+
+    let echoed = page_content(&mut h, "login");
+    for expected in [
+        "csrf=fixture-csrf-token",
+        "username=agent",
+        "password=pw123",
+        "remember=yes",
+        "action=signin",
+    ] {
+        assert!(
+            echoed.contains(expected),
+            "missing {expected} in echoed POST: {echoed}"
+        );
+    }
+    assert!(echoed.contains("POST"), "expected a POST: {echoed}");
+}
+
+#[test]
+fn e2e_fill_form_without_submit_stays_on_page() {
+    let (mut h, site) = fixture_harness();
+    call_ok(
+        &mut h,
+        "browser_navigate_to",
+        json!({"url": site.url("/login.html"), "session_id": "nosubmit"}),
+    );
+    let filled = call_ok(
+        &mut h,
+        "browser_fill_form",
+        json!({
+            "session_id": "nosubmit",
+            "form_selector": "#search",
+            "form_data": {"q": "hello"},
+            "submit": false
+        }),
+    );
+    assert!(
+        filled.contains("\"submitted\": false"),
+        "fill output: {filled}"
+    );
+
+    let content = page_content(&mut h, "nosubmit");
+    assert!(
+        content.contains("Sign in"),
+        "should still be on login page: {content}"
+    );
+}
+
+#[test]
+fn e2e_fill_form_get_submits_query() {
+    let (mut h, site) = fixture_harness();
+    call_ok(
+        &mut h,
+        "browser_navigate_to",
+        json!({"url": site.url("/login.html"), "session_id": "search"}),
+    );
+    call_ok(
+        &mut h,
+        "browser_fill_form",
+        json!({
+            "session_id": "search",
+            "form_selector": "#search",
+            "form_data": {"q": "rust"}
+        }),
+    );
+    let echoed = page_content(&mut h, "search");
+    assert!(echoed.contains("q=rust"), "expected GET query: {echoed}");
+}
+
+#[test]
+fn e2e_click_link_navigates() {
+    let (mut h, site) = fixture_harness();
+    call_ok(
+        &mut h,
+        "browser_navigate_to",
+        json!({"url": site.url("/index.html"), "session_id": "links"}),
+    );
+    call_ok(
+        &mut h,
+        "browser_click_element",
+        json!({"selector": "#to-login", "session_id": "links"}),
+    );
+    let content = page_content(&mut h, "links");
+    assert!(
+        content.contains("login.html"),
+        "expected login URL: {content}"
+    );
+    assert!(
+        content.contains("Sign in"),
+        "expected login page: {content}"
+    );
+}
+
+#[test]
+fn e2e_unknown_session_is_an_error() {
+    let (mut h, _site) = fixture_harness();
+    let resp = call(
+        &mut h,
+        "browser_get_page_content",
+        json!({"session_id": "does-not-exist"}),
+    );
+    assert!(resp.is_error, "unknown session should error");
+    assert!(text(&resp).contains("Unknown session"), "{}", text(&resp));
+}
+
+#[test]
+fn e2e_eval_runs_in_default_session() {
+    let (mut h, site) = fixture_harness();
+    call_ok(
+        &mut h,
+        "browser_navigate",
+        json!({"url": site.url("/index.html")}),
+    );
+    let result = call_ok(
+        &mut h,
+        "browser_eval",
+        json!({"expression": "document.title"}),
+    );
+    assert!(
+        result.contains("Thalora Fixture Index"),
+        "eval should see the navigated page: {result}"
+    );
+}

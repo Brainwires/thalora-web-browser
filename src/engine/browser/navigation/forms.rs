@@ -173,12 +173,18 @@ impl super::super::HeadlessWebBrowser {
                         // The JS DOM does not yet persist values across
                         // queries, so remember filled values on the Rust side
                         // for a later submit_form on this page.
-                        if success
-                            && let Some(name) =
-                                json_result.get("element_name").and_then(|v| v.as_str())
-                            && !name.is_empty()
-                        {
-                            self.record_filled_value(name, text);
+                        if success {
+                            let name = json_result
+                                .get("element_name")
+                                .and_then(|v| v.as_str())
+                                .filter(|n| !n.is_empty())
+                                .map(str::to_string)
+                                .or_else(|| {
+                                    first_match_attr(&self.current_content, selector, "name")
+                                });
+                            if let Some(name) = name {
+                                self.record_filled_value(&name, text);
+                            }
                         }
 
                         Ok(InteractionResponse {
@@ -655,6 +661,19 @@ static OPTION_SELECTOR: std::sync::LazyLock<scraper::Selector> =
 /// string literal), so it can be interpolated into generated scripts safely.
 pub(super) fn js_string_literal(s: &str) -> String {
     serde_json::to_string(s).unwrap_or_else(|_| "\"\"".to_string())
+}
+
+/// Attribute `attr` of the first element matching `selector` in `html`.
+fn first_match_attr(html: &str, selector: &str, attr: &str) -> Option<String> {
+    let selector = scraper::Selector::parse(selector).ok()?;
+    let document = scraper::Html::parse_document(html);
+    document
+        .select(&selector)
+        .next()?
+        .value()
+        .attr(attr)
+        .filter(|v| !v.is_empty())
+        .map(str::to_string)
 }
 
 /// Index (among all `<form>` elements) of the first form matching `selector`.
