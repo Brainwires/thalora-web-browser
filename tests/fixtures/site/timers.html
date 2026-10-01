@@ -15,6 +15,7 @@
       var el = document.querySelector('#' + id);
       if (el) { el.textContent = text; }
     }
+    console.log('timers fixture loaded');
     setTimeout(function () { mark('timeout', 'timeout fired'); }, 50);
     Promise.resolve().then(function () { mark('microtask', 'microtask ran'); });
     requestAnimationFrame(function () { mark('raf', 'raf fired'); });

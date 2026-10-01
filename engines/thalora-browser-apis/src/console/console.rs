@@ -6,10 +6,13 @@
 //! This implements the complete Console interface for debugging and logging
 
 use boa_engine::{
-    Context, JsArgs, JsResult, JsValue, NativeFunction, js_string, object::ObjectInitializer,
+    Context, Finalize, JsArgs, JsData, JsResult, JsValue, NativeFunction, Trace, js_string,
+    object::ObjectInitializer,
 };
 use once_cell::sync::Lazy;
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
 /// Global timers storage
@@ -20,10 +23,54 @@ static TIMERS: Lazy<Arc<Mutex<HashMap<String, std::time::Instant>>>> =
 static COUNTERS: Lazy<Arc<Mutex<HashMap<String, usize>>>> =
     Lazy::new(|| Arc::new(Mutex::new(HashMap::new())));
 
+/// Messages kept per context for `Console::messages`.
+const MAX_BUFFERED_MESSAGES: usize = 500;
+
+/// A console message recorded for agents (level and formatted text).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConsoleMessage {
+    pub level: &'static str,
+    pub text: String,
+}
+
+/// Per-context ring buffer of console messages.
+#[derive(Default, Trace, Finalize, JsData)]
+struct ConsoleBuffer {
+    #[unsafe_ignore_trace]
+    messages: RefCell<VecDeque<ConsoleMessage>>,
+}
+
+fn record(context: &mut Context, level: &'static str, text: String) {
+    if !context.has_data::<ConsoleBuffer>() {
+        context.insert_data(ConsoleBuffer::default());
+    }
+    if let Some(buffer) = context.get_data::<ConsoleBuffer>() {
+        let mut messages = buffer.messages.borrow_mut();
+        if messages.len() >= MAX_BUFFERED_MESSAGES {
+            messages.pop_front();
+        }
+        messages.push_back(ConsoleMessage { level, text });
+    }
+}
+
 /// Console implementation
 pub struct Console;
 
 impl Console {
+    /// Console messages recorded in this context (oldest first, at most
+    /// 500), optionally clearing the buffer.
+    pub fn messages(context: &mut Context, clear: bool) -> Vec<ConsoleMessage> {
+        let Some(buffer) = context.get_data::<ConsoleBuffer>() else {
+            return Vec::new();
+        };
+        let mut messages = buffer.messages.borrow_mut();
+        let out = messages.iter().cloned().collect();
+        if clear {
+            messages.clear();
+        }
+        out
+    }
+
     /// Initialize the console object in the global scope
     pub fn init(context: &mut Context) {
         let console_obj = ObjectInitializer::new(context)
@@ -126,44 +173,49 @@ impl Console {
     }
 
     /// console.log()
-    fn log(_: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn log(_: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let message = Self::format_args(args);
-        println!("{}", message);
+        eprintln!("{}", message);
+        record(context, "log", message);
         Ok(JsValue::undefined())
     }
 
     /// console.error()
-    fn error(_: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn error(_: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let message = Self::format_args(args);
         eprintln!("ERROR: {}", message);
+        record(context, "error", message);
         Ok(JsValue::undefined())
     }
 
     /// console.warn()
-    fn warn(_: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn warn(_: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let message = Self::format_args(args);
         eprintln!("WARN: {}", message);
+        record(context, "warn", message);
         Ok(JsValue::undefined())
     }
 
     /// console.info()
-    fn info(_: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn info(_: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let message = Self::format_args(args);
-        println!("INFO: {}", message);
+        eprintln!("INFO: {}", message);
+        record(context, "info", message);
         Ok(JsValue::undefined())
     }
 
     /// console.debug()
-    fn debug(_: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn debug(_: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let message = Self::format_args(args);
-        println!("DEBUG: {}", message);
+        eprintln!("DEBUG: {}", message);
+        record(context, "debug", message);
         Ok(JsValue::undefined())
     }
 
     /// console.trace()
     fn trace(_: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
         let message = Self::format_args(args);
-        println!("TRACE: {}", message);
+        eprintln!("TRACE: {}", message);
         Ok(JsValue::undefined())
     }
 
@@ -180,7 +232,7 @@ impl Console {
     /// console.clear()
     fn clear(_: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
         // In a real terminal, this would clear the screen
-        println!("\x1B[2J\x1B[1;1H");
+        eprintln!("\x1B[2J\x1B[1;1H");
         Ok(JsValue::undefined())
     }
 
@@ -197,7 +249,7 @@ impl Console {
         let mut counters = COUNTERS.lock().unwrap();
         let count = counters.entry(label.clone()).or_insert(0);
         *count += 1;
-        println!("{}: {}", label, count);
+        eprintln!("{}: {}", label, count);
         Ok(JsValue::undefined())
     }
 
@@ -219,14 +271,14 @@ impl Console {
     /// console.group()
     fn group(_: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
         let message = Self::format_args(args);
-        println!("▼ {}", message);
+        eprintln!("▼ {}", message);
         Ok(JsValue::undefined())
     }
 
     /// console.groupCollapsed()
     fn group_collapsed(_: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
         let message = Self::format_args(args);
-        println!("► {}", message);
+        eprintln!("► {}", message);
         Ok(JsValue::undefined())
     }
 
@@ -263,7 +315,7 @@ impl Console {
         let timers = TIMERS.lock().unwrap();
         if let Some(start) = timers.get(&label) {
             let elapsed = start.elapsed();
-            println!("{}: {:?}", label, elapsed);
+            eprintln!("{}: {:?}", label, elapsed);
         } else {
             eprintln!("Timer '{}' does not exist", label);
         }
@@ -283,7 +335,7 @@ impl Console {
         let mut timers = TIMERS.lock().unwrap();
         if let Some(start) = timers.remove(&label) {
             let elapsed = start.elapsed();
-            println!("{}: {:?}", label, elapsed);
+            eprintln!("{}: {:?}", label, elapsed);
         } else {
             eprintln!("Timer '{}' does not exist", label);
         }
@@ -293,21 +345,21 @@ impl Console {
     /// console.table()
     fn table(_: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
         let message = Self::format_args(args);
-        println!("TABLE: {}", message);
+        eprintln!("TABLE: {}", message);
         Ok(JsValue::undefined())
     }
 
     /// console.dir()
     fn dir(_: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
         let message = Self::format_args(args);
-        println!("DIR: {}", message);
+        eprintln!("DIR: {}", message);
         Ok(JsValue::undefined())
     }
 
     /// console.dirxml()
     fn dirxml(_: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
         let message = Self::format_args(args);
-        println!("DIRXML: {}", message);
+        eprintln!("DIRXML: {}", message);
         Ok(JsValue::undefined())
     }
 

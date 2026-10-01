@@ -337,6 +337,183 @@ impl super::super::HeadlessWebBrowser {
         }
     }
 
+    /// Perform `action` on the element matching `selector` (optional for
+    /// key presses and page scrolling).
+    pub async fn perform_action(
+        &mut self,
+        selector: Option<&str>,
+        action: &crate::engine::browser::types::ElementAction,
+    ) -> Result<InteractionResponse> {
+        use crate::engine::browser::types::ElementAction;
+
+        if self.current_content.is_empty() {
+            return Err(anyhow!("No current page loaded"));
+        }
+        let needs_element = !matches!(
+            action,
+            ElementAction::PressKey(_) | ElementAction::Scroll(_)
+        );
+        if needs_element && selector.is_none() {
+            return Err(anyhow!("selector or ref is required for this action"));
+        }
+        let target_js = match selector {
+            Some(sel) => format!("document.querySelector({})", js_string_literal(sel)),
+            None => "(document.activeElement || document.body)".to_string(),
+        };
+
+        match action {
+            ElementAction::SelectOption(wanted) => {
+                let sel = selector.unwrap_or_default();
+                let (name, value, label) = find_option(&self.current_content, sel, wanted)?;
+                let js = format!(
+                    r#"(function() {{
+    var el = {target_js};
+    if (!el) {{ return JSON.stringify({{success: false, message: "Element not found"}}); }}
+    try {{ el.value = {value}; }} catch (e) {{}}
+    try {{
+        el.dispatchEvent(new Event('input', {{bubbles: true}}));
+        el.dispatchEvent(new Event('change', {{bubbles: true}}));
+    }} catch (e) {{}}
+    return JSON.stringify({{success: true}});
+}})()"#,
+                    value = js_string_literal(&value)
+                );
+                self.run_action_script(&js)?;
+                if let Some(name) = name {
+                    self.record_filled_value(&name, &value);
+                }
+                Ok(action_response(format!("Selected option \"{label}\"")))
+            }
+            ElementAction::SetChecked(checked) => {
+                let sel = selector.unwrap_or_default();
+                let (name, value) = checkable_input(&self.current_content, sel)?;
+                let js = format!(
+                    r#"(function() {{
+    var el = {target_js};
+    if (!el) {{ return JSON.stringify({{success: false, message: "Element not found"}}); }}
+    try {{ el.checked = {checked}; }} catch (e) {{}}
+    try {{
+        el.dispatchEvent(new Event('input', {{bubbles: true}}));
+        el.dispatchEvent(new Event('change', {{bubbles: true}}));
+    }} catch (e) {{}}
+    return JSON.stringify({{success: true}});
+}})()"#
+                );
+                self.run_action_script(&js)?;
+                if let Some(name) = name {
+                    let recorded = if *checked { value.as_str() } else { UNCHECKED };
+                    self.record_filled_value(&name, recorded);
+                }
+                Ok(action_response(if *checked {
+                    "Checked".to_string()
+                } else {
+                    "Unchecked".to_string()
+                }))
+            }
+            ElementAction::PressKey(key) => {
+                let js = format!(
+                    r#"(function() {{
+    var el = {target_js};
+    if (!el) {{ return JSON.stringify({{success: false, message: "Element not found"}}); }}
+    var key = {key};
+    var prevented = false;
+    ['keydown', 'keypress', 'keyup'].forEach(function(type) {{
+        var ev;
+        try {{ ev = new KeyboardEvent(type, {{key: key, bubbles: true, cancelable: true}}); }}
+        catch (e) {{ ev = new Event(type, {{bubbles: true, cancelable: true}}); ev.key = key; }}
+        if ((el.dispatchEvent(ev) === false || ev.defaultPrevented === true) && type === 'keydown') {{
+            prevented = true;
+        }}
+    }});
+    return JSON.stringify({{success: true, default_prevented: prevented}});
+}})()"#,
+                    key = js_string_literal(key)
+                );
+                let result = self.run_action_script(&js)?;
+                let prevented = result
+                    .get("default_prevented")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
+                // Implicit submission: Enter in a single-line field submits its form
+                if key == "Enter"
+                    && !prevented
+                    && let Some(sel) = selector
+                    && is_implicit_submit_target(&self.current_content, sel)
+                {
+                    let mut resp = self.submit_form_containing(sel).await?;
+                    resp.message = format!("Pressed Enter; {}", resp.message);
+                    return Ok(resp);
+                }
+                Ok(action_response(format!("Pressed {key}")))
+            }
+            ElementAction::Hover => {
+                let js = format!(
+                    r#"(function() {{
+    var el = {target_js};
+    if (!el) {{ return JSON.stringify({{success: false, message: "Element not found"}}); }}
+    ['mouseover', 'mouseenter', 'mousemove'].forEach(function(type) {{
+        try {{ el.dispatchEvent(new Event(type, {{bubbles: type !== 'mouseenter'}})); }} catch (e) {{}}
+    }});
+    return JSON.stringify({{success: true}});
+}})()"#
+                );
+                self.run_action_script(&js)?;
+                Ok(action_response("Hovered".to_string()))
+            }
+            ElementAction::Scroll(delta_y) => {
+                let js = match selector {
+                    Some(_) => format!(
+                        r#"(function() {{
+    var el = {target_js};
+    if (!el) {{ return JSON.stringify({{success: false, message: "Element not found"}}); }}
+    try {{ if (el.scrollIntoView) {{ el.scrollIntoView(); }} }} catch (e) {{}}
+    try {{ window.dispatchEvent(new Event('scroll')); }} catch (e) {{}}
+    return JSON.stringify({{success: true}});
+}})()"#
+                    ),
+                    None => format!(
+                        r#"(function() {{
+    try {{
+        if (typeof window.scrollBy === 'function') {{ window.scrollBy(0, {delta_y}); }}
+        else {{ window.scrollY = (window.scrollY || 0) + ({delta_y}); }}
+    }} catch (e) {{}}
+    try {{ window.dispatchEvent(new Event('scroll')); }} catch (e) {{}}
+    return JSON.stringify({{success: true}});
+}})()"#
+                    ),
+                };
+                self.run_action_script(&js)?;
+                Ok(action_response(match selector {
+                    Some(_) => "Scrolled element into view".to_string(),
+                    None => format!("Scrolled page by {delta_y}px"),
+                }))
+            }
+        }
+    }
+
+    /// Evaluate a generated action script that returns a JSON object with a
+    /// `success` flag, then let async handlers run.
+    fn run_action_script(&mut self, js: &str) -> Result<serde_json::Value> {
+        let renderer = self
+            .renderer
+            .as_mut()
+            .ok_or_else(|| anyhow!("No JavaScript renderer available"))?;
+        let raw = renderer
+            .evaluate_javascript_direct(js)
+            .map_err(|e| anyhow!("Action script failed: {}", e))?;
+        let result: serde_json::Value =
+            serde_json::from_str(&raw).unwrap_or_else(|_| serde_json::json!({"success": true}));
+        if result.get("success").and_then(|v| v.as_bool()) == Some(false) {
+            let message = result
+                .get("message")
+                .and_then(|v| v.as_str())
+                .unwrap_or("action failed");
+            return Err(anyhow!("{}", message));
+        }
+        self.settle_after_interaction();
+        Ok(result)
+    }
+
     /// Run the event loop briefly after a simulated user action so async
     /// handlers (timers, promises, fetch) can update the page.
     fn settle_after_interaction(&mut self) {
@@ -787,19 +964,119 @@ pub(crate) fn collect_form_entries(form: scraper::ElementRef) -> Vec<(String, St
     entries
 }
 
+/// Recorded value meaning "this checkbox was unchecked": removes the field
+/// from the submitted entries.
+const UNCHECKED: &str = "\u{0}thalora:unchecked";
+
 /// Overlay `overrides` onto `entries`: an existing entry with the same name
-/// takes the new value, otherwise the pair is appended.
+/// takes the new value, otherwise the pair is appended. An [`UNCHECKED`]
+/// value removes the field instead.
 pub(crate) fn merge_entries(
     entries: &mut Vec<(String, String)>,
     overrides: impl IntoIterator<Item = (String, String)>,
 ) {
     for (name, value) in overrides {
+        if value == UNCHECKED {
+            entries.retain(|(n, _)| *n != name);
+            continue;
+        }
         if let Some(entry) = entries.iter_mut().find(|(n, _)| *n == name) {
             entry.1 = value;
         } else {
             entries.push((name, value));
         }
     }
+}
+
+fn action_response(message: String) -> InteractionResponse {
+    InteractionResponse {
+        success: true,
+        message,
+        redirect_url: None,
+        new_content: None,
+    }
+}
+
+/// For a `<select>` matching `selector`, find the option whose value or
+/// trimmed text equals `wanted`. Returns (select name, option value, label).
+fn find_option(
+    html: &str,
+    selector: &str,
+    wanted: &str,
+) -> Result<(Option<String>, String, String)> {
+    let document = scraper::Html::parse_document(html);
+    let parsed = scraper::Selector::parse(selector).map_err(|_| anyhow!("Invalid selector"))?;
+    let select = document
+        .select(&parsed)
+        .next()
+        .ok_or_else(|| anyhow!("Element not found: {}", selector))?;
+    if select.value().name() != "select" {
+        return Err(anyhow!("Element is not a <select>"));
+    }
+    let mut available = Vec::new();
+    for option in select.select(&OPTION_SELECTOR) {
+        let label = option.text().collect::<String>().trim().to_string();
+        let value = option
+            .value()
+            .attr("value")
+            .map(str::to_string)
+            .unwrap_or_else(|| label.clone());
+        if value == wanted || label == wanted {
+            let name = select.value().attr("name").map(str::to_string);
+            return Ok((name, value, label));
+        }
+        available.push(label);
+    }
+    Err(anyhow!(
+        "No option matching \"{}\". Options: {}",
+        wanted,
+        available.join(", ")
+    ))
+}
+
+/// For a checkbox/radio matching `selector`, return (name, value).
+fn checkable_input(html: &str, selector: &str) -> Result<(Option<String>, String)> {
+    let document = scraper::Html::parse_document(html);
+    let parsed = scraper::Selector::parse(selector).map_err(|_| anyhow!("Invalid selector"))?;
+    let input = document
+        .select(&parsed)
+        .next()
+        .ok_or_else(|| anyhow!("Element not found: {}", selector))?;
+    let v = input.value();
+    let input_type = v.attr("type").unwrap_or("").to_ascii_lowercase();
+    if v.name() != "input" || !matches!(input_type.as_str(), "checkbox" | "radio") {
+        return Err(anyhow!("Element is not a checkbox or radio button"));
+    }
+    Ok((
+        v.attr("name").filter(|n| !n.is_empty()).map(str::to_string),
+        v.attr("value").unwrap_or("on").to_string(),
+    ))
+}
+
+/// Whether Enter on the element implicitly submits its form (single-line
+/// inputs inside a form; not textareas, buttons or checkboxes).
+fn is_implicit_submit_target(html: &str, selector: &str) -> bool {
+    let Ok(parsed) = scraper::Selector::parse(selector) else {
+        return false;
+    };
+    let document = scraper::Html::parse_document(html);
+    let Some(el) = document.select(&parsed).next() else {
+        return false;
+    };
+    let v = el.value();
+    let single_line = v.name() == "input"
+        && !matches!(
+            v.attr("type")
+                .unwrap_or("text")
+                .to_ascii_lowercase()
+                .as_str(),
+            "checkbox" | "radio" | "button" | "submit" | "reset" | "image" | "file" | "hidden"
+        );
+    single_line
+        && el
+            .ancestors()
+            .filter_map(scraper::ElementRef::wrap)
+            .any(|a| a.value().name() == "form")
 }
 
 /// What a click on an element does by default, absent `preventDefault()`.
@@ -1005,6 +1282,43 @@ mod tests {
             click_default_action(LOGIN, url, "#missing"),
             ClickDefaultAction::None
         );
+    }
+
+    #[test]
+    fn unchecked_override_removes_the_field() {
+        let mut entries = login_form_entries();
+        merge_entries(
+            &mut entries,
+            [("remember".to_string(), UNCHECKED.to_string())],
+        );
+        assert!(!entries.iter().any(|(n, _)| n == "remember"));
+    }
+
+    #[test]
+    fn option_lookup_by_value_or_label() {
+        let (name, value, label) = find_option(LOGIN, "select[name=lang]", "French").unwrap();
+        assert_eq!(name.as_deref(), Some("lang"));
+        assert_eq!(value, "fr");
+        assert_eq!(label, "French");
+        assert_eq!(
+            find_option(LOGIN, "select[name=lang]", "en").unwrap().1,
+            "en"
+        );
+        let err = find_option(LOGIN, "select[name=lang]", "German").unwrap_err();
+        assert!(err.to_string().contains("English"), "{err}");
+        assert!(find_option(LOGIN, "#about", "x").is_err());
+    }
+
+    #[test]
+    fn checkable_and_implicit_submit_targets() {
+        assert_eq!(
+            checkable_input(LOGIN, "input[name=remember]").unwrap(),
+            (Some("remember".to_string()), "yes".to_string())
+        );
+        assert!(checkable_input(LOGIN, "input[name=user]").is_err());
+        assert!(is_implicit_submit_target(LOGIN, "input[name=pass]"));
+        assert!(!is_implicit_submit_target(LOGIN, "input[name=remember]"));
+        assert!(!is_implicit_submit_target(LOGIN, "#about"));
     }
 
     #[test]

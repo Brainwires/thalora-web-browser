@@ -368,6 +368,126 @@ impl BrowserTools {
         })
     }
 
+    /// Element actions: `browser_select_option`, `browser_check`,
+    /// `browser_press_key`, `browser_hover`, `browser_scroll`.
+    pub async fn handle_element_action(&self, tool: &str, params: Value) -> McpResponse {
+        use crate::engine::browser::types::ElementAction;
+
+        let params = match self.resolve_ref_param(params) {
+            Ok(params) => params,
+            Err(resp) => return resp,
+        };
+        let session_id = params
+            .get("session_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("default")
+            .to_string();
+        if let Err(e) = sanitize_session_id(&session_id) {
+            return McpResponse::error(-32602, format!("Session ID validation failed: {}", e));
+        }
+        let selector = params
+            .get("selector")
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.is_empty())
+            .map(str::to_string);
+        if let Some(selector) = &selector
+            && let Err(e) = limit_input_length(selector, MAX_SELECTOR_LENGTH, "CSS selector")
+        {
+            return McpResponse::error(-32602, format!("Input validation failed: {}", e));
+        }
+        let string_param = |key: &str| {
+            params
+                .get(key)
+                .and_then(|v| v.as_str())
+                .map(str::to_string)
+                .ok_or_else(|| {
+                    McpResponse::error(-32602, format!("Missing required parameter: {key}"))
+                })
+        };
+
+        let action = match tool {
+            "browser_select_option" => match string_param("value") {
+                Ok(value) => ElementAction::SelectOption(value),
+                Err(resp) => return resp,
+            },
+            "browser_check" => ElementAction::SetChecked(
+                params
+                    .get("checked")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(true),
+            ),
+            "browser_press_key" => match string_param("key") {
+                Ok(key) if key.chars().count() <= 32 => ElementAction::PressKey(key),
+                Ok(_) => return McpResponse::error(-32602, "key is too long".to_string()),
+                Err(resp) => return resp,
+            },
+            "browser_hover" => ElementAction::Hover,
+            "browser_scroll" => ElementAction::Scroll(
+                params
+                    .get("delta_y")
+                    .and_then(|v| v.as_i64())
+                    .unwrap_or(600)
+                    .clamp(-100_000, 100_000),
+            ),
+            other => return McpResponse::error(-32601, format!("Tool not found: {other}")),
+        };
+
+        let browser = match self.get_session(&session_id) {
+            Ok(browser) => browser,
+            Err(e) => return McpResponse::error(-32602, e),
+        };
+        tokio::task::block_in_place(|| {
+            let rt = tokio::runtime::Handle::current();
+            let Ok(mut guard) = browser.lock() else {
+                return McpResponse::error(-1, "Failed to acquire browser lock".to_string());
+            };
+            match rt.block_on(guard.perform_action(selector.as_deref(), &action)) {
+                Ok(resp) => {
+                    let mut out = serde_json::to_value(&resp).unwrap_or_default();
+                    // The new page content is available via page tools
+                    if let Some(obj) = out.as_object_mut() {
+                        obj.remove("new_content");
+                        obj.insert("url".to_string(), json!(guard.get_current_url()));
+                    }
+                    McpResponse::success(out)
+                }
+                Err(e) => McpResponse::error(-1, format!("{tool} failed: {e}")),
+            }
+        })
+    }
+
+    /// `browser_console_messages`: console output logged by the page.
+    pub async fn handle_console_messages(&self, params: Value) -> McpResponse {
+        let session_id = params
+            .get("session_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("default");
+        if let Err(e) = sanitize_session_id(session_id) {
+            return McpResponse::error(-32602, format!("Session ID validation failed: {}", e));
+        }
+        let clear = params
+            .get("clear")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        let browser = match self.get_session(session_id) {
+            Ok(browser) => browser,
+            Err(e) => return McpResponse::error(-32602, e),
+        };
+        let Ok(mut guard) = browser.lock() else {
+            return McpResponse::error(-1, "Failed to acquire browser lock".to_string());
+        };
+        let messages: Vec<Value> = guard
+            .console_messages(clear)
+            .into_iter()
+            .map(|m| json!({"level": m.level, "text": m.text}))
+            .collect();
+        let url = guard.get_current_url();
+        McpResponse::page_content(
+            url.as_deref(),
+            json!({"count": messages.len(), "messages": messages}),
+        )
+    }
+
     /// `browser_wait`: wait for a selector/ref, text, URL fragment or network idle.
     pub async fn handle_wait(&self, params: Value) -> McpResponse {
         use crate::engine::browser::types::WaitCondition;

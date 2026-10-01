@@ -111,6 +111,19 @@ impl RustRenderer {
         Some(executor.pump(context, budget))
     }
 
+    /// Console messages logged by the page (oldest first, at most 500).
+    pub fn console_messages(
+        &mut self,
+        clear: bool,
+    ) -> Vec<thalora_browser_apis::console::console::ConsoleMessage> {
+        match self.js_context.as_mut() {
+            Some(context) => {
+                thalora_browser_apis::console::console::Console::messages(context, clear)
+            }
+            None => Vec::new(),
+        }
+    }
+
     /// Check whether the renderer is currently performing an update.
     pub fn is_in_update(&self) -> bool {
         self.in_update

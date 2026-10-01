@@ -86,6 +86,149 @@ pub(crate) fn get_browser_automation_tool_definitions() -> Vec<Value> {
             }
         }),
         serde_json::json!({
+            "name": "browser_select_option",
+            "description": "Choose an option of a <select> by its value or visible text (fires input/change). The choice is included when the form is submitted.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "value": {
+                        "type": "string",
+                        "description": "Option value or visible text"
+                    },
+                    "ref": {
+                        "type": "string",
+                        "description": "Element ref from browser_snapshot"
+                    },
+                    "selector": {
+                        "type": "string",
+                        "description": "CSS selector (alternative to ref)"
+                    },
+                    "session_id": {
+                        "type": "string",
+                        "description": "Browser session ID (optional)"
+                    }
+                },
+                "required": ["value"]
+            }
+        }),
+        serde_json::json!({
+            "name": "browser_check",
+            "description": "Check or uncheck a checkbox or radio button (fires input/change). The state is used when the form is submitted.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "checked": {
+                        "type": "boolean",
+                        "description": "true to check (default), false to uncheck"
+                    },
+                    "ref": {
+                        "type": "string",
+                        "description": "Element ref from browser_snapshot"
+                    },
+                    "selector": {
+                        "type": "string",
+                        "description": "CSS selector (alternative to ref)"
+                    },
+                    "session_id": {
+                        "type": "string",
+                        "description": "Browser session ID (optional)"
+                    }
+                },
+                "required": []
+            }
+        }),
+        serde_json::json!({
+            "name": "browser_press_key",
+            "description": "Press a key (keydown/keypress/keyup), e.g. \"Enter\", \"Escape\", \"ArrowDown\". Enter in a single-line form field submits the form unless prevented. Without ref/selector the key goes to the focused element.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "key": {
+                        "type": "string",
+                        "description": "Key name as in KeyboardEvent.key"
+                    },
+                    "ref": {
+                        "type": "string",
+                        "description": "Element ref from browser_snapshot"
+                    },
+                    "selector": {
+                        "type": "string",
+                        "description": "CSS selector (alternative to ref)"
+                    },
+                    "session_id": {
+                        "type": "string",
+                        "description": "Browser session ID (optional)"
+                    }
+                },
+                "required": ["key"]
+            }
+        }),
+        serde_json::json!({
+            "name": "browser_hover",
+            "description": "Move the pointer over an element (mouseover/mouseenter/mousemove), e.g. to open hover menus.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "ref": {
+                        "type": "string",
+                        "description": "Element ref from browser_snapshot"
+                    },
+                    "selector": {
+                        "type": "string",
+                        "description": "CSS selector (alternative to ref)"
+                    },
+                    "session_id": {
+                        "type": "string",
+                        "description": "Browser session ID (optional)"
+                    }
+                },
+                "required": []
+            }
+        }),
+        serde_json::json!({
+            "name": "browser_scroll",
+            "description": "Scroll an element into view (ref/selector) or scroll the page by delta_y pixels, firing scroll events (e.g. to trigger lazy loading).",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "delta_y": {
+                        "type": "integer",
+                        "description": "Pixels to scroll the page when no element is given (default 600)"
+                    },
+                    "ref": {
+                        "type": "string",
+                        "description": "Element ref from browser_snapshot"
+                    },
+                    "selector": {
+                        "type": "string",
+                        "description": "CSS selector (alternative to ref)"
+                    },
+                    "session_id": {
+                        "type": "string",
+                        "description": "Browser session ID (optional)"
+                    }
+                },
+                "required": []
+            }
+        }),
+        serde_json::json!({
+            "name": "browser_console_messages",
+            "description": "Console messages (log/info/warn/error/debug) logged by the current page, oldest first (up to 500).",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "clear": {
+                        "type": "boolean",
+                        "description": "Clear the buffer after reading (default false)"
+                    },
+                    "session_id": {
+                        "type": "string",
+                        "description": "Browser session ID (optional)"
+                    }
+                }
+            }
+        }),
+        serde_json::json!({
             "name": "browser_wait",
             "description": "Wait (running page timers and network) until a condition holds: an element by ref or selector exists, the page text contains a string, the URL contains a string, or the network is idle. Give exactly one condition. Returns met=false on timeout.",
             "inputSchema": {

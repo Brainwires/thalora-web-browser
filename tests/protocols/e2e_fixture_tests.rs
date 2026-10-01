@@ -382,3 +382,54 @@ fn e2e_browser_wait_conditions() {
     );
     assert!(both.is_error, "two conditions should be rejected");
 }
+
+#[test]
+fn e2e_check_and_enter_submit() {
+    let (mut h, site) = fixture_harness();
+    call_ok(
+        &mut h,
+        "browser_navigate_to",
+        json!({"url": site.url("/login.html"), "session_id": "keys"}),
+    );
+    call_ok(
+        &mut h,
+        "browser_fill",
+        json!({"selector": "#username", "value": "keyboard", "session_id": "keys"}),
+    );
+    call_ok(
+        &mut h,
+        "browser_check",
+        json!({"selector": "#remember", "checked": false, "session_id": "keys"}),
+    );
+    let pressed = call_ok(
+        &mut h,
+        "browser_press_key",
+        json!({"selector": "#username", "key": "Enter", "session_id": "keys"}),
+    );
+    assert!(
+        pressed.contains("submitted"),
+        "Enter should submit: {pressed}"
+    );
+
+    let echoed = page_content(&mut h, "keys");
+    assert!(echoed.contains("username=keyboard"), "{echoed}");
+    assert!(
+        !echoed.contains("remember=yes"),
+        "unchecked box was submitted: {echoed}"
+    );
+}
+
+#[test]
+fn e2e_console_messages_are_captured() {
+    let (mut h, site) = fixture_harness();
+    navigate_with_js(&mut h, site.url("/timers.html"), "console");
+    let messages = call_ok(
+        &mut h,
+        "browser_console_messages",
+        json!({"session_id": "console"}),
+    );
+    assert!(
+        messages.contains("timers fixture loaded"),
+        "console.log not captured: {messages}"
+    );
+}

@@ -165,6 +165,18 @@ impl McpServer {
             "browser_navigate_to" => self.browser_tools.handle_navigate_to(arguments).await,
             "browser_snapshot" => self.browser_tools.handle_snapshot(arguments).await,
             "browser_wait" => self.browser_tools.handle_wait(arguments).await,
+            "browser_select_option"
+            | "browser_check"
+            | "browser_press_key"
+            | "browser_hover"
+            | "browser_scroll" => {
+                self.browser_tools
+                    .handle_element_action(name, arguments)
+                    .await
+            }
+            "browser_console_messages" => {
+                self.browser_tools.handle_console_messages(arguments).await
+            }
 
             // ── BrainClaw agent-friendly aliases ────────────────────────────────
             // One-shot read: navigate + extract markdown in a single call

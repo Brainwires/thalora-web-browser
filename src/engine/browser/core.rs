@@ -350,6 +350,17 @@ impl HeadlessWebBrowser {
         }
     }
 
+    /// Console messages logged by the current page (oldest first, at most 500).
+    pub fn console_messages(
+        &mut self,
+        clear: bool,
+    ) -> Vec<thalora_browser_apis::console::console::ConsoleMessage> {
+        self.renderer
+            .as_mut()
+            .map(|r| r.console_messages(clear))
+            .unwrap_or_default()
+    }
+
     /// Run the page's event loop (timers, microtasks, fetch/XHR) within
     /// `budget`. Returns `None` if the renderer has no event loop.
     pub fn pump_event_loop(

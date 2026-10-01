@@ -194,6 +194,12 @@ against the server's tool registry by `tests/protocols/readme_tools_test.rs`.
 | `browser_click_element` | Click an element by snapshot ref or CSS selector; submit buttons submit their form and links navigate unless `preventDefault()` is called |
 | `browser_type_text` | Type into an input (fires `input`/`change`) |
 | `browser_fill_form` | Fill named fields of a form and (by default) submit it, including hidden fields such as CSRF tokens |
+| `browser_select_option` | Choose a `<select>` option by value or visible text |
+| `browser_check` | Check or uncheck a checkbox or radio button |
+| `browser_press_key` | Press a key; Enter in a single-line field submits its form |
+| `browser_hover` | Hover an element (mouseover/mouseenter/mousemove) |
+| `browser_scroll` | Scroll an element into view or the page by a number of pixels |
+| `browser_console_messages` | Console output logged by the page |
 | `browser_wait` | Wait for a ref/selector, page text, URL substring or network idle while running timers and fetches |
 | `browser_wait_for_element` | Wait until a selector matches |
 | `browser_prepare_form_submission` | Create a session for a form that opens a new window |
@@ -201,7 +207,8 @@ against the server's tool registry by `tests/protocols/readme_tools_test.rs`.
 | `get_accessibility_tree` | ARIA roles, accessible names and states for the current page (always listed in full mode) |
 
 Action tools (`browser_click_element`, `browser_type_text`, `browser_fill`,
-`browser_wait_for_element`) accept a `ref` from `browser_snapshot` instead of a
+`browser_select_option`, `browser_check`, `browser_press_key`, `browser_hover`,
+`browser_scroll`, `browser_wait`, `browser_wait_for_element`) accept a `ref` from `browser_snapshot` instead of a
 CSS selector. Refs stay valid until the page content changes.
 
 Tools that act on an existing page return an error for an unknown `session_id`

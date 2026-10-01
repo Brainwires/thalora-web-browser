@@ -248,3 +248,19 @@ pub enum WaitCondition {
     /// No network activity for 500 ms and no short timers pending.
     NetworkIdle,
 }
+
+/// A simulated user action on an element (see `HeadlessWebBrowser::perform_action`).
+#[derive(Debug, Clone, PartialEq)]
+pub enum ElementAction {
+    /// Choose the `<option>` whose value or visible text equals the string.
+    SelectOption(String),
+    /// Check (true) or uncheck (false) a checkbox or radio button.
+    SetChecked(bool),
+    /// Press a key (e.g. "Enter", "Escape", "a") on the element, or on the
+    /// focused element / body when no selector is given.
+    PressKey(String),
+    /// Move the pointer over the element.
+    Hover,
+    /// Scroll the element into view, or the page by this many pixels.
+    Scroll(i64),
+}
