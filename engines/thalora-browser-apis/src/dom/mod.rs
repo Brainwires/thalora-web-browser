@@ -42,6 +42,8 @@ pub mod treewalker;
 #[cfg(test)]
 mod binding_tests;
 #[cfg(test)]
+mod mutation_bridge_tests;
+#[cfg(test)]
 mod document_tests;
 
 #[cfg(test)]
