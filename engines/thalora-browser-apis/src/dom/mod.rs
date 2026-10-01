@@ -34,6 +34,7 @@ pub mod selection;
 pub mod shadow;
 pub mod svg;
 pub mod text;
+pub mod tree;
 pub mod treewalker;
 
 #[cfg(test)]

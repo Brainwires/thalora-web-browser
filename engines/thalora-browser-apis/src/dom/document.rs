@@ -3278,7 +3278,7 @@ fn set_adopted_style_sheets(
 /// Produces paths like: "html>body:nth-child(1)>div:nth-child(1)>p:nth-child(2)"
 /// These paths are deterministic for a given HTML document and match the paths
 /// produced by the layout bridge's `flatten_layout_to_rects`.
-fn css_path_for_scraper_element(element_ref: &scraper::ElementRef) -> String {
+pub(crate) fn css_path_for_scraper_element(element_ref: &scraper::ElementRef) -> String {
     let mut parts: Vec<String> = Vec::new();
     let mut current = Some(*element_ref);
 
