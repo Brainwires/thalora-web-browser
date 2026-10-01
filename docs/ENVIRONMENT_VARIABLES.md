@@ -90,6 +90,8 @@ unset THALORA_ENABLE_AI_MEMORY
 | `THALORA_ENABLE_ADVANCED` | `false` | List the not-yet-implemented advanced tools (`extract_pdf`, `download_file`, …); calls fail with "Tool not found" |
 | `THALORA_EXPOSE_PASSWORDS` | `false` | **Unsafe.** Make `ai_memory_get_credentials` return stored secrets to the model |
 | `THALORA_STEALTH_DELAYS` | `false` | Add 1.5–5 s of random "human-like" delay to every navigation (anti-bot evasion) |
+| `THALORA_PAGE_SCRIPT_TIMEOUT_MS` | `3000` | Synchronous execution limit per page `<script>` |
+| `THALORA_EVENT_LOOP` | unset | `legacy` disables the event loop (timers never fire, promises only settle during module loading) — temporary escape hatch |
 | `THALORA_ALLOW_LOOPBACK` | unset | Test-only: allow navigation to 127.0.0.1/localhost. Honoured only in debug builds or with the `test-hooks` feature |
 
 ## Engine Configuration

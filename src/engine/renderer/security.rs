@@ -147,12 +147,13 @@ mod tests {
     }
 
     #[test]
-    fn test_proto_pollution_blocked_both_contexts() {
+    fn test_proto_access_blocked_only_for_ai_injected_code() {
         let renderer = create_test_renderer();
 
-        // __proto__ access should be blocked in both contexts
+        // AI-injected code is restricted; page scripts (e.g. Babel's
+        // `__proto__` fallback) must run
         assert!(!renderer.is_safe_javascript("obj.__proto__ = {}"));
-        assert!(!renderer.is_safe_page_javascript("obj.__proto__ = {}"));
+        assert!(renderer.is_safe_page_javascript("obj.__proto__ = {}"));
     }
 
     #[test]

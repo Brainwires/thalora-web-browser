@@ -13,8 +13,11 @@ use std::sync::OnceLock;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SecurityContext {
     /// Scripts from `<script>` tags, external JS files, and page-initiated code.
-    /// Allows eval(), Function(), document.write(), WebAssembly — standard browser behavior.
-    /// Still blocks prototype pollution, constructor chains, and Node.js APIs.
+    /// Only the size limit applies: this is the code a browser exists to run,
+    /// and it executes inside the page's own sandboxed realm. Pattern checks
+    /// here rejected whole real-world bundles (Babel's `__proto__` fallback,
+    /// `process.env.NODE_ENV`, browserify/AMD `require(`) without protecting
+    /// anything outside the page.
     PageScript,
     /// Scripts injected by AI agents via MCP tools or CDP.
     /// Full restrictive policy: blocks eval, Function, document.write, WebAssembly, etc.
@@ -81,19 +84,23 @@ impl JavaScriptSecurityValidator {
             return Ok(());
         }
 
-        // Always check for bypass vectors in original code
+        // Page scripts: size limit only (see `SecurityContext::PageScript`)
+        if context == SecurityContext::PageScript {
+            return Ok(());
+        }
+
+        // Check for bypass vectors in original code
         self.check_proto_bracket(js_code)?;
 
         // Remove comments and strings to prevent false positives for other checks
         let code_without_comments = self.remove_comments_and_strings(js_code);
 
-        // Always block prototype pollution and Node.js APIs regardless of context
         self.check_proto_pollution(&code_without_comments)?;
         self.check_constructor_access(&code_without_comments)?;
         self.check_node_apis(&code_without_comments)?;
 
-        // Additional restrictions for AI-injected scripts only
-        if context == SecurityContext::AiInjected {
+        // Restrictions specific to AI-injected scripts
+        {
             self.check_eval_bracket(js_code)?;
             self.check_escape_sequences(js_code)?;
             self.check_eval(&code_without_comments)?;
@@ -1063,50 +1070,53 @@ mod tests {
     }
 
     #[test]
-    fn test_page_script_still_blocks_proto_pollution() {
+    fn test_page_scripts_allow_bundler_patterns() {
         let validator = JavaScriptSecurityValidator::new();
 
-        // Prototype pollution blocked for BOTH contexts
-        assert!(
-            validator
-                .validate("obj.__proto__ = {}", SecurityContext::PageScript)
-                .is_err()
-        );
-        assert!(
-            validator
-                .validate("obj['__proto__'] = {}", SecurityContext::PageScript)
-                .is_err()
-        );
+        // Common in transpiled/bundled page code; must not reject the script
+        for code in [
+            "obj.__proto__ = {}",
+            "obj['__proto__'] = {}",
+            "var mode = process.env.NODE_ENV;",
+            "var m = require('./module');",
+            "obj.constructor.constructor('code')()",
+        ] {
+            assert!(
+                validator
+                    .validate(code, SecurityContext::PageScript)
+                    .is_ok(),
+                "page script rejected: {code}"
+            );
+        }
     }
 
     #[test]
-    fn test_page_script_still_blocks_node_apis() {
+    fn test_ai_injected_still_blocks_dangerous_patterns() {
         let validator = JavaScriptSecurityValidator::new();
 
-        // Node.js APIs blocked for BOTH contexts
-        assert!(
-            validator
-                .validate("require('fs')", SecurityContext::PageScript)
-                .is_err()
-        );
-        assert!(
-            validator
-                .validate("process.exit()", SecurityContext::PageScript)
-                .is_err()
-        );
+        for code in [
+            "obj.__proto__ = {}",
+            "obj['__proto__'] = {}",
+            "require('fs')",
+            "process.exit()",
+            "obj.constructor.constructor('code')()",
+        ] {
+            assert!(
+                validator
+                    .validate(code, SecurityContext::AiInjected)
+                    .is_err(),
+                "AI-injected code accepted: {code}"
+            );
+        }
     }
 
     #[test]
-    fn test_page_script_still_blocks_constructor_chains() {
+    fn test_page_scripts_still_have_size_limit() {
         let validator = JavaScriptSecurityValidator::new();
-
-        // constructor.constructor blocked for BOTH contexts
+        let huge = "a".repeat(10_000_001);
         assert!(
             validator
-                .validate(
-                    "obj.constructor.constructor('code')()",
-                    SecurityContext::PageScript
-                )
+                .validate(&huge, SecurityContext::PageScript)
                 .is_err()
         );
     }
@@ -1128,16 +1138,11 @@ mod tests {
                 .is_ok()
         );
 
-        // But still block dangerous patterns
+        // Bundler patterns are page code too
         assert!(
             validator
                 .is_safe_page_javascript("obj.__proto__ = {}")
-                .is_err()
-        );
-        assert!(
-            validator
-                .is_safe_page_javascript("require('child_process')")
-                .is_err()
+                .is_ok()
         );
     }
 }

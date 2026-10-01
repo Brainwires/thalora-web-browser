@@ -27,10 +27,16 @@ impl RustRenderer {
     /// Execute JavaScript from page-loaded `<script>` tags (trusted context).
     /// Uses relaxed security that allows eval, Function, document.write, WebAssembly
     /// since these are standard browser features used by real websites.
-    /// Timeout is 1s — scripts that take longer are typically failing Boa execution
-    /// (React bundles, etc.) and would produce no useful output anyway.
+    /// Each script gets `THALORA_PAGE_SCRIPT_TIMEOUT_MS` (default 3000 ms) of
+    /// synchronous execution; timers and async work run later in the event
+    /// loop and don't count against it. Large bundles regularly needed more
+    /// than the previous 1 s in the Boa interpreter.
     pub fn evaluate_page_javascript(&mut self, js_code: &str) -> Result<String> {
-        self.evaluate_page_javascript_with_timeout(js_code, Duration::from_secs(1))
+        let timeout_ms = std::env::var("THALORA_PAGE_SCRIPT_TIMEOUT_MS")
+            .ok()
+            .and_then(|v| v.parse::<u64>().ok())
+            .unwrap_or(3000);
+        self.evaluate_page_javascript_with_timeout(js_code, Duration::from_millis(timeout_ms))
     }
 
     /// Execute JavaScript for browser interactions without wrapper interference
