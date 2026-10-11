@@ -49,7 +49,48 @@ pub struct HeadlessWebBrowser {
     pub(super) referrer_policy: Option<String>,
     /// X-Content-Type-Options nosniff flag for the current page
     pub(super) nosniff: bool,
+    /// Field values typed via `type_text_into_element`, keyed by field name,
+    /// for the page at `filled_values_url`; merged into `submit_form`.
+    pub(super) filled_values: HashMap<String, String>,
+    pub(super) filled_values_url: Option<String>,
+    /// Element refs issued by the last `snapshot()` of this page.
+    pub(super) snapshot_refs: super::snapshot::RefTable,
 }
+
+thread_local! {
+    /// Set on threads that own their browsers for the browsers' whole life
+    /// (see `session_thread::BrowserThread`).
+    static ON_OWNER_THREAD: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Mark the current thread as owning every browser it creates, for its
+/// whole life, so old renderers can be dropped instead of leaked.
+pub(crate) fn mark_owner_thread() {
+    ON_OWNER_THREAD.with(|flag| flag.set(true));
+}
+
+/// Release a renderer that is being replaced.
+///
+/// Boa's GC is thread-local. On threads that may not have created the
+/// renderer (FFI calls from arbitrary threads, legacy paths) dropping it
+/// can run finalizers against another thread's GC state and crash, so it is
+/// leaked with `mem::forget`. On owner threads (`BrowserThread`) it is
+/// dropped normally. `THALORA_LEAK_RENDERERS=1` forces the old leaking
+/// behaviour everywhere.
+pub(crate) fn dispose_renderer(renderer: RustRenderer) {
+    let force_leak = std::env::var("THALORA_LEAK_RENDERERS")
+        .is_ok_and(|v| v == "1" || v.eq_ignore_ascii_case("true"));
+    if force_leak || !ON_OWNER_THREAD.with(|flag| flag.get()) {
+        std::mem::forget(renderer);
+    } else {
+        drop(renderer);
+        RENDERERS_DROPPED.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
+/// Renderers actually dropped (not leaked) by [`dispose_renderer`].
+pub(crate) static RENDERERS_DROPPED: std::sync::atomic::AtomicUsize =
+    std::sync::atomic::AtomicUsize::new(0);
 
 impl HeadlessWebBrowser {
     pub fn new() -> Rc<Mutex<Self>> {
@@ -67,6 +108,11 @@ impl HeadlessWebBrowser {
         // Configure client with enhanced stealth capabilities
         // Use centralized USER_AGENT constant for consistency
         let client = reqwest::Client::builder()
+            // SSRF: only connect to public addresses, re-check redirects
+            .dns_resolver(Arc::new(
+                crate::engine::security::ssrf::http::PublicOnlyResolver,
+            ))
+            .redirect(crate::engine::security::ssrf::http::redirect_policy())
             .cookie_provider(Arc::clone(&cookie_store))
             .timeout(std::time::Duration::from_secs(30))
             .user_agent(super::USER_AGENT)
@@ -120,6 +166,9 @@ impl HeadlessWebBrowser {
             hsts_store: super::navigation::hsts::HstsStore::new(),
             referrer_policy: None,
             nosniff: false,
+            filled_values: HashMap::new(),
+            filled_values_url: None,
+            snapshot_refs: Default::default(),
         };
 
         let browser_rc = Rc::new(Mutex::new(browser));
@@ -249,12 +298,25 @@ impl HeadlessWebBrowser {
         self.history.current_index < self.history.entries.len().saturating_sub(1)
     }
 
-    /// Leak the Boa JS renderer, preventing its Drop from running on the wrong thread.
-    /// Call this before `thalora_destroy` drops the instance. See `thalora_destroy` for rationale.
+    /// Release the Boa JS renderer (see [`dispose_renderer`]). Call this
+    /// before dropping the browser from a thread that may not own it.
     pub fn leak_renderer(&mut self) {
         if let Some(renderer) = self.renderer.take() {
-            std::mem::forget(renderer);
+            dispose_renderer(renderer);
         }
+    }
+
+    /// Replace the JS renderer with a fresh one (new Boa context), disposing
+    /// of the old one and re-wiring the History API.
+    pub(crate) fn reset_renderer(&mut self) {
+        if let Some(old) = self.renderer.take() {
+            dispose_renderer(old);
+        }
+        let mut renderer = RustRenderer::new();
+        if let Err(e) = renderer.setup_history_api(self.history_events.clone()) {
+            eprintln!("⚠️ Failed to set up History API on new renderer: {}", e);
+        }
+        self.renderer = Some(renderer);
     }
 
     /// Execute page scripts on the already-loaded `current_content`.
@@ -270,38 +332,32 @@ impl HeadlessWebBrowser {
             return Ok(false);
         }
 
-        // Reinitialize the JS context on the current thread.
-        //
-        // WHY: NavigateStaticAsync runs on a dedicated 8MB OS thread (T_nav).
-        // ExecutePageScriptsAsync runs on a thread-pool thread (T_pool ≠ T_nav).
-        // Boa GC is thread-local — accessing GC objects from a different thread causes
-        // SIGSEGV. We mem::forget the old renderer (no finalizers on T_nav's GC state)
-        // and create a fresh context here on T_pool.
-        if let Some(old_renderer) = self.renderer.take() {
-            std::mem::forget(old_renderer);
+        // Fresh JS context for running the page's scripts (see dispose_renderer
+        // for how the old one is released).
+        self.reset_renderer();
+        if let Some(renderer) = self.renderer.as_mut()
+            && let Some(url) = self.current_url.as_deref()
+        {
+            renderer.set_page_url(url);
         }
-        let mut new_renderer = RustRenderer::new();
-        if let Err(e) = new_renderer.update_document_html(&content) {
+        if let Some(renderer) = self.renderer.as_mut()
+            && let Err(e) = renderer.update_document_html(&content)
+        {
             eprintln!("WARNING: Failed to update document HTML for scripts: {}", e);
         }
-        self.renderer = Some(new_renderer);
 
         // Install CSP eval block if needed
         if let Some(ref mut renderer) = self.renderer {
             renderer.install_csp_eval_block();
         }
 
-        // Run non-deferred scripts, fire DOMContentLoaded, then deferred scripts
-        self.execute_page_scripts(&content, false).await?;
-        self.fire_dom_content_loaded().await?;
-        self.execute_page_scripts(&content, true).await?;
-
-        // Wait for JS to settle (non-fatal timeout)
-        let _ = self.wait_for_js_execution(2000).await;
+        // Scripts, DOMContentLoaded, deferred scripts, load, then let the
+        // event loop settle (non-fatal timeout)
+        self.run_page_load_sequence(&content, 2000).await?;
 
         // Capture the JS-modified DOM
         let original_len = self.current_content.len();
-        match self
+        let changed = match self
             .execute_javascript("document.documentElement.outerHTML")
             .await
         {
@@ -315,10 +371,13 @@ impl HeadlessWebBrowser {
                 };
                 let changed = full_html.len() != original_len;
                 self.current_content = full_html;
-                Ok(changed)
+                changed
             }
-            _ => Ok(false),
-        }
+            _ => false,
+        };
+        // Geometry for the final, script-modified page with external CSS
+        self.refresh_layout();
+        Ok(changed)
     }
 
     /// Execute JavaScript in the internal renderer and return the raw string result.
@@ -336,10 +395,61 @@ impl HeadlessWebBrowser {
     /// Uses relaxed security that allows eval, Function, document.write, WebAssembly.
     pub async fn execute_page_javascript(&mut self, js_code: &str) -> Result<String> {
         if let Some(ref mut renderer) = self.renderer {
-            renderer.evaluate_page_javascript(js_code)
+            let result = renderer.evaluate_page_javascript(js_code);
+            // Microtask checkpoint after each script, as in HTML.
+            renderer.pump_event_loop(thalora_browser_apis::event_loop::PumpBudget::no_wait());
+            result
         } else {
             Err(anyhow::anyhow!("Renderer not available"))
         }
+    }
+
+    /// Render the current page to PNG with the built-in layout engine
+    /// (including fetched external stylesheets).
+    pub fn screenshot_png(
+        &mut self,
+        options: crate::engine::renderer::paint::ScreenshotOptions,
+    ) -> Result<Vec<u8>> {
+        if self.current_content.is_empty() {
+            return Err(anyhow::anyhow!("No page loaded. Navigate to a page first."));
+        }
+        let layout = crate::engine::renderer::page_layout::compute_page_layout_with_css(
+            &self.current_content,
+            options.width as f32,
+            options.height as f32,
+            &self.external_stylesheets,
+        )?;
+        crate::engine::renderer::paint::render_png(&layout, options)
+    }
+
+    /// Recompute JS-visible element geometry for the current content,
+    /// including external stylesheets (1024x768 viewport, as on load).
+    pub fn refresh_layout(&mut self) {
+        let content = self.current_content.clone();
+        let css = self.external_stylesheets.clone();
+        if let Some(renderer) = self.renderer.as_mut() {
+            renderer.refresh_layout(&content, &css, (1024.0, 768.0));
+        }
+    }
+
+    /// Console messages logged by the current page (oldest first, at most 500).
+    pub fn console_messages(
+        &mut self,
+        clear: bool,
+    ) -> Vec<thalora_browser_apis::console::console::ConsoleMessage> {
+        self.renderer
+            .as_mut()
+            .map(|r| r.console_messages(clear))
+            .unwrap_or_default()
+    }
+
+    /// Run the page's event loop (timers, microtasks, fetch/XHR) within
+    /// `budget`. Returns `None` if the renderer has no event loop.
+    pub fn pump_event_loop(
+        &mut self,
+        budget: thalora_browser_apis::event_loop::PumpBudget,
+    ) -> Option<thalora_browser_apis::event_loop::PumpOutcome> {
+        self.renderer.as_mut()?.pump_event_loop(budget)
     }
 
     /// Execute JavaScript source as an ES module (trusted page context).
@@ -530,7 +640,7 @@ impl HeadlessWebBrowser {
             let activation_value = match renderer.eval_js(&activation_script) {
                 Ok(val) => Some(val),
                 Err(e) => {
-                    eprintln!("🔍 DEBUG: Failed to create navigation activation: {:?}", e);
+                    tracing::debug!("Failed to create navigation activation: {:?}", e);
                     None
                 }
             };
@@ -563,7 +673,7 @@ impl HeadlessWebBrowser {
             match renderer.eval_js(dispatch_script) {
                 Ok(result) => {
                     let result_str = renderer.js_value_to_string(result);
-                    eprintln!("🔍 DEBUG: PageSwap event dispatch result: {}", result_str);
+                    tracing::debug!("PageSwap event dispatch result: {}", result_str);
 
                     // Call the dispatch function with activation data
                     if let Some(activation) = activation_value {
@@ -573,15 +683,15 @@ impl HeadlessWebBrowser {
                             renderer.js_value_to_string(activation)
                         );
                         if let Ok(call_res) = renderer.eval_js(&call_script) {
-                            eprintln!(
-                                "🔍 DEBUG: PageSwap event with activation result: {}",
+                            tracing::debug!(
+                                "PageSwap event with activation result: {}",
                                 renderer.js_value_to_string(call_res)
                             );
                         }
                     }
                 }
                 Err(e) => {
-                    eprintln!("🔍 DEBUG: Failed to dispatch pageswap event: {:?}", e);
+                    tracing::debug!("Failed to dispatch pageswap event: {:?}", e);
                 }
             }
         }

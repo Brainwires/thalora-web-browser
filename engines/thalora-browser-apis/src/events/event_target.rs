@@ -54,6 +54,63 @@ impl EventListener {
     pub fn abort(&mut self) {
         self.aborted = true;
     }
+
+    /// The registered callback (a function or a `{ handleEvent }` object).
+    pub fn callback(&self) -> &JsValue {
+        &self.callback
+    }
+
+    /// Whether the listener was registered for the capture phase.
+    pub fn capture(&self) -> bool {
+        self.capture
+    }
+
+    /// Whether the listener is removed after its first invocation.
+    pub fn once(&self) -> bool {
+        self.once
+    }
+
+    /// Whether the listener was registered as passive.
+    pub fn passive(&self) -> bool {
+        self.passive
+    }
+}
+
+/// Parse the third argument of `addEventListener` / `removeEventListener`:
+/// either a boolean (capture) or an options object `{ capture, once, passive }`.
+/// Returns `(capture, once, passive)`.
+pub(crate) fn parse_listener_options(
+    options: &JsValue,
+    context: &mut Context,
+) -> JsResult<(bool, bool, bool)> {
+    if let Some(options_obj) = options.as_object() {
+        let capture = options_obj
+            .get(js_string!("capture"), context)?
+            .to_boolean();
+        let once = options_obj.get(js_string!("once"), context)?.to_boolean();
+        let passive = options_obj
+            .get(js_string!("passive"), context)?
+            .to_boolean();
+        Ok((capture, once, passive))
+    } else {
+        Ok((options.to_boolean(), false, false))
+    }
+}
+
+/// Push `listener` onto `list` unless an entry with the same callback and
+/// capture flag is already registered (DOM "add an event listener" step 4).
+/// Null/undefined callbacks are ignored.
+pub(crate) fn push_unique_listener(list: &mut Vec<EventListener>, listener: EventListener) {
+    if listener.callback.is_null() || listener.callback.is_undefined() {
+        return;
+    }
+    if list
+        .iter()
+        .any(|l| l.matches(&listener.callback, listener.capture))
+    {
+        return;
+    }
+    list.push(listener);
 }
 
 /// The EventTarget data implementation
@@ -105,6 +162,23 @@ impl EventTargetData {
         if let Some(listeners) = self.listeners.borrow_mut().get_mut(event_type) {
             listeners.retain(|listener| !listener.matches(callback, capture));
         }
+    }
+
+    /// Snapshot of the active listeners registered for `event_type`.
+    pub(crate) fn listener_entries(&self, event_type: &str) -> Vec<EventListener> {
+        self.listeners
+            .borrow()
+            .get(event_type)
+            .map(|list| list.iter().filter(|l| l.is_active()).cloned().collect())
+            .unwrap_or_default()
+    }
+
+    /// Whether a listener with this callback and capture flag is registered.
+    pub(crate) fn has_listener(&self, event_type: &str, callback: &JsValue, capture: bool) -> bool {
+        self.listeners.borrow().get(event_type).is_some_and(|list| {
+            list.iter()
+                .any(|l| l.is_active() && l.matches(callback, capture))
+        })
     }
 
     /// Fire listeners on this target for the given event type and phase.

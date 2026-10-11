@@ -676,6 +676,56 @@ impl WorkerGlobalScope {
         Ok(())
     }
 
+    /// Install fetch and friends in the worker realm.
+    fn add_fetch_apis(&self, context: &mut Context) -> JsResult<()> {
+        use boa_engine::builtins::IntrinsicObject;
+        use boa_engine::property::PropertyDescriptor;
+
+        let realm = context.realm().clone();
+        crate::fetch::fetch::Fetch::init(&realm);
+        crate::fetch::fetch::Request::init(&realm);
+        crate::fetch::fetch::Response::init(&realm);
+        crate::fetch::fetch::Headers::init(&realm);
+        crate::fetch::xmlhttprequest::XmlHttpRequest::init(&realm);
+
+        let intrinsics = context.intrinsics();
+        let globals = [
+            (
+                js_string!("fetch"),
+                crate::fetch::fetch::Fetch::get(intrinsics),
+            ),
+            (
+                js_string!("Request"),
+                crate::fetch::fetch::Request::get(intrinsics),
+            ),
+            (
+                js_string!("Response"),
+                crate::fetch::fetch::Response::get(intrinsics),
+            ),
+            (
+                js_string!("Headers"),
+                crate::fetch::fetch::Headers::get(intrinsics),
+            ),
+            (
+                js_string!("XMLHttpRequest"),
+                crate::fetch::xmlhttprequest::XmlHttpRequest::get(intrinsics),
+            ),
+        ];
+        let global = context.global_object();
+        for (name, value) in globals {
+            global.define_property_or_throw(
+                name,
+                PropertyDescriptor::builder()
+                    .value(value)
+                    .writable(true)
+                    .enumerable(false)
+                    .configurable(true),
+                context,
+            )?;
+        }
+        Ok(())
+    }
+
     /// Add basic Web APIs available in workers
     fn add_worker_web_apis(&self, context: &mut Context) -> JsResult<()> {
         // Add timers (setTimeout, setInterval, clearTimeout, clearInterval)
@@ -683,6 +733,10 @@ impl WorkerGlobalScope {
 
         // Add crypto API (crypto.getRandomValues, crypto.randomUUID, etc.)
         crate::crypto::crypto::Crypto::init(context);
+
+        // Networking: fetch, Request/Response/Headers and XMLHttpRequest
+        // (requests run on the shared network runtime, see net::io)
+        self.add_fetch_apis(context)?;
 
         // Add TextEncoder and TextDecoder
         self.add_text_encoding_apis(context)?;

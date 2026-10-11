@@ -1,11 +1,14 @@
 //! Navigation FFI functions.
 //!
-//! These functions wrap the browser's async navigation methods,
-//! blocking on the internal tokio runtime to provide sync C FFI.
+//! These functions run the browser's async navigation methods on the
+//! instance's browser thread and block until they finish, to provide sync
+//! C FFI.
 
 use std::ffi::c_char;
 use std::ptr;
 use std::time::Instant;
+
+use futures::FutureExt;
 
 use super::instance::{
     ThalorInstance, c_str_to_rust_safe, instance_ref, instance_ref_const, on_large_stack,
@@ -20,38 +23,31 @@ pub extern "C" fn thalora_navigate(
     instance: *mut ThalorInstance,
     url: *const c_char,
 ) -> *mut c_char {
-    if instance_ref(instance).is_none() {
+    let Some(inst) = instance_ref(instance) else {
         return ptr::null_mut();
-    }
+    };
 
     let url_str = match c_str_to_rust_safe(url) {
         Some(s) => s.to_owned(),
         None => {
-            if let Some(inst) = instance_ref(instance) {
-                inst.set_error("Invalid or null URL string".into());
-            }
+            inst.set_error("Invalid or null URL string".into());
             return ptr::null_mut();
         }
     };
 
-    let inst_addr = instance as usize;
-    let outcome = on_large_stack("thalora-navigate", move || {
-        let instance = inst_addr as *mut ThalorInstance;
-        let inst = instance_ref(instance).ok_or_else(|| "Instance gone".to_string())?;
-        inst.clear_error();
-        let result = inst
-            .browser
-            .lock()
-            .map_err(|e| format!("Lock poisoned: {}", e))
-            .and_then(|mut browser| {
-                inst.runtime
-                    .block_on(browser.navigate_to_with_js_option(&url_str, true, true))
-                    .map_err(|e| format!("Navigation failed: {}", e))
-            });
-        result
-    });
+    inst.clear_error();
+    let outcome = inst
+        .with_browser(move |browser| {
+            async move {
+                browser
+                    .navigate_to_with_js_option(&url_str, true, true)
+                    .await
+            }
+            .boxed_local()
+        })
+        .map_err(|e| format!("Navigation failed: {}", e));
 
-    match outcome.and_then(|r| r) {
+    match outcome {
         Ok(html) => rust_string_to_c(html),
         Err(msg) => {
             eprintln!("[ERROR] FFI thalora_navigate: {}", msg);
@@ -74,36 +70,31 @@ pub extern "C" fn thalora_navigate_static(
     instance: *mut ThalorInstance,
     url: *const c_char,
 ) -> *mut c_char {
-    if instance_ref(instance).is_none() {
+    let Some(inst) = instance_ref(instance) else {
         return ptr::null_mut();
-    }
+    };
 
     let url_str = match c_str_to_rust_safe(url) {
         Some(s) => s.to_owned(),
         None => {
-            if let Some(inst) = instance_ref(instance) {
-                inst.set_error("Invalid or null URL string".into());
-            }
+            inst.set_error("Invalid or null URL string".into());
             return ptr::null_mut();
         }
     };
 
-    let inst_addr = instance as usize;
-    let outcome = on_large_stack("thalora-navigate-static", move || {
-        let instance = inst_addr as *mut ThalorInstance;
-        let inst = instance_ref(instance).ok_or_else(|| "Instance gone".to_string())?;
-        inst.clear_error();
-        inst.browser
-            .lock()
-            .map_err(|e| format!("Lock poisoned: {}", e))
-            .and_then(|mut browser| {
-                inst.runtime
-                    .block_on(browser.navigate_to_with_js_option(&url_str, true, false))
-                    .map_err(|e| format!("Navigation failed: {}", e))
-            })
-    });
+    inst.clear_error();
+    let outcome = inst
+        .with_browser(move |browser| {
+            async move {
+                browser
+                    .navigate_to_with_js_option(&url_str, true, false)
+                    .await
+            }
+            .boxed_local()
+        })
+        .map_err(|e| format!("Navigation failed: {}", e));
 
-    match outcome.and_then(|r| r) {
+    match outcome {
         Ok(html) => rust_string_to_c(html),
         Err(msg) => {
             eprintln!("[ERROR] FFI thalora_navigate_static: {}", msg);
@@ -120,26 +111,18 @@ pub extern "C" fn thalora_navigate_static(
 /// Returns 1 if the DOM was modified, 0 if no change, -1 on error.
 #[unsafe(no_mangle)]
 pub extern "C" fn thalora_execute_page_scripts(instance: *mut ThalorInstance) -> i32 {
-    if instance_ref(instance).is_none() {
+    let Some(inst) = instance_ref(instance) else {
         return -1;
-    }
+    };
 
-    let inst_addr = instance as usize;
-    let outcome = on_large_stack("thalora-execute-scripts", move || {
-        let instance = inst_addr as *mut ThalorInstance;
-        let inst = instance_ref(instance).ok_or_else(|| "Instance gone".to_string())?;
-        inst.clear_error();
-        inst.browser
-            .lock()
-            .map_err(|e| format!("Lock poisoned: {}", e))
-            .and_then(|mut browser| {
-                inst.runtime
-                    .block_on(browser.execute_current_page_scripts())
-                    .map_err(|e| format!("Script execution failed: {}", e))
-            })
-    });
+    inst.clear_error();
+    let outcome = inst
+        .with_browser(|browser| {
+            async move { browser.execute_current_page_scripts().await }.boxed_local()
+        })
+        .map_err(|e| format!("Script execution failed: {}", e));
 
-    match outcome.and_then(|r| r) {
+    match outcome {
         Ok(true) => 1,
         Ok(false) => 0,
         Err(msg) => {
@@ -162,17 +145,13 @@ pub extern "C" fn thalora_get_current_url(instance: *mut ThalorInstance) -> *mut
     };
     inst.clear_error();
 
-    let browser = match inst.browser.lock() {
-        Ok(b) => b,
+    match inst.read_browser(|browser| browser.get_current_url()) {
+        Ok(Some(url)) => rust_string_to_c(url),
+        Ok(None) => ptr::null_mut(),
         Err(e) => {
-            inst.set_error(format!("Lock poisoned: {}", e));
-            return ptr::null_mut();
+            inst.set_error(e.to_string());
+            ptr::null_mut()
         }
-    };
-
-    match browser.get_current_url() {
-        Some(url) => rust_string_to_c(url),
-        None => ptr::null_mut(),
     }
 }
 
@@ -186,19 +165,13 @@ pub extern "C" fn thalora_get_page_html(instance: *mut ThalorInstance) -> *mut c
     };
     inst.clear_error();
 
-    let browser = match inst.browser.lock() {
-        Ok(b) => b,
+    match inst.read_browser(|browser| browser.get_current_content()) {
+        Ok(content) if !content.is_empty() => rust_string_to_c(content),
+        Ok(_) => ptr::null_mut(),
         Err(e) => {
-            inst.set_error(format!("Lock poisoned: {}", e));
-            return ptr::null_mut();
+            inst.set_error(e.to_string());
+            ptr::null_mut()
         }
-    };
-
-    let content = browser.get_current_content();
-    if content.is_empty() {
-        ptr::null_mut()
-    } else {
-        rust_string_to_c(content)
     }
 }
 
@@ -206,26 +179,16 @@ pub extern "C" fn thalora_get_page_html(instance: *mut ThalorInstance) -> *mut c
 /// Returns 0 on success, -1 on error (check `thalora_last_error`).
 #[unsafe(no_mangle)]
 pub extern "C" fn thalora_go_back(instance: *mut ThalorInstance) -> i32 {
-    if instance_ref(instance).is_none() {
+    let Some(inst) = instance_ref(instance) else {
         return -1;
-    }
+    };
 
-    let inst_addr = instance as usize;
-    let outcome = on_large_stack("thalora-go-back", move || {
-        let instance = inst_addr as *mut ThalorInstance;
-        let inst = instance_ref(instance).ok_or_else(|| "Instance gone".to_string())?;
-        inst.clear_error();
-        inst.browser
-            .lock()
-            .map_err(|e| format!("Lock poisoned: {}", e))
-            .and_then(|mut browser| {
-                inst.runtime
-                    .block_on(browser.go_back())
-                    .map_err(|e| format!("Go back failed: {}", e))
-            })
-    });
+    inst.clear_error();
+    let outcome = inst
+        .with_browser(|browser| async move { browser.go_back().await }.boxed_local())
+        .map_err(|e| format!("Go back failed: {}", e));
 
-    match outcome.and_then(|r| r) {
+    match outcome {
         Ok(Some(_)) => 0,
         Ok(None) => {
             if let Some(inst) = instance_ref(instance) {
@@ -247,26 +210,16 @@ pub extern "C" fn thalora_go_back(instance: *mut ThalorInstance) -> i32 {
 /// Returns 0 on success, -1 on error (check `thalora_last_error`).
 #[unsafe(no_mangle)]
 pub extern "C" fn thalora_go_forward(instance: *mut ThalorInstance) -> i32 {
-    if instance_ref(instance).is_none() {
+    let Some(inst) = instance_ref(instance) else {
         return -1;
-    }
+    };
 
-    let inst_addr = instance as usize;
-    let outcome = on_large_stack("thalora-go-forward", move || {
-        let instance = inst_addr as *mut ThalorInstance;
-        let inst = instance_ref(instance).ok_or_else(|| "Instance gone".to_string())?;
-        inst.clear_error();
-        inst.browser
-            .lock()
-            .map_err(|e| format!("Lock poisoned: {}", e))
-            .and_then(|mut browser| {
-                inst.runtime
-                    .block_on(browser.go_forward())
-                    .map_err(|e| format!("Go forward failed: {}", e))
-            })
-    });
+    inst.clear_error();
+    let outcome = inst
+        .with_browser(|browser| async move { browser.go_forward().await }.boxed_local())
+        .map_err(|e| format!("Go forward failed: {}", e));
 
-    match outcome.and_then(|r| r) {
+    match outcome {
         Ok(Some(_)) => 0,
         Ok(None) => {
             if let Some(inst) = instance_ref(instance) {
@@ -288,26 +241,16 @@ pub extern "C" fn thalora_go_forward(instance: *mut ThalorInstance) -> i32 {
 /// The caller must free the returned string with `thalora_free_string`.
 #[unsafe(no_mangle)]
 pub extern "C" fn thalora_reload(instance: *mut ThalorInstance) -> *mut c_char {
-    if instance_ref(instance).is_none() {
+    let Some(inst) = instance_ref(instance) else {
         return ptr::null_mut();
-    }
+    };
 
-    let inst_addr = instance as usize;
-    let outcome = on_large_stack("thalora-reload", move || {
-        let instance = inst_addr as *mut ThalorInstance;
-        let inst = instance_ref(instance).ok_or_else(|| "Instance gone".to_string())?;
-        inst.clear_error();
-        inst.browser
-            .lock()
-            .map_err(|e| format!("Lock poisoned: {}", e))
-            .and_then(|mut browser| {
-                inst.runtime
-                    .block_on(browser.reload())
-                    .map_err(|e| format!("Reload failed: {}", e))
-            })
-    });
+    inst.clear_error();
+    let outcome = inst
+        .with_browser(|browser| async move { browser.reload().await }.boxed_local())
+        .map_err(|e| format!("Reload failed: {}", e));
 
-    match outcome.and_then(|r| r) {
+    match outcome {
         Ok(html) => rust_string_to_c(html),
         Err(msg) => {
             eprintln!("[ERROR] FFI thalora_reload: {}", msg);
@@ -328,15 +271,9 @@ pub extern "C" fn thalora_can_go_back(instance: *const ThalorInstance) -> i32 {
         None => return 0,
     };
 
-    match inst.browser.lock() {
-        Ok(browser) => {
-            if browser.can_go_back() {
-                1
-            } else {
-                0
-            }
-        }
-        Err(_) => 0,
+    match inst.read_browser(|browser| browser.can_go_back()) {
+        Ok(true) => 1,
+        _ => 0,
     }
 }
 
@@ -349,15 +286,9 @@ pub extern "C" fn thalora_can_go_forward(instance: *const ThalorInstance) -> i32
         None => return 0,
     };
 
-    match inst.browser.lock() {
-        Ok(browser) => {
-            if browser.can_go_forward() {
-                1
-            } else {
-                0
-            }
-        }
-        Err(_) => 0,
+    match inst.read_browser(|browser| browser.can_go_forward()) {
+        Ok(true) => 1,
+        _ => 0,
     }
 }
 
@@ -379,22 +310,19 @@ pub extern "C" fn thalora_compute_layout(
     };
     inst.clear_error();
 
-    let browser = match inst.browser.lock() {
-        Ok(b) => b,
+    // Copy the content off the browser thread; layout is pure Rust and runs
+    // on the caller's thread without blocking the browser.
+    let content = match inst.read_browser(|browser| browser.get_current_content()) {
+        Ok(content) => content,
         Err(e) => {
-            inst.set_error(format!("Lock poisoned: {}", e));
+            inst.set_error(e.to_string());
             return ptr::null_mut();
         }
     };
-
-    let content = browser.get_current_content();
     if content.is_empty() {
         inst.set_error("No page content loaded".into());
         return ptr::null_mut();
     }
-
-    // Drop the lock before computing layout (which can take time)
-    drop(browser);
 
     match crate::engine::renderer::compute_page_layout(&content, viewport_w, viewport_h) {
         Ok(layout_result) => match serde_json::to_string(&layout_result) {
@@ -434,25 +362,24 @@ pub extern "C" fn thalora_compute_styled_tree(
     let ffi_start = Instant::now();
 
     let content_start = Instant::now();
-    let browser = match inst.browser.lock() {
-        Ok(b) => b,
+    // Copy the content and stylesheets off the browser thread; the styled
+    // tree is pure Rust and is computed without blocking the browser.
+    let (content, external_css) = match inst.read_browser(|browser| {
+        (
+            browser.get_current_content(),
+            browser.get_external_stylesheets().to_vec(),
+        )
+    }) {
+        Ok(page) => page,
         Err(e) => {
-            inst.set_error(format!("Lock poisoned: {}", e));
+            inst.set_error(e.to_string());
             return ptr::null_mut();
         }
     };
-
-    let content = browser.get_current_content();
     if content.is_empty() {
         inst.set_error("No page content loaded".into());
         return ptr::null_mut();
     }
-
-    // Collect external stylesheets before dropping the lock
-    let external_css: Vec<String> = browser.get_external_stylesheets().to_vec();
-
-    // Drop the lock before computing (which can take time)
-    drop(browser);
     eprintln!(
         "[TIMING] FFI get_current_content: {}ms ({} bytes, {} external CSS)",
         content_start.elapsed().as_millis(),
@@ -481,13 +408,12 @@ pub extern "C" fn thalora_compute_styled_tree(
             );
             let serialize_start = Instant::now();
             serde_json::to_string(&styled_tree)
-                .map(|json| {
+                .inspect(|json| {
                     eprintln!(
                         "[TIMING] FFI serde_json::to_string: {}ms ({} bytes output)",
                         serialize_start.elapsed().as_millis(),
                         json.len()
                     );
-                    json
                 })
                 .map_err(|e| format!("Failed to serialize styled tree: {}", e))
         })
@@ -520,8 +446,8 @@ pub extern "C" fn thalora_poll_history_events(instance: *mut ThalorInstance) -> 
         None => return ptr::null_mut(),
     };
 
-    let events = match inst.browser.lock() {
-        Ok(browser) => browser.drain_history_events(),
+    let events = match inst.read_browser(|browser| browser.drain_history_events()) {
+        Ok(events) => events,
         Err(_) => return ptr::null_mut(),
     };
 
@@ -559,13 +485,10 @@ pub extern "C" fn thalora_set_navigation_mode(instance: *mut ThalorInstance, mod
         }
     };
 
-    match inst.browser.lock() {
-        Ok(mut browser) => {
-            browser.set_navigation_mode(nav_mode);
-            0
-        }
+    match inst.read_browser(move |browser| browser.set_navigation_mode(nav_mode)) {
+        Ok(()) => 0,
         Err(e) => {
-            inst.set_error(format!("Lock poisoned: {}", e));
+            inst.set_error(e.to_string());
             -1
         }
     }

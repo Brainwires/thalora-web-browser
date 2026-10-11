@@ -1,0 +1,86 @@
+{
+  "pages": [
+    {
+      "min_refs": 7,
+      "missing_text": [],
+      "ok": true,
+      "page": "/corpus/pages/article.html",
+      "refs": 7,
+      "unexpected_text": []
+    },
+    {
+      "min_refs": 7,
+      "missing_text": [],
+      "ok": true,
+      "page": "/corpus/pages/checkout_form.html",
+      "refs": 7,
+      "unexpected_text": []
+    },
+    {
+      "min_refs": 0,
+      "missing_text": [],
+      "ok": true,
+      "page": "/corpus/pages/data_table.html",
+      "refs": 0,
+      "unexpected_text": []
+    },
+    {
+      "min_refs": 0,
+      "missing_text": [],
+      "ok": true,
+      "page": "/corpus/pages/delayed_render.html",
+      "refs": 0,
+      "unexpected_text": []
+    },
+    {
+      "min_refs": 0,
+      "missing_text": [],
+      "ok": true,
+      "page": "/corpus/pages/document_write.html",
+      "refs": 0,
+      "unexpected_text": []
+    },
+    {
+      "min_refs": 2,
+      "missing_text": [],
+      "ok": true,
+      "page": "/corpus/pages/event_delegation.html",
+      "refs": 2,
+      "unexpected_text": []
+    },
+    {
+      "min_refs": 0,
+      "missing_text": [],
+      "ok": true,
+      "page": "/corpus/pages/module_app.html",
+      "refs": 0,
+      "unexpected_text": []
+    },
+    {
+      "min_refs": 0,
+      "missing_text": [],
+      "ok": true,
+      "page": "/corpus/pages/mutation_counter.html",
+      "refs": 0,
+      "unexpected_text": []
+    },
+    {
+      "min_refs": 3,
+      "missing_text": [],
+      "ok": true,
+      "page": "/corpus/pages/spa_router.html",
+      "refs": 3,
+      "unexpected_text": []
+    },
+    {
+      "min_refs": 3,
+      "missing_text": [],
+      "ok": true,
+      "page": "/corpus/pages/web_components.html",
+      "refs": 3,
+      "unexpected_text": []
+    }
+  ],
+  "passed": 10,
+  "total": 10
+}

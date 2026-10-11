@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Harbour fees</title></head>
+<body>
+  <h1>Harbour fees</h1>
+  <script type="application/json" id="fees">
+    [{"length": "Under 8 m", "night": 22, "week": 120},
+     {"length": "8–12 m", "night": 31, "week": 170},
+     {"length": "Over 12 m", "night": 45, "week": 250}]
+  </script>
+  <table id="table"><thead><tr><th>Length</th><th>Per night</th><th>Per week</th></tr></thead><tbody></tbody></table>
+  <script>
+    const fees = JSON.parse(document.getElementById('fees').textContent);
+    const body = document.querySelector('#table tbody');
+    for (const f of fees) {
+      const tr = document.createElement('tr');
+      for (const value of [f.length, '€' + f.night, '€' + f.week]) {
+        const td = document.createElement('td');
+        td.textContent = value;
+        tr.appendChild(td);
+      }
+      body.appendChild(tr);
+    }
+  </script>
+</body>
+</html>

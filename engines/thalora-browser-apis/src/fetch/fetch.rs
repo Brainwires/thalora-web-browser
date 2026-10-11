@@ -67,9 +67,10 @@ fn fetch(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<J
         input.to_string(context)?.to_std_string_escaped()
     };
 
-    // Validate URL
-    let _url = Url::parse(&url_string)
-        .map_err(|_| JsNativeError::typ().with_message(format!("Invalid URL: {}", url_string)))?;
+    // Resolve against the page URL (relative URLs are the common case)
+    let url_string = crate::page_url::resolve_url(context, &url_string)
+        .ok_or_else(|| JsNativeError::typ().with_message(format!("Invalid URL: {}", url_string)))?
+        .to_string();
 
     // CSP: Check connect-src before making the request
     if !crate::csp::csp_allows_connect(&url_string) {
@@ -80,6 +81,13 @@ fn fetch(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<J
                 url_string
             ))
             .into());
+    }
+
+    // SSRF: pages may not reach internal/private addresses
+    if let Err(reason) = crate::net::check_url(&url_string) {
+        eprintln!("🔒 fetch() blocked: {}", reason);
+        let error = JsNativeError::typ().with_message(format!("Failed to fetch: {reason}"));
+        return Ok(JsPromise::reject(error, context)?.into());
     }
 
     // Parse init options
@@ -119,8 +127,8 @@ fn fetch(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<J
     // Enqueue an async job to perform the actual HTTP request
     context.enqueue_job(
         NativeAsyncJob::new(async move |context| {
-            // Perform HTTP request in the background
-            let client = reqwest::Client::new();
+            // Perform HTTP request in the background (redirects re-checked)
+            let client = crate::net::page_client();
 
             // CORS preflight for non-simple cross-origin requests
             // Check preflight cache first
@@ -160,7 +168,7 @@ fn fetch(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<J
                 }
 
                 // Send preflight and validate the response
-                match preflight.send().await {
+                match crate::net::io(preflight.send()).await {
                     Ok(preflight_resp) => {
                         let status = preflight_resp.status().as_u16();
                         let strict_cors = std::env::var("THALORA_STRICT_CORS")
@@ -290,7 +298,7 @@ fn fetch(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<J
             }
 
             // Execute the request
-            let response_result = request_builder.send().await;
+            let response_result = crate::net::io(request_builder.send()).await;
 
             // Extract response metadata and body before borrowing context,
             // since response.text().await cannot be called while holding a RefCell borrow.
@@ -319,7 +327,7 @@ fn fetch(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<J
                         "basic"
                     };
 
-                    let body_result = response.text().await;
+                    let body_result = crate::net::io(response.text()).await;
                     Ok((status, status_text, response_headers, response_type, body_result))
                 }
                 Err(e) => Err(e),
@@ -341,7 +349,11 @@ fn fetch(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<J
                                 url: url_string.clone(),
                             };
 
-                            let response_obj = JsObject::from_proto_and_data(None, response_data);
+                            // Response.prototype gives it text()/json()/blob()/...
+                            let response_proto =
+                                context.intrinsics().constructors().response().prototype();
+                            let response_obj =
+                                JsObject::from_proto_and_data(Some(response_proto), response_data);
 
                             // Add properties to the Response object
                             drop(response_obj.set(
@@ -634,10 +646,11 @@ impl BuiltInConstructor for Request {
         // Parse URL
         let url = input.to_string(context)?.to_std_string_escaped();
 
-        // Validate URL
-        if Url::parse(&url).is_err() {
-            return Err(JsNativeError::typ().with_message("Invalid URL").into());
-        }
+        // Resolve against the page URL
+        let url = match crate::page_url::resolve_url(context, &url) {
+            Some(resolved) => resolved.to_string(),
+            None => return Err(JsNativeError::typ().with_message("Invalid URL").into()),
+        };
 
         // Create the Request object
         let proto =

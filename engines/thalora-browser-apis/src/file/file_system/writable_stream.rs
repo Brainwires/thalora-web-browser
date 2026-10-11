@@ -298,7 +298,10 @@ fn truncate_inner(inner: &WritableInner, size: u64) -> Result<(), WritableError>
 
 enum Chunk {
     Data(Vec<u8>),
-    Write { position: Option<u64>, data: Vec<u8> },
+    Write {
+        position: Option<u64>,
+        data: Vec<u8>,
+    },
     Seek(u64),
     Truncate(u64),
 }
@@ -320,10 +323,7 @@ fn parse_chunk(chunk: &JsValue, context: &mut Context) -> Result<Chunk, Writable
         }
         // ArrayBuffer
         if let Ok(arr_buf) = JsArrayBuffer::from_object(obj.clone()) {
-            let bytes = arr_buf
-                .data()
-                .map(|d| d.to_vec())
-                .unwrap_or_default();
+            let bytes = arr_buf.data().map(|d| d.to_vec()).unwrap_or_default();
             return Ok(Chunk::Data(bytes));
         }
         // TypedArray / DataView
@@ -407,15 +407,14 @@ fn read_optional_u64(
         .to_number(context)
         .map_err(|e| WritableError::Type(format!("{key} to_number: {e:?}")))?;
     if n < 0.0 || !n.is_finite() {
-        return Err(WritableError::Type(format!("{key} must be a non-negative finite number")));
+        return Err(WritableError::Type(format!(
+            "{key} must be a non-negative finite number"
+        )));
     }
     Ok(Some(n as u64))
 }
 
-fn finalize_result(
-    result: Result<(), WritableError>,
-    context: &mut Context,
-) -> JsResult<JsValue> {
+fn finalize_result(result: Result<(), WritableError>, context: &mut Context) -> JsResult<JsValue> {
     match result {
         Ok(()) => {
             let (promise, resolvers) = JsPromise::new_pending(context);

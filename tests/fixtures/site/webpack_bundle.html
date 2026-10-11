@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Fixture Bundle</title></head>
+<body>
+  <div id="app">not rendered</div>
+  <!-- Shapes that commonly appear in transpiled/bundled code and must run. -->
+  <script>
+    (function (modules) {
+      var cache = {};
+      function require(id) {
+        if (cache[id]) { return cache[id].exports; }
+        var module = (cache[id] = { exports: {} });
+        modules[id](module, module.exports, require);
+        return module.exports;
+      }
+      require(0);
+    })([
+      function (module, exports, require) {
+        var process = { env: { NODE_ENV: 'production' } };
+        function _inherits(sub, sup) {
+          sub.prototype = Object.create(sup && sup.prototype);
+          if (sup) { Object.setPrototypeOf ? Object.setPrototypeOf(sub, sup) : (sub.__proto__ = sup); }
+        }
+        function Base() {}
+        function App() {}
+        _inherits(App, Base);
+        var mode = process.env.NODE_ENV;
+        window.bundleResult = 'bundle rendered (' + mode + ')';
+        var app = document.querySelector('#app');
+        if (app) { app.textContent = window.bundleResult; }
+        module.exports = App;
+      }
+    ]);
+  </script>
+</body>
+</html>

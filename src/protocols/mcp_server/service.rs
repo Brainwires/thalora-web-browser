@@ -1,5 +1,3 @@
-use std::cell::RefCell;
-
 use rmcp::{
     ErrorData as McpError, RoleServer, ServerHandler,
     model::{
@@ -14,20 +12,30 @@ use crate::protocols::mcp_server::core::McpServer;
 
 /// rmcp `ServerHandler` wrapper for `McpServer`.
 ///
-/// `RefCell<Option<McpServer>>` provides interior mutability so rmcp's `&self`
-/// trait methods can drive `McpServer`'s `&mut self` internals without holding
-/// a `RefCell` borrow across `.await` points.  This is safe because rmcp's
-/// `"local"` feature uses `spawn_local`, which guarantees serial execution —
-/// only one call runs at a time per session instance.
-pub struct McpServerService(RefCell<Option<McpServer>>);
+/// rmcp's `&self` trait methods drive `McpServer`'s `&mut self` internals
+/// through an async mutex. rmcp's `"local"` feature runs handlers with
+/// `spawn_local`, which does **not** serialize them across `.await` points, so
+/// overlapping requests (e.g. `tools/list` while a navigation is running)
+/// wait for the lock instead of finding the server missing.
+pub struct McpServerService(tokio::sync::Mutex<McpServer>);
 
 impl McpServerService {
     pub fn new(server: McpServer) -> Self {
-        Self(RefCell::new(Some(server)))
+        Self(tokio::sync::Mutex::new(server))
     }
 
     pub fn with_engine(config: EngineConfig) -> Self {
         Self::new(McpServer::new_with_engine(config))
+    }
+
+    /// Run one tool call (serialized with all other calls on this server).
+    pub(crate) async fn call_tool_inner(
+        &self,
+        name: String,
+        arguments: serde_json::Value,
+    ) -> crate::protocols::mcp::McpResponse {
+        let mut server = self.0.lock().await;
+        server.call_tool(name, arguments).await
     }
 }
 
@@ -43,12 +51,7 @@ impl ServerHandler for McpServerService {
         _request: Option<PaginatedRequestParams>,
         _ctx: RequestContext<RoleServer>,
     ) -> Result<ListToolsResult, McpError> {
-        let defs = self
-            .0
-            .borrow()
-            .as_ref()
-            .expect("McpServer taken")
-            .get_tool_definitions();
+        let defs = self.0.lock().await.get_tool_definitions();
         let tools = defs
             .into_iter()
             .filter_map(|v| serde_json::from_value(v).ok())
@@ -66,10 +69,29 @@ impl ServerHandler for McpServerService {
             .arguments
             .map(serde_json::Value::Object)
             .unwrap_or_default();
-        // Take the server out so the RefCell borrow is not held across await.
-        let mut server = self.0.borrow_mut().take().expect("McpServer taken");
-        let result = server.call_tool(name, arguments).await;
-        *self.0.borrow_mut() = Some(server);
-        Ok(result.into())
+        Ok(self.call_tool_inner(name, arguments).await.into())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Overlapping calls used to panic with "McpServer taken".
+    #[test]
+    fn overlapping_tool_calls_queue_instead_of_panicking() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let local = tokio::task::LocalSet::new();
+        local.block_on(&runtime, async {
+            let service = McpServerService::new(McpServer::new());
+            let (a, b) = futures::join!(
+                service.call_tool_inner("no_such_tool_a".into(), serde_json::json!({})),
+                service.call_tool_inner("no_such_tool_b".into(), serde_json::json!({})),
+            );
+            assert!(a.is_error && b.is_error);
+        });
     }
 }

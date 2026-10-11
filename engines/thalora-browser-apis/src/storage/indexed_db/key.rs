@@ -158,10 +158,9 @@ impl IDBKey {
             let mut bytes = Vec::with_capacity(len);
             for i in 0..len {
                 if let Ok(byte_val) = obj.get(i, context) {
-                    if let Some(num) = byte_val.as_number() {
+                    {
+                        let num = byte_val.as_number()?;
                         bytes.push(num as u8);
-                    } else {
-                        return None; // Invalid element
                     }
                 } else {
                     return None; // Index access failed

@@ -26,6 +26,8 @@ pub struct CharacterDataData {
     node_data: NodeData,
     // CharacterData-specific properties
     data: GcRefCell<String>,
+    /// Node in the owning document's tree; `data` is mirrored into it.
+    binding: GcRefCell<Option<crate::dom::binding::DomBinding>>,
 }
 
 impl CharacterDataData {
@@ -35,6 +37,36 @@ impl CharacterDataData {
         Self {
             node_data,
             data: GcRefCell::new(data),
+            binding: GcRefCell::new(None),
+        }
+    }
+
+    pub fn binding(&self) -> Option<crate::dom::binding::DomBinding> {
+        self.binding.borrow().clone()
+    }
+
+    /// Bind to a tree node; the node's data becomes this object's data.
+    pub fn set_binding(&self, binding: crate::dom::binding::DomBinding) {
+        let data = binding.tree.borrow().data(binding.node).map(str::to_string);
+        if let Some(data) = data {
+            *self.data.borrow_mut() = data.clone();
+            self.node_data.set_node_value(Some(data));
+        }
+        *self.binding.borrow_mut() = Some(binding);
+    }
+
+    /// Mirror `data` into the bound tree node.
+    fn sync_to_tree(&self) {
+        if let Some(b) = self.binding() {
+            let data = self.data.borrow().clone();
+            let old = b.tree.borrow().data(b.node).map(str::to_string);
+            if old.as_deref() == Some(data.as_str()) {
+                return;
+            }
+            let _ = b.tree.borrow_mut().set_data(b.node, &data);
+            // No Context here: MutationObserver records are built at the
+            // next flush point (see mutation_bridge::flush_character_data)
+            crate::dom::mutation_bridge::defer_character_data(b, old);
         }
     }
 
@@ -48,6 +80,7 @@ impl CharacterDataData {
         *self.data.borrow_mut() = new_data;
         // Update the node value as well
         self.node_data.set_node_value(Some(self.get_data()));
+        self.sync_to_tree();
     }
 
     /// Get the length of the character data
@@ -77,6 +110,8 @@ impl CharacterDataData {
         current_data.push_str(&data);
         // Update node value
         self.node_data.set_node_value(Some(current_data.clone()));
+        drop(current_data);
+        self.sync_to_tree();
     }
 
     /// Insert data at the specified offset
@@ -97,6 +132,8 @@ impl CharacterDataData {
 
         // Update node value
         self.node_data.set_node_value(Some(current_data.clone()));
+        drop(current_data);
+        self.sync_to_tree();
         Ok(())
     }
 
@@ -118,6 +155,8 @@ impl CharacterDataData {
 
         // Update node value
         self.node_data.set_node_value(Some(current_data.clone()));
+        drop(current_data);
+        self.sync_to_tree();
         Ok(())
     }
 
@@ -141,6 +180,8 @@ impl CharacterDataData {
 
         // Update node value
         self.node_data.set_node_value(Some(current_data.clone()));
+        drop(current_data);
+        self.sync_to_tree();
         Ok(())
     }
 

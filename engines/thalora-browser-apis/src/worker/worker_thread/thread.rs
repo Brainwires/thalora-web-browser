@@ -8,9 +8,7 @@ use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
 use super::command_handler;
-use super::event_loop::WorkerEventLoop;
 use super::script_loader;
-use super::timer_api;
 use super::types::{WorkerCommand, WorkerConfig, WorkerEvent, WorkerStatus};
 use crate::worker::worker_global_scope::{WorkerGlobalScope, WorkerGlobalScopeType};
 
@@ -109,8 +107,13 @@ impl WorkerThread {
     ) -> JsResult<()> {
         eprintln!("[Worker {}] Thread started", worker_id);
 
-        // Create a new JavaScript context for this worker
-        let mut context = Context::default();
+        // A JS context driven by the same event loop as pages: timers,
+        // promises and async jobs (fetch) all go through the executor.
+        let executor = std::rc::Rc::new(crate::event_loop::ThaloraJobExecutor::new());
+        let mut context = Context::builder()
+            .job_executor(executor.clone())
+            .build()
+            .map_err(|e| JsNativeError::error().with_message(e.to_string()))?;
 
         // Install browsing-context state (origin + is_worker=true) so OPFS and
         // FileSystemSyncAccessHandle can detect the worker realm and resolve
@@ -140,12 +143,6 @@ impl WorkerThread {
 
         // Initialize worker global scope APIs in the context
         worker_scope_arc.initialize_in_context(&mut context)?;
-
-        // Create the event loop for this worker
-        let event_loop = Arc::new(Mutex::new(WorkerEventLoop::new()));
-
-        // Initialize timer APIs with the event loop
-        timer_api::init_worker_timers(&mut context, event_loop.clone())?;
 
         // Update status to running
         {
@@ -179,83 +176,69 @@ impl WorkerThread {
             }
         }
 
-        // Main event loop
-        while running.load(Ordering::SeqCst) {
-            // Check if we're suspended
-            let current_status = {
-                let worker_status = status.lock().unwrap();
-                *worker_status
-            };
-
-            if current_status == WorkerStatus::Suspended {
-                thread::sleep(Duration::from_millis(10));
-                continue;
-            }
-
-            if current_status == WorkerStatus::Terminating {
-                break;
-            }
-
-            // Process incoming messages from main thread
-            let _ = worker_scope_arc.process_main_thread_messages(&mut context);
-
-            // Process event loop (get pending work)
-            let (timer_callbacks, microtask_callbacks, next_timer_delay) = {
-                let mut event_loop_guard = event_loop.lock().unwrap();
-                event_loop_guard.get_pending_work()
-            };
-
-            // Execute timer callbacks
-            for (callback_id, _is_repeating) in timer_callbacks {
-                let _ = super::callback_registry::execute_callback(callback_id, &mut context);
-            }
-
-            // Execute microtask callbacks
-            for callback_id in microtask_callbacks {
-                let _ = super::callback_registry::execute_callback(callback_id, &mut context);
-            }
-
-            // Process commands from the main thread
-            match command_rx.try_recv() {
-                Ok(command) => {
-                    match command_handler::handle_command(
-                        command,
-                        &mut context,
-                        &worker_scope_arc,
-                        &status,
-                        &running,
-                        &event_tx,
-                    ) {
-                        Ok(should_continue) => {
-                            if !should_continue {
-                                break;
+        // Main event loop: one long pump per iteration. Between tasks the
+        // pump asks the predicate below, which handles messages and commands
+        // from the main thread; async jobs (fetch) stay in flight across it.
+        let exit = std::rc::Rc::new(std::cell::Cell::new(false));
+        let command_rx = std::rc::Rc::new(command_rx);
+        while running.load(Ordering::SeqCst) && !exit.get() {
+            let exit = exit.clone();
+            let command_rx = command_rx.clone();
+            let worker_scope = worker_scope_arc.clone();
+            let status = status.clone();
+            let running = running.clone();
+            let event_tx = event_tx.clone();
+            let budget =
+                crate::event_loop::PumpBudget::until(Duration::from_secs(3600), move |context| {
+                    let current_status = *status.lock().unwrap();
+                    if current_status == WorkerStatus::Terminating
+                        || !running.load(Ordering::SeqCst)
+                    {
+                        exit.set(true);
+                        return true;
+                    }
+                    // Messages from the main thread (onmessage)
+                    if current_status != WorkerStatus::Suspended {
+                        let _ = worker_scope.process_main_thread_messages(context);
+                    }
+                    // Commands (execute script, suspend/resume, terminate)
+                    loop {
+                        match command_rx.try_recv() {
+                            Ok(command) => match command_handler::handle_command(
+                                command,
+                                context,
+                                &worker_scope,
+                                &status,
+                                &running,
+                                &event_tx,
+                            ) {
+                                Ok(true) => {}
+                                Ok(false) => {
+                                    exit.set(true);
+                                    return true;
+                                }
+                                Err(e) => {
+                                    eprintln!(
+                                        "[Worker {}] Command handling error: {:?}",
+                                        worker_id, e
+                                    );
+                                }
+                            },
+                            Err(TryRecvError::Empty) => break,
+                            Err(TryRecvError::Disconnected) => {
+                                eprintln!("[Worker {}] Command channel disconnected", worker_id);
+                                exit.set(true);
+                                return true;
                             }
                         }
-                        Err(e) => {
-                            eprintln!("[Worker {}] Command handling error: {:?}", worker_id, e);
-                        }
                     }
-                }
-                Err(TryRecvError::Empty) => {
-                    // No commands, sleep based on next timer or default
-                    let sleep_duration = next_timer_delay
-                        .unwrap_or_else(|| Duration::from_millis(10))
-                        .min(Duration::from_millis(10)); // Cap at 10ms for responsiveness
-                    thread::sleep(sleep_duration);
-                }
-                Err(TryRecvError::Disconnected) => {
-                    // Main thread disconnected, terminate
-                    eprintln!("[Worker {}] Command channel disconnected", worker_id);
-                    break;
-                }
-            }
+                    false
+                });
+            executor.pump(&mut context, budget);
         }
 
         // Cleanup
         WorkerGlobalScope::unregister_scope(worker_scope_arc.get_scope_id());
-
-        // Unregister event loop
-        timer_api::unregister_event_loop();
 
         // Update status to terminated
         {

@@ -62,10 +62,14 @@ pub(crate) fn get_brainclaw_alias_tool_definitions() -> Vec<Value> {
         // ── Interaction aliases ──────────────────────────────────────────────────
         serde_json::json!({
             "name": "browser_click",
-            "description": "Click an element in a browser session by CSS selector. Alias for `browser_click_element`.",
+            "description": "Click an element by ref (from browser_snapshot) or CSS selector. Alias for `browser_click_element`.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
+                    "ref": {
+                        "type": "string",
+                        "description": "Element ref from browser_snapshot (e.g. \"e12\"); use instead of selector"
+                    },
                     "selector": {
                         "type": "string",
                         "description": "CSS selector for the element to click"
@@ -75,15 +79,19 @@ pub(crate) fn get_brainclaw_alias_tool_definitions() -> Vec<Value> {
                         "description": "Browser session ID"
                     }
                 },
-                "required": ["selector", "session_id"]
+                "required": []
             }
         }),
         serde_json::json!({
             "name": "browser_fill",
-            "description": "Fill an input field in a browser session. Alias for `browser_fill_form`.",
+            "description": "Fill a single input field in a browser session (fires input and change events). Set submit=true to then submit the field's form, including every other field of that form.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
+                    "ref": {
+                        "type": "string",
+                        "description": "Element ref from browser_snapshot (e.g. \"e12\"); use instead of selector"
+                    },
                     "selector": {
                         "type": "string",
                         "description": "CSS selector for the input field"
@@ -92,12 +100,16 @@ pub(crate) fn get_brainclaw_alias_tool_definitions() -> Vec<Value> {
                         "type": "string",
                         "description": "Value to fill into the field"
                     },
+                    "submit": {
+                        "type": "boolean",
+                        "description": "Submit the field's form after filling (default: false)"
+                    },
                     "session_id": {
                         "type": "string",
-                        "description": "Browser session ID"
+                        "description": "Browser session ID (default: \"default\")"
                     }
                 },
-                "required": ["selector", "value", "session_id"]
+                "required": ["value"]
             }
         }),
         // ── CDP aliases ──────────────────────────────────────────────────────────
@@ -121,28 +133,6 @@ pub(crate) fn get_brainclaw_alias_tool_definitions() -> Vec<Value> {
                     }
                 },
                 "required": ["expression"]
-            }
-        }),
-        serde_json::json!({
-            "name": "browser_screenshot",
-            "description": "Capture a screenshot of the current browser page. Returns base64-encoded PNG. Alias for `cdp_page_screenshot`.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "session_id": {
-                        "type": "string",
-                        "description": "Browser session ID (optional)"
-                    },
-                    "format": {
-                        "type": "string",
-                        "enum": ["png", "jpeg"],
-                        "description": "Image format (default: png)"
-                    },
-                    "quality": {
-                        "type": "number",
-                        "description": "JPEG quality 0-100 (only used when format=jpeg, default: 80)"
-                    }
-                }
             }
         }),
         // ── Extraction / search aliases ──────────────────────────────────────────

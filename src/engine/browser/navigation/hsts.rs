@@ -140,10 +140,8 @@ fn extract_domain(url: &str) -> Option<String> {
     // Strip scheme
     let after_scheme = if let Some(rest) = url.strip_prefix("http://") {
         rest
-    } else if let Some(rest) = url.strip_prefix("https://") {
-        rest
     } else {
-        return None;
+        url.strip_prefix("https://")?
     };
 
     // Take everything before the first '/' or '?' or '#' or ':'

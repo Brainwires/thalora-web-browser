@@ -18,55 +18,11 @@ pub async fn search(query: &str, num_results: usize) -> Result<SearchResults> {
         query, search_url
     );
 
-    // Create temporary browser for stateless search with error context
-    eprintln!("🦆 DuckDuckGo: Creating temporary browser instance...");
-    let temp_browser =
-        match std::panic::catch_unwind(crate::engine::browser::HeadlessWebBrowser::new) {
-            Ok(browser) => browser,
-            Err(panic_payload) => {
-                let panic_msg = if let Some(s) = panic_payload.downcast_ref::<&str>() {
-                    s.to_string()
-                } else if let Some(s) = panic_payload.downcast_ref::<String>() {
-                    s.clone()
-                } else {
-                    "Unknown panic during browser creation".to_string()
-                };
-                eprintln!("❌ DuckDuckGo: Browser creation panicked: {}", panic_msg);
-                return Err(anyhow::anyhow!("Failed to create browser: {}", panic_msg));
-            }
-        };
-    eprintln!("🦆 DuckDuckGo: Browser instance created successfully");
-
-    // Navigate with JavaScript support
-    eprintln!("🦆 DuckDuckGo: Acquiring browser lock for navigation...");
-    tokio::task::block_in_place(|| {
-        let mut browser = temp_browser.lock().map_err(|e| {
-            anyhow::anyhow!("Failed to acquire browser lock: mutex poisoned ({})", e)
-        })?;
-        eprintln!("🦆 DuckDuckGo: Navigating to search URL...");
-        let result = tokio::runtime::Handle::current()
-            .block_on(browser.navigate_to_with_options(&search_url, true))
-            .context("Failed to navigate to DuckDuckGo search URL");
-        eprintln!("🦆 DuckDuckGo: Navigation completed");
-        result
-    })?;
-
-    // Get the rendered content
-    eprintln!("🦆 DuckDuckGo: Acquiring browser lock for content extraction...");
-    let html = {
-        let browser = temp_browser.lock().map_err(|e| {
-            anyhow::anyhow!(
-                "Failed to acquire browser lock for content: mutex poisoned ({})",
-                e
-            )
-        })?;
-        let content = browser.get_current_content();
-        eprintln!(
-            "🦆 DuckDuckGo: Retrieved {} bytes of HTML content",
-            content.len()
-        );
-        content
-    };
+    // Temporary browser on its own thread for this stateless search
+    let temp_browser = super::temporary_browser("duckduckgo")?;
+    let html = super::navigate_and_read(&temp_browser, search_url.clone(), false)
+        .await
+        .context("Failed to navigate to DuckDuckGo search URL")?;
 
     // Explicitly drop browser to ensure cleanup
     eprintln!("🦆 DuckDuckGo: Cleaning up browser instance...");
@@ -133,41 +89,11 @@ pub async fn image_search(query: &str, num_results: usize) -> Result<ImageSearch
     );
 
     // Create temporary browser for stateless search
-    let temp_browser =
-        match std::panic::catch_unwind(crate::engine::browser::HeadlessWebBrowser::new) {
-            Ok(browser) => browser,
-            Err(panic_payload) => {
-                let panic_msg = if let Some(s) = panic_payload.downcast_ref::<&str>() {
-                    s.to_string()
-                } else if let Some(s) = panic_payload.downcast_ref::<String>() {
-                    s.clone()
-                } else {
-                    "Unknown panic during browser creation".to_string()
-                };
-                return Err(anyhow::anyhow!("Failed to create browser: {}", panic_msg));
-            }
-        };
-
-    // Navigate with JavaScript support
-    tokio::task::block_in_place(|| {
-        let mut browser = temp_browser.lock().map_err(|e| {
-            anyhow::anyhow!("Failed to acquire browser lock: mutex poisoned ({})", e)
-        })?;
-        tokio::runtime::Handle::current()
-            .block_on(browser.navigate_to_with_options(&search_url, true))
-            .context("Failed to navigate to DuckDuckGo image search URL")
-    })?;
-
-    // Get the rendered content
-    let html = {
-        let browser = temp_browser.lock().map_err(|e| {
-            anyhow::anyhow!(
-                "Failed to acquire browser lock for content: mutex poisoned ({})",
-                e
-            )
-        })?;
-        browser.get_current_content()
-    };
+    // Temporary browser on its own thread for this stateless search
+    let temp_browser = super::temporary_browser("duckduckgo-images")?;
+    let html = super::navigate_and_read(&temp_browser, search_url.clone(), false)
+        .await
+        .context("Failed to navigate to DuckDuckGo image search URL")?;
 
     drop(temp_browser);
 

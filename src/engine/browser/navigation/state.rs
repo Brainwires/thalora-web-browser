@@ -5,7 +5,7 @@ impl super::super::HeadlessWebBrowser {
     /// Returns the URL navigated to, or None if at the beginning of history
     pub async fn go_back(&mut self) -> Result<Option<String>> {
         if !self.can_go_back() {
-            eprintln!("🔍 DEBUG: go_back - cannot go back, at beginning of history");
+            tracing::debug!("go_back - cannot go back, at beginning of history");
             return Ok(None);
         }
 
@@ -16,9 +16,10 @@ impl super::super::HeadlessWebBrowser {
         let entry = &self.history.entries[self.history.current_index];
         let url = entry.url.clone();
 
-        eprintln!(
-            "🔍 DEBUG: go_back - navigating to history entry {}: {}",
-            self.history.current_index, url
+        tracing::debug!(
+            "go_back - navigating to history entry {}: {}",
+            self.history.current_index,
+            url
         );
 
         // Navigate without adding to history
@@ -31,7 +32,7 @@ impl super::super::HeadlessWebBrowser {
     /// Returns the URL navigated to, or None if at the end of history
     pub async fn go_forward(&mut self) -> Result<Option<String>> {
         if !self.can_go_forward() {
-            eprintln!("🔍 DEBUG: go_forward - cannot go forward, at end of history");
+            tracing::debug!("go_forward - cannot go forward, at end of history");
             return Ok(None);
         }
 
@@ -42,9 +43,10 @@ impl super::super::HeadlessWebBrowser {
         let entry = &self.history.entries[self.history.current_index];
         let url = entry.url.clone();
 
-        eprintln!(
-            "🔍 DEBUG: go_forward - navigating to history entry {}: {}",
-            self.history.current_index, url
+        tracing::debug!(
+            "go_forward - navigating to history entry {}: {}",
+            self.history.current_index,
+            url
         );
 
         // Navigate without adding to history

@@ -12,13 +12,15 @@ impl McpServer {
         &mut self,
         arguments: Value,
     ) -> McpResponse {
-        eprintln!("🔍 DEBUG: Starting web_search function");
+        tracing::debug!("Starting web_search function");
         let query = arguments["query"].as_str().unwrap_or("");
         let num_results = arguments["num_results"].as_u64().unwrap_or(10) as usize;
         let search_engine = arguments["search_engine"].as_str().unwrap_or("duckduckgo");
-        eprintln!(
-            "🔍 DEBUG: Parameters - query: {}, num_results: {}, engine: {}",
-            query, num_results, search_engine
+        tracing::debug!(
+            "Parameters - query: {}, num_results: {}, engine: {}",
+            query,
+            num_results,
+            search_engine
         );
 
         if query.is_empty() {
@@ -31,7 +33,7 @@ impl McpServer {
         }
 
         let num_results = num_results.min(20); // Cap at 20 results
-        eprintln!("🔍 DEBUG: About to call perform_web_search");
+        tracing::debug!("About to call perform_web_search");
 
         // Execute search with comprehensive error handling
         // Note: We can't use tokio::spawn here because HeadlessWebBrowser is not Send/Sync
@@ -40,8 +42,8 @@ impl McpServer {
 
         match search_result {
             Ok(results) => {
-                eprintln!(
-                    "🔍 DEBUG: perform_web_search succeeded with {} results",
+                tracing::debug!(
+                    "perform_web_search succeeded with {} results",
                     results.results.len()
                 );
                 // Wrap result in MCP text content format

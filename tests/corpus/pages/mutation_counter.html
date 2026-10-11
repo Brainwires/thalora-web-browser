@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Activity</title></head>
+<body>
+  <ul id="feed"></ul>
+  <p id="status">No activity</p>
+  <script>
+    const feed = document.getElementById('feed');
+    let added = 0;
+    new MutationObserver(records => {
+      for (const r of records) added += r.addedNodes.length;
+      document.getElementById('status').textContent = added + ' items added';
+    }).observe(feed, { childList: true });
+    for (const text of ['Boat launched', 'Sails trimmed', 'Mooring found']) {
+      const li = document.createElement('li');
+      li.textContent = text;
+      feed.appendChild(li);
+    }
+  </script>
+</body>
+</html>

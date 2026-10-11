@@ -1198,10 +1198,8 @@ impl HTMLInputElement {
                     validity.type_mismatch = true;
                 }
             }
-            "number" => {
-                if !value.is_empty() && value.parse::<f64>().is_err() {
-                    validity.bad_input = true;
-                }
+            "number" if !value.is_empty() && value.parse::<f64>().is_err() => {
+                validity.bad_input = true;
             }
             _ => {}
         }

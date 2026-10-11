@@ -187,21 +187,15 @@ impl OpfsBackend {
     }
 
     pub fn exists(&self, virt: &Path) -> bool {
-        self.resolve(virt)
-            .map(|p| p.exists())
-            .unwrap_or(false)
+        self.resolve(virt).map(|p| p.exists()).unwrap_or(false)
     }
 
     pub fn is_dir(&self, virt: &Path) -> bool {
-        self.resolve(virt)
-            .map(|p| p.is_dir())
-            .unwrap_or(false)
+        self.resolve(virt).map(|p| p.is_dir()).unwrap_or(false)
     }
 
     pub fn is_file(&self, virt: &Path) -> bool {
-        self.resolve(virt)
-            .map(|p| p.is_file())
-            .unwrap_or(false)
+        self.resolve(virt).map(|p| p.is_file()).unwrap_or(false)
     }
 
     pub fn is_dir_empty(&self, virt: &Path) -> io::Result<bool> {
@@ -212,12 +206,8 @@ impl OpfsBackend {
 
 fn invalid_name_to_io(e: FsError) -> io::Error {
     match e {
-        FsError::InvalidName => {
-            io::Error::new(io::ErrorKind::InvalidInput, "invalid OPFS name")
-        }
-        FsError::PathEscape => {
-            io::Error::new(io::ErrorKind::PermissionDenied, "OPFS path escape")
-        }
+        FsError::InvalidName => io::Error::new(io::ErrorKind::InvalidInput, "invalid OPFS name"),
+        FsError::PathEscape => io::Error::new(io::ErrorKind::PermissionDenied, "OPFS path escape"),
     }
 }
 
@@ -237,11 +227,7 @@ fn origin_slug(origin: &str) -> String {
         }
     }
     let hash = Sha256::digest(origin.as_bytes());
-    let hex: String = hash
-        .iter()
-        .take(4)
-        .map(|b| format!("{:02x}", b))
-        .collect();
+    let hex: String = hash.iter().take(4).map(|b| format!("{:02x}", b)).collect();
     if sanitised.is_empty() {
         format!("origin_{}", hex)
     } else {

@@ -6,6 +6,8 @@
 use std::ffi::c_char;
 use std::ptr;
 
+use futures::FutureExt;
+
 use super::instance::{ThalorInstance, c_str_to_rust_safe, instance_ref, rust_string_to_c};
 
 /// Execute JavaScript code in the browser context.
@@ -30,14 +32,9 @@ pub extern "C" fn thalora_execute_js(
         }
     };
 
-    let result = match inst
-        .browser
-        .lock()
-        .map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))
-    {
-        Ok(mut browser) => inst.runtime.block_on(browser.execute_javascript(&code_str)),
-        Err(e) => Err(e),
-    };
+    let result = inst.with_browser(move |browser| {
+        async move { browser.execute_javascript(&code_str).await }.boxed_local()
+    });
 
     match result {
         Ok(output) => rust_string_to_c(output),
@@ -69,14 +66,9 @@ pub extern "C" fn thalora_click_element(
         }
     };
 
-    let result = match inst
-        .browser
-        .lock()
-        .map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))
-    {
-        Ok(mut browser) => inst.runtime.block_on(browser.click_element(&sel_str)),
-        Err(e) => Err(e),
-    };
+    let result = inst.with_browser(move |browser| {
+        async move { browser.click_element(&sel_str).await }.boxed_local()
+    });
 
     match result {
         Ok(response) => {
@@ -127,16 +119,14 @@ pub extern "C" fn thalora_type_text(
 
     let clear = clear_first != 0;
 
-    let result = match inst
-        .browser
-        .lock()
-        .map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))
-    {
-        Ok(mut browser) => inst
-            .runtime
-            .block_on(browser.type_text_into_element(&sel_str, &text_str, clear)),
-        Err(e) => Err(e),
-    };
+    let result = inst.with_browser(move |browser| {
+        async move {
+            browser
+                .type_text_into_element(&sel_str, &text_str, clear)
+                .await
+        }
+        .boxed_local()
+    });
 
     match result {
         Ok(response) => {
@@ -181,43 +171,27 @@ pub extern "C" fn thalora_submit_form(
     let field_data: Option<std::collections::HashMap<String, String>> =
         c_str_to_rust_safe(json_data).and_then(|json_str| serde_json::from_str(json_str).ok());
 
-    let result = match inst
-        .browser
-        .lock()
-        .map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))
-    {
-        Ok(mut browser) => {
+    let result = inst.with_browser(move |browser| {
+        async move {
             // First fill in any form data if provided
-            let mut fill_result = Ok(());
             if let Some(fields) = &field_data {
                 for (name, value) in fields {
                     let field_selector = format!("{} [name=\"{}\"]", sel_str, name);
-                    if let Err(e) = inst.runtime.block_on(browser.type_text_into_element(
-                        &field_selector,
-                        value,
-                        true,
-                    )) {
-                        fill_result = Err(e);
-                        break;
-                    }
+                    browser
+                        .type_text_into_element(&field_selector, value, true)
+                        .await?;
                 }
             }
 
-            match fill_result {
-                Ok(()) => {
-                    // Then click the submit button within the form
-                    let submit_selector = format!(
-                        "{} [type=\"submit\"], {} button[type=\"submit\"], {} button:not([type])",
-                        sel_str, sel_str, sel_str
-                    );
-                    inst.runtime
-                        .block_on(browser.click_element(&submit_selector))
-                }
-                Err(e) => Err(e),
-            }
+            // Then click the submit button within the form
+            let submit_selector = format!(
+                "{} [type=\"submit\"], {} button[type=\"submit\"], {} button:not([type])",
+                sel_str, sel_str, sel_str
+            );
+            browser.click_element(&submit_selector).await
         }
-        Err(e) => Err(e),
-    };
+        .boxed_local()
+    });
 
     match result {
         Ok(response) => {
@@ -245,16 +219,12 @@ pub extern "C" fn thalora_get_page_title(instance: *mut ThalorInstance) -> *mut 
     };
     inst.clear_error();
 
-    let browser = match inst.browser.lock() {
-        Ok(b) => b,
+    match inst.read_browser(|browser| browser.get_current_title()) {
+        Ok(Some(title)) => rust_string_to_c(title),
+        Ok(None) => ptr::null_mut(),
         Err(e) => {
-            inst.set_error(format!("Lock poisoned: {}", e));
-            return ptr::null_mut();
+            inst.set_error(e.to_string());
+            ptr::null_mut()
         }
-    };
-
-    match browser.get_current_title() {
-        Some(title) => rust_string_to_c(title),
-        None => ptr::null_mut(),
     }
 }

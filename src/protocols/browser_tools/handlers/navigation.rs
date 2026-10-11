@@ -1,3 +1,9 @@
+// Browser jobs run one at a time on the session's own BrowserThread
+// (single-threaded), so holding the browser's MutexGuard across .await
+// cannot contend or deadlock.
+#![allow(clippy::await_holding_lock)]
+
+use futures::FutureExt;
 use serde_json::{Value, json};
 use url::Url;
 
@@ -45,31 +51,41 @@ impl BrowserTools {
             return McpResponse::error(-32602, format!("URL blocked for security: {}", e));
         }
 
-        let browser = self.get_or_create_session(session_id, false);
+        let browser = match self.get_or_create_session(session_id, false) {
+            Ok(browser) => browser,
+            Err(e) => return McpResponse::error(-1, e),
+        };
         let url_owned = url.to_string();
-        tokio::task::block_in_place(|| {
-            let rt = tokio::runtime::Handle::current();
-            if let Ok(mut guard) = browser.lock() {
-                match rt.block_on(guard.navigate_to_with_js_option(
-                    &url_owned,
-                    wait_for_load,
-                    wait_for_js,
-                )) {
-                    Ok(content) => {
-                        let current_url = guard.get_current_url();
-                        McpResponse::success(json!({
-                            "success": true,
-                            "content": content,
-                            "url": current_url,
-                            "message": format!("Successfully navigated to {}", url_owned)
-                        }))
+        crate::protocols::browser_tools::core::run_in(&browser, move |browser| {
+            async move {
+                if let Ok(mut guard) = browser.lock() {
+                    match guard
+                        .navigate_to_with_js_option(&url_owned, wait_for_load, wait_for_js)
+                        .await
+                    {
+                        Ok(content) => {
+                            let current_url = guard.get_current_url();
+                            McpResponse::page_content(
+                                current_url.as_deref(),
+                                json!({
+                                    "success": true,
+                                    "content": content,
+                                    "url": current_url,
+                                    "message": format!("Successfully navigated to {}", url_owned)
+                                }),
+                            )
+                        }
+                        Err(e) => {
+                            McpResponse::error(-1, format!("Failed to navigate to URL: {}", e))
+                        }
                     }
-                    Err(e) => McpResponse::error(-1, format!("Failed to navigate to URL: {}", e)),
+                } else {
+                    McpResponse::error(-1, "Failed to acquire browser lock".to_string())
                 }
-            } else {
-                McpResponse::error(-1, "Failed to acquire browser lock".to_string())
             }
+            .boxed_local()
         })
+        .await
     }
 
     pub async fn handle_navigate_back(&self, params: Value) -> McpResponse {
@@ -83,29 +99,38 @@ impl BrowserTools {
             return McpResponse::error(-32602, format!("Session ID validation failed: {}", e));
         }
 
-        let browser = self.get_or_create_session(session_id, false);
-        tokio::task::block_in_place(|| {
-            let rt = tokio::runtime::Handle::current();
-            if let Ok(mut guard) = browser.lock() {
-                match rt.block_on(guard.go_back()) {
-                    Ok(Some(content)) => {
-                        let current_url = guard.get_current_url();
-                        McpResponse::success(json!({
-                            "success": true,
-                            "content": content,
-                            "url": current_url
-                        }))
+        let browser = match self.get_session(session_id) {
+            Ok(browser) => browser,
+            Err(e) => return McpResponse::error(-32602, e),
+        };
+        crate::protocols::browser_tools::core::run_in(&browser, move |browser| {
+            async move {
+                if let Ok(mut guard) = browser.lock() {
+                    match guard.go_back().await {
+                        Ok(Some(content)) => {
+                            let current_url = guard.get_current_url();
+                            McpResponse::page_content(
+                                current_url.as_deref(),
+                                json!({
+                                    "success": true,
+                                    "content": content,
+                                    "url": current_url
+                                }),
+                            )
+                        }
+                        Ok(None) => McpResponse::success(json!({
+                            "success": false,
+                            "message": "Cannot go back further"
+                        })),
+                        Err(e) => McpResponse::error(-1, format!("Failed to navigate back: {}", e)),
                     }
-                    Ok(None) => McpResponse::success(json!({
-                        "success": false,
-                        "message": "Cannot go back further"
-                    })),
-                    Err(e) => McpResponse::error(-1, format!("Failed to navigate back: {}", e)),
+                } else {
+                    McpResponse::error(-1, "Failed to acquire browser lock".to_string())
                 }
-            } else {
-                McpResponse::error(-1, "Failed to acquire browser lock".to_string())
             }
+            .boxed_local()
         })
+        .await
     }
 
     pub async fn handle_navigate_forward(&self, params: Value) -> McpResponse {
@@ -119,29 +144,40 @@ impl BrowserTools {
             return McpResponse::error(-32602, format!("Session ID validation failed: {}", e));
         }
 
-        let browser = self.get_or_create_session(session_id, false);
-        tokio::task::block_in_place(|| {
-            let rt = tokio::runtime::Handle::current();
-            if let Ok(mut guard) = browser.lock() {
-                match rt.block_on(guard.go_forward()) {
-                    Ok(Some(content)) => {
-                        let current_url = guard.get_current_url();
-                        McpResponse::success(json!({
-                            "success": true,
-                            "content": content,
-                            "url": current_url
-                        }))
+        let browser = match self.get_session(session_id) {
+            Ok(browser) => browser,
+            Err(e) => return McpResponse::error(-32602, e),
+        };
+        crate::protocols::browser_tools::core::run_in(&browser, move |browser| {
+            async move {
+                if let Ok(mut guard) = browser.lock() {
+                    match guard.go_forward().await {
+                        Ok(Some(content)) => {
+                            let current_url = guard.get_current_url();
+                            McpResponse::page_content(
+                                current_url.as_deref(),
+                                json!({
+                                    "success": true,
+                                    "content": content,
+                                    "url": current_url
+                                }),
+                            )
+                        }
+                        Ok(None) => McpResponse::success(json!({
+                            "success": false,
+                            "message": "Cannot go forward further"
+                        })),
+                        Err(e) => {
+                            McpResponse::error(-1, format!("Failed to navigate forward: {}", e))
+                        }
                     }
-                    Ok(None) => McpResponse::success(json!({
-                        "success": false,
-                        "message": "Cannot go forward further"
-                    })),
-                    Err(e) => McpResponse::error(-1, format!("Failed to navigate forward: {}", e)),
+                } else {
+                    McpResponse::error(-1, "Failed to acquire browser lock".to_string())
                 }
-            } else {
-                McpResponse::error(-1, "Failed to acquire browser lock".to_string())
             }
+            .boxed_local()
         })
+        .await
     }
 
     pub async fn handle_refresh_page(&self, params: Value) -> McpResponse {
@@ -155,25 +191,34 @@ impl BrowserTools {
             return McpResponse::error(-32602, format!("Session ID validation failed: {}", e));
         }
 
-        let browser = self.get_or_create_session(session_id, false);
-        tokio::task::block_in_place(|| {
-            let rt = tokio::runtime::Handle::current();
-            if let Ok(mut guard) = browser.lock() {
-                match rt.block_on(guard.reload()) {
-                    Ok(content) => {
-                        let current_url = guard.get_current_url();
-                        McpResponse::success(json!({
-                            "success": true,
-                            "content": content,
-                            "url": current_url,
-                            "message": "Page refreshed successfully"
-                        }))
+        let browser = match self.get_session(session_id) {
+            Ok(browser) => browser,
+            Err(e) => return McpResponse::error(-32602, e),
+        };
+        crate::protocols::browser_tools::core::run_in(&browser, move |browser| {
+            async move {
+                if let Ok(mut guard) = browser.lock() {
+                    match guard.reload().await {
+                        Ok(content) => {
+                            let current_url = guard.get_current_url();
+                            McpResponse::page_content(
+                                current_url.as_deref(),
+                                json!({
+                                    "success": true,
+                                    "content": content,
+                                    "url": current_url,
+                                    "message": "Page refreshed successfully"
+                                }),
+                            )
+                        }
+                        Err(e) => McpResponse::error(-1, format!("Failed to refresh page: {}", e)),
                     }
-                    Err(e) => McpResponse::error(-1, format!("Failed to refresh page: {}", e)),
+                } else {
+                    McpResponse::error(-1, "Failed to acquire browser lock".to_string())
                 }
-            } else {
-                McpResponse::error(-1, "Failed to acquire browser lock".to_string())
             }
+            .boxed_local()
         })
+        .await
     }
 }

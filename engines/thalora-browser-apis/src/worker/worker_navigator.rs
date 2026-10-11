@@ -159,8 +159,7 @@ impl WorkerNavigator {
         )?;
 
         // Expose `navigator.storage` so OPFS is reachable inside workers.
-        let storage_obj =
-            crate::storage::storage_manager::StorageManager::create_storage_manager();
+        let storage_obj = crate::storage::storage_manager::StorageManager::create_storage_manager();
         let storage_proto = context
             .intrinsics()
             .constructors()

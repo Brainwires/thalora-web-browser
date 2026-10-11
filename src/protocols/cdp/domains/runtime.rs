@@ -79,8 +79,8 @@ impl CdpDomain for RuntimeDomain {
                         "type": "string",
                         "value": format!(
                             "CDP Runtime.evaluate requires MCP integration. Use the 'cdp_evaluate_javascript' MCP tool instead. Expression: {}",
-                            if expression.len() > 50 {
-                                format!("{}...", &expression[..50])
+                            if expression.chars().count() > 50 {
+                                format!("{}...", expression.chars().take(50).collect::<String>())
                             } else {
                                 expression.to_string()
                             }

@@ -125,8 +125,17 @@ impl ModuleLoader for HttpModuleLoader {
         // The ModuleLoader trait is async, so we can await directly.
         // However, Boa runs futures via its own single-threaded executor (run_jobs),
         // which doesn't have a tokio runtime. Use reqwest::blocking instead.
+        // SSRF: module URLs come from page content
+        crate::engine::security::SsrfProtection::new()
+            .is_safe_url(&resolved_url)
+            .map_err(|e| {
+                JsNativeError::typ()
+                    .with_message(format!("Module import blocked '{}': {}", resolved_url, e))
+            })?;
+
         let source_text = {
             let client = reqwest::blocking::Client::builder()
+                .redirect(crate::engine::security::ssrf::http::redirect_policy())
                 .user_agent(thalora_constants::USER_AGENT)
                 .timeout(std::time::Duration::from_secs(30))
                 .build()

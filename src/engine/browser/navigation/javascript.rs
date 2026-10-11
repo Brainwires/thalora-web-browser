@@ -5,7 +5,6 @@ use std::error::Error;
 use tokio::time::{Duration, sleep};
 
 use crate::engine::browser::types::NavigationMode;
-use crate::engine::renderer::RustRenderer;
 use crate::engine::security::SsrfProtection;
 
 /// Re-export SRI verification from shared module
@@ -25,9 +24,11 @@ impl super::super::HeadlessWebBrowser {
         wait_for_load: bool,
         wait_for_js: bool,
     ) -> Result<String> {
-        eprintln!(
-            "🔍 DEBUG: navigate_to_with_js_option - URL: {}, wait_for_load: {}, wait_for_js: {}",
-            url, wait_for_load, wait_for_js
+        tracing::debug!(
+            "navigate_to_with_js_option - URL: {}, wait_for_load: {}, wait_for_js: {}",
+            url,
+            wait_for_load,
+            wait_for_js
         );
 
         // SECURITY: Validate URL to prevent SSRF attacks
@@ -43,25 +44,10 @@ impl super::super::HeadlessWebBrowser {
         };
         let url = url.as_str();
 
-        // Reset the Boa JS context before navigation.
-        //
-        // WHY LEAK: Each `NavigateAsync` call creates a NEW OS thread. The Boa GC uses
-        // thread-local storage (`BOA_GC`). Objects allocated by the OLD renderer were
-        // created on a different OS thread (T_prev). When the old renderer is dropped on
-        // the NEW thread (T_curr), `Gc<T>::drop()` runs finalizers on T_curr. Those
-        // finalizers can create new GC objects that hold pointers to T_prev's orphaned
-        // `GcBox` allocations. The next GC collection on T_curr follows those pointers
-        // and crashes (SIGSEGV in `trace_fn`).
-        //
-        // `mem::forget` skips the Drop entirely, so no finalizers run, no contamination
-        // of T_curr's GC state, and the new renderer starts with a pristine GC.
-        // The leaked Boa objects are ~5–15 MB per navigation and are bounded per-session.
-        if let Some(old_renderer) = self.renderer.take() {
-            eprintln!("🔍 DEBUG: Leaking old JS context to avoid cross-thread GC corruption");
-            std::mem::forget(old_renderer);
-        }
-        self.renderer = Some(RustRenderer::new());
-        eprintln!("🔍 DEBUG: Fresh JS context ready for navigation");
+        // Fresh JS context for the new page. The old one is dropped on
+        // browser-owning threads and leaked elsewhere (Boa's GC is
+        // thread-local; see `dispose_renderer`).
+        self.reset_renderer();
 
         // Get browser-specific headers for stealth
         let headers = self.create_standard_browser_headers(url);
@@ -74,9 +60,9 @@ impl super::super::HeadlessWebBrowser {
             .send()
             .await
             .map_err(|e| {
-                eprintln!("🔍 DEBUG: HTTP request error details: {}", e);
+                tracing::debug!("HTTP request error details: {}", e);
                 if let Some(source) = e.source() {
-                    eprintln!("🔍 DEBUG: Error source: {}", source);
+                    tracing::debug!("Error source: {}", source);
                 }
                 e
             })?;
@@ -155,19 +141,19 @@ impl super::super::HeadlessWebBrowser {
         // Update ES module loader base URL for relative import resolution
         self.set_module_base_url(url);
 
-        eprintln!("🔍 DEBUG: Content length: {} characters", content.len());
+        tracing::debug!("Content length: {} characters", content.len());
 
         // Fetch external stylesheets from <link rel="stylesheet"> tags
         let external_css = self.fetch_all_stylesheets().await;
         self.external_stylesheets = external_css;
-        eprintln!(
-            "🔍 DEBUG: Stored {} external stylesheets",
+        tracing::debug!(
+            "Stored {} external stylesheets",
             self.external_stylesheets.len()
         );
 
         // Store HTML content for form parsing when needed
-        eprintln!(
-            "🔍 DEBUG: HTML content available for form parsing: {} characters",
+        tracing::debug!(
+            "HTML content available for form parsing: {} characters",
             content.len()
         );
 
@@ -175,7 +161,10 @@ impl super::super::HeadlessWebBrowser {
         // Non-fatal: the page content is already loaded; a renderer update failure
         // shouldn't abort navigation.
         if let Some(ref mut renderer) = self.renderer {
-            eprintln!("🔍 DEBUG: Updating document HTML via renderer");
+            tracing::debug!("Updating document HTML via renderer");
+            if let Some(url) = self.current_url.as_deref() {
+                renderer.set_page_url(url);
+            }
             if let Err(e) = renderer.update_document_html(&content) {
                 eprintln!(
                     "WARNING: Failed to update document HTML: {} (continuing)",
@@ -184,23 +173,21 @@ impl super::super::HeadlessWebBrowser {
             }
         }
 
-        // Add human-like navigation delays only in Stealth mode (MCP/headless)
-        if self.navigation_mode == NavigationMode::Stealth {
+        // Human-like random delays (1.5-5s per navigation) are opt-in: they
+        // only help against some bot detection and make every agent action
+        // slow. Enable with THALORA_STEALTH_DELAYS=true in Stealth mode.
+        let stealth_delays = std::env::var("THALORA_STEALTH_DELAYS")
+            .is_ok_and(|v| v == "1" || v.eq_ignore_ascii_case("true"));
+        if self.navigation_mode == NavigationMode::Stealth && stealth_delays {
             let navigation_delay = 1000 + (rand::random::<u64>() % 2000); // 1-3 seconds
-            eprintln!(
-                "🔍 DEBUG: Adding human-like navigation delay: {}ms",
-                navigation_delay
-            );
+            tracing::debug!("Adding human-like navigation delay: {}ms", navigation_delay);
             sleep(Duration::from_millis(navigation_delay)).await;
 
             let processing_delay = 500 + (rand::random::<u64>() % 1500); // 0.5-2 seconds
-            eprintln!(
-                "🔍 DEBUG: Adding page processing delay: {}ms",
-                processing_delay
-            );
+            tracing::debug!("Adding page processing delay: {}ms", processing_delay);
             sleep(Duration::from_millis(processing_delay)).await;
         } else {
-            eprintln!("🔍 DEBUG: Interactive mode - skipping anti-bot delays");
+            tracing::debug!("Skipping anti-bot delays (THALORA_STEALTH_DELAYS not set)");
         }
 
         // Analyze forms for target="_blank" detection
@@ -208,10 +195,7 @@ impl super::super::HeadlessWebBrowser {
         match self.form_analyzer.analyze_forms(&content) {
             Ok(forms) => {
                 self.analyzed_forms = forms;
-                eprintln!(
-                    "🔍 DEBUG: Analyzed {} forms on page",
-                    self.analyzed_forms.len()
-                );
+                tracing::debug!("Analyzed {} forms on page", self.analyzed_forms.len());
 
                 let new_window_forms = self
                     .analyzed_forms
@@ -219,17 +203,14 @@ impl super::super::HeadlessWebBrowser {
                     .filter(|f| f.opens_new_window)
                     .count();
                 if new_window_forms > 0 {
-                    eprintln!(
-                        "🔍 DEBUG: Found {} forms that open new windows",
-                        new_window_forms
-                    );
+                    tracing::debug!("Found {} forms that open new windows", new_window_forms);
                 }
             }
-            Err(e) => eprintln!("🔍 DEBUG: Form analysis failed: {}", e),
+            Err(e) => tracing::debug!("Form analysis failed: {}", e),
         }
 
         // Headless browser behavior: load HTML and make it ready for interaction
-        eprintln!("🔍 DEBUG: HTML content loaded");
+        tracing::debug!("HTML content loaded");
 
         // Add to navigation history
         let title = self
@@ -241,38 +222,25 @@ impl super::super::HeadlessWebBrowser {
         // Skip entirely if the page has no <script> tags — saves the full JS timeout.
         let has_scripts = content.contains("<script");
         if wait_for_js && !has_scripts {
-            eprintln!("🔍 DEBUG: No <script> tags found — skipping JS execution");
+            tracing::debug!("No <script> tags found — skipping JS execution");
         }
         if wait_for_js && has_scripts {
-            eprintln!("🔍 DEBUG: wait_for_js enabled, executing page scripts");
+            tracing::debug!("wait_for_js enabled, executing page scripts");
 
             // CSP: Install eval/Function blocking if 'unsafe-eval' is not allowed
             if let Some(ref mut renderer) = self.renderer {
                 renderer.install_csp_eval_block();
             }
 
-            // Execute non-deferred inline scripts from the page
-            self.execute_page_scripts(&content, false).await?;
-
-            // Fire DOMContentLoaded event
-            eprintln!("🔍 DEBUG: Firing DOMContentLoaded event");
-            self.fire_dom_content_loaded().await?;
-
-            // Execute deferred scripts AFTER DOMContentLoaded
-            self.execute_page_scripts(&content, true).await?;
-
-            // Wait for JavaScript execution to settle.
-            // Use a short timeout in Interactive mode (GUI) to keep page loads fast.
-            // Stealth mode (MCP/headless) can afford a longer wait.
+            // Run scripts and fire load events, then let timers, promises and
+            // fetches settle. Use a short budget in Interactive mode (GUI) to
+            // keep page loads fast; MCP/headless can afford a longer wait.
             let js_timeout = if self.navigation_mode == NavigationMode::Stealth {
                 5000
             } else {
                 2000
             };
-            match self.wait_for_js_execution(js_timeout).await {
-                Ok(_) => eprintln!("🔍 DEBUG: JavaScript execution completed successfully"),
-                Err(e) => eprintln!("🔍 DEBUG: JavaScript execution timeout (non-fatal): {}", e),
-            }
+            self.run_page_load_sequence(&content, js_timeout).await?;
 
             // After JS execution, capture the modified DOM back into current_content.
             // JavaScript may have added/removed elements (e.g., sidebar TOC, UI panels).
@@ -291,15 +259,15 @@ impl super::super::HeadlessWebBrowser {
                         format!("<!DOCTYPE html><html>{}</html>", html)
                     };
                     self.current_content = full_html;
-                    eprintln!(
-                        "🔍 DEBUG: Updated current_content with JS-modified DOM ({} → {} bytes)",
+                    tracing::debug!(
+                        "Updated current_content with JS-modified DOM ({} → {} bytes)",
                         original_len,
                         self.current_content.len()
                     );
                 }
                 Ok(html) => {
-                    eprintln!(
-                        "🔍 DEBUG: outerHTML too short ({}), keeping original content",
+                    tracing::debug!(
+                        "outerHTML too short ({}), keeping original content",
                         html.len()
                     );
                 }
@@ -309,7 +277,13 @@ impl super::super::HeadlessWebBrowser {
                 }
             }
         } else if !wait_for_js {
-            eprintln!("🔍 DEBUG: wait_for_js disabled, ready for direct DOM interaction");
+            tracing::debug!("wait_for_js disabled, ready for direct DOM interaction");
+        }
+
+        // Geometry for getBoundingClientRect()/offset* was computed from the
+        // pre-script HTML without external CSS; recompute it for the final page.
+        if wait_for_js && has_scripts {
+            self.refresh_layout();
         }
 
         // Reset bypass_cache flag after navigation completes
@@ -325,8 +299,8 @@ impl super::super::HeadlessWebBrowser {
         } else {
             "non-deferred"
         };
-        eprintln!(
-            "🔍 DEBUG: execute_page_scripts - extracting and executing {} scripts",
+        tracing::debug!(
+            "execute_page_scripts - extracting and executing {} scripts",
             mode
         );
 
@@ -377,15 +351,21 @@ impl super::super::HeadlessWebBrowser {
             }
 
             if !async_scripts.is_empty() {
-                eprintln!(
-                    "🔍 DEBUG: Pre-fetching {} async scripts in parallel",
+                tracing::debug!(
+                    "Pre-fetching {} async scripts in parallel",
                     async_scripts.len()
                 );
                 // Fetch all async scripts in parallel
                 let fetch_futures: Vec<_> = async_scripts
                     .iter()
                     .map(|(url, _)| {
-                        let client = reqwest::Client::new();
+                        let client = reqwest::Client::builder()
+                            .dns_resolver(std::sync::Arc::new(
+                                crate::engine::security::ssrf::http::PublicOnlyResolver,
+                            ))
+                            .redirect(crate::engine::security::ssrf::http::redirect_policy())
+                            .build()
+                            .unwrap_or_default();
                         let url = url.clone();
                         async move {
                             let result = client
@@ -419,7 +399,7 @@ impl super::super::HeadlessWebBrowser {
                         match self.execute_page_javascript(&content).await {
                             Ok(_) => {
                                 scripts_executed += 1;
-                                eprintln!("🔍 DEBUG: Async script executed: {}", url);
+                                tracing::debug!("Async script executed: {}", url);
                             }
                             Err(e) => {
                                 scripts_failed += 1;
@@ -452,7 +432,7 @@ impl super::super::HeadlessWebBrowser {
                 && !script_type.is_empty()
                 && script_type != "module"
             {
-                eprintln!("🔍 DEBUG: Skipping script with type: {}", script_type);
+                tracing::debug!("Skipping script with type: {}", script_type);
                 continue;
             }
 
@@ -465,14 +445,14 @@ impl super::super::HeadlessWebBrowser {
                 if let Some(src) = script_element.value().attr("src") {
                     // External module
                     let script_url = self.resolve_script_url(&base_url, src)?;
-                    eprintln!("🔍 DEBUG: Fetching external module from: {}", script_url);
+                    tracing::debug!("Fetching external module from: {}", script_url);
 
                     match self.fetch_external_script(&script_url).await {
                         Ok(module_source) => {
                             match self.execute_module(&module_source, &script_url).await {
                                 Ok(_) => {
                                     scripts_executed += 1;
-                                    eprintln!("🔍 DEBUG: External module executed successfully");
+                                    tracing::debug!("External module executed successfully");
                                 }
                                 Err(e) => {
                                     scripts_failed += 1;
@@ -495,14 +475,11 @@ impl super::super::HeadlessWebBrowser {
                     // Inline module
                     let module_source: String = script_element.text().collect();
                     if !module_source.trim().is_empty() {
-                        eprintln!(
-                            "🔍 DEBUG: Executing inline module ({} chars)",
-                            module_source.len()
-                        );
+                        tracing::debug!("Executing inline module ({} chars)", module_source.len());
                         match self.execute_module(&module_source, &base_url).await {
                             Ok(_) => {
                                 scripts_executed += 1;
-                                eprintln!("🔍 DEBUG: Inline module executed successfully");
+                                tracing::debug!("Inline module executed successfully");
                             }
                             Err(e) => {
                                 scripts_failed += 1;
@@ -528,15 +505,13 @@ impl super::super::HeadlessWebBrowser {
                 continue; // Skip non-deferred scripts in deferred pass
             }
             if !only_deferred && is_defer {
-                eprintln!(
-                    "🔍 DEBUG: Skipping deferred script (will execute after DOMContentLoaded)"
-                );
+                tracing::debug!("Skipping deferred script (will execute after DOMContentLoaded)");
                 continue; // Skip deferred scripts in normal pass
             }
 
             // Check if this is an external script
             if let Some(src) = script_element.value().attr("src") {
-                eprintln!("🔍 DEBUG: Found external script: {}", src);
+                tracing::debug!("Found external script: {}", src);
 
                 // Extract SRI integrity attribute if present
                 let integrity = script_element.value().attr("integrity");
@@ -544,7 +519,7 @@ impl super::super::HeadlessWebBrowser {
                 // Resolve the URL (handle relative paths, protocol-relative URLs)
                 let script_url = self.resolve_script_url(&base_url, src)?;
 
-                eprintln!("🔍 DEBUG: Fetching external script from: {}", script_url);
+                tracing::debug!("Fetching external script from: {}", script_url);
 
                 // CSP: Check if this external script URL is allowed
                 if let Some(ref csp) = self.csp_policy
@@ -561,10 +536,7 @@ impl super::super::HeadlessWebBrowser {
                 // Fetch the external script
                 match self.fetch_external_script(&script_url).await {
                     Ok(script_content) => {
-                        eprintln!(
-                            "🔍 DEBUG: Fetched external script ({} chars)",
-                            script_content.len()
-                        );
+                        tracing::debug!("Fetched external script ({} chars)", script_content.len());
                         external_scripts_fetched += 1;
 
                         // SRI: Verify integrity hash if attribute is present
@@ -588,7 +560,7 @@ impl super::super::HeadlessWebBrowser {
                         match self.execute_page_javascript(&script_content).await {
                             Ok(_result) => {
                                 scripts_executed += 1;
-                                eprintln!("🔍 DEBUG: External script executed successfully");
+                                tracing::debug!("External script executed successfully");
                             }
                             Err(e) => {
                                 scripts_failed += 1;
@@ -626,16 +598,13 @@ impl super::super::HeadlessWebBrowser {
                     }
                 }
 
-                eprintln!(
-                    "🔍 DEBUG: Executing inline script ({} chars)",
-                    script_content.len()
-                );
+                tracing::debug!("Executing inline script ({} chars)", script_content.len());
 
                 // Execute the script through the JavaScript engine (page context — allows eval/Function/etc.)
                 match self.execute_page_javascript(&script_content).await {
                     Ok(_result) => {
                         scripts_executed += 1;
-                        eprintln!("🔍 DEBUG: Inline script executed successfully");
+                        tracing::debug!("Inline script executed successfully");
                     }
                     Err(e) => {
                         scripts_failed += 1;
@@ -651,230 +620,233 @@ impl super::super::HeadlessWebBrowser {
             mode, scripts_executed, scripts_failed, external_scripts_fetched
         );
 
-        // Give scripts time to settle after execution
-        sleep(Duration::from_millis(100)).await;
+        // Run microtasks queued by the scripts (the old fixed 100ms sleep is
+        // only kept when there is no event loop)
+        if self
+            .pump_event_loop(thalora_browser_apis::event_loop::PumpBudget::no_wait())
+            .is_none()
+        {
+            sleep(Duration::from_millis(100)).await;
+        }
 
         Ok(())
     }
 
-    /// Fire DOMContentLoaded event
-    /// This signals that the DOM is fully parsed and deferred scripts should execute
+    /// Run a freshly loaded page: classic scripts, DOMContentLoaded, deferred
+    /// scripts, the window `load` event, then pump the event loop until the
+    /// network is quiet or `settle_ms` elapses (non-fatal).
+    pub(crate) async fn run_page_load_sequence(
+        &mut self,
+        content: &str,
+        settle_ms: u64,
+    ) -> Result<()> {
+        // Non-deferred scripts (each followed by a microtask checkpoint)
+        self.execute_page_scripts(content, false).await?;
+
+        tracing::debug!("Firing DOMContentLoaded event");
+        self.fire_dom_content_loaded().await?;
+
+        // Deferred scripts run after DOMContentLoaded
+        self.execute_page_scripts(content, true).await?;
+
+        self.fire_load_event().await?;
+
+        // One settle pump: async jobs (fetch/XHR) only progress inside a pump
+        // and are cancelled if its budget ends, so don't split this up.
+
+        match self.wait_for_js_execution(settle_ms).await {
+            Ok(()) => tracing::debug!("JavaScript execution settled"),
+            Err(e) => tracing::debug!("JavaScript execution did not settle (non-fatal): {}", e),
+        }
+        Ok(())
+    }
+
+    /// Set `document.readyState` to "interactive" and dispatch DOMContentLoaded.
     pub(crate) async fn fire_dom_content_loaded(&mut self) -> Result<()> {
         let js_code = r#"
         (function() {
             try {
-                // Set document.readyState to 'interactive' first
                 Object.defineProperty(document, 'readyState', {
                     value: 'interactive',
                     writable: true,
                     configurable: true
                 });
-
-                // Create and dispatch DOMContentLoaded event
-                var event = new Event('DOMContentLoaded', {
+                document.dispatchEvent(new Event('DOMContentLoaded', {
                     bubbles: true,
                     cancelable: false
-                });
-                document.dispatchEvent(event);
-
-                // Then set readyState to 'complete'
-                Object.defineProperty(document, 'readyState', {
-                    value: 'complete',
-                    writable: true,
-                    configurable: true
-                });
-
-                // Fire load event on window
-                var loadEvent = new Event('load', {
-                    bubbles: false,
-                    cancelable: false
-                });
-                window.dispatchEvent(loadEvent);
-
-                return 'DOMContentLoaded and load events fired';
+                }));
+                return 'DOMContentLoaded fired';
             } catch(e) {
                 return 'Error: ' + e.message;
             }
         })()
         "#;
+        self.fire_lifecycle_event(js_code, "DOMContentLoaded").await
+    }
 
+    /// Set `document.readyState` to "complete" and dispatch the window `load` event.
+    pub(crate) async fn fire_load_event(&mut self) -> Result<()> {
+        let js_code = r#"
+        (function() {
+            try {
+                Object.defineProperty(document, 'readyState', {
+                    value: 'complete',
+                    writable: true,
+                    configurable: true
+                });
+                window.dispatchEvent(new Event('load', {
+                    bubbles: false,
+                    cancelable: false
+                }));
+                return 'load fired';
+            } catch(e) {
+                return 'Error: ' + e.message;
+            }
+        })()
+        "#;
+        self.fire_lifecycle_event(js_code, "load").await
+    }
+
+    async fn fire_lifecycle_event(&mut self, js_code: &str, name: &str) -> Result<()> {
         match self.execute_javascript(js_code).await {
             Ok(result) => {
-                eprintln!("🔍 DEBUG: DOMContentLoaded event result: {}", result);
-                Ok(())
+                tracing::debug!("{} event result: {}", name, result);
             }
             Err(e) => {
-                eprintln!("⚠️  WARNING: Failed to fire DOMContentLoaded: {}", e);
-                Ok(()) // Non-fatal
+                eprintln!("⚠️  WARNING: Failed to fire {}: {}", name, e);
             }
         }
+        // Run handlers' promise reactions before continuing
+        self.pump_event_loop(thalora_browser_apis::event_loop::PumpBudget::no_wait());
+        Ok(()) // Non-fatal
     }
 
-    /// Wait for JavaScript execution to complete and DOM to stabilize using events
+    /// Run the event loop until the network has been quiet for 500 ms and no
+    /// short one-shot timers are pending, or until `timeout_ms` elapses.
     pub async fn wait_for_js_execution(&mut self, timeout_ms: u64) -> Result<()> {
-        eprintln!(
-            "🔍 DEBUG: wait_for_js_execution - waiting for JS to complete (timeout: {}ms)",
+        use thalora_browser_apis::event_loop::{PumpBudget, PumpOutcome};
+        tracing::debug!(
+            "wait_for_js_execution - pumping event loop (timeout: {}ms)",
             timeout_ms
         );
-
-        let js_code = format!(
-            r#"
-        (function() {{
-            return new Promise(function(resolve, reject) {{
-                var timeoutId = setTimeout(function() {{
-                    resolve(false); // Timeout
-                }}, {});
-
-                function checkReady() {{
-                    try {{
-                        // Check if document is ready
-                        if (typeof document === 'undefined') return false;
-                        if (document.readyState !== 'complete') return false;
-
-                        // Check if there are pending AJAX requests (jQuery)
-                        if (typeof jQuery !== 'undefined' && jQuery.active > 0) return false;
-
-                        // Check for Angular pending requests
-                        if (typeof angular !== 'undefined') {{
-                            try {{
-                                var ng = angular.element(document.body).injector();
-                                if (ng && ng.get('$http').pendingRequests.length > 0) return false;
-                            }} catch(e) {{
-                                // Angular not fully initialized
-                            }}
-                        }}
-
-                        // Check for pending fetch/XHR using performance API
-                        if (typeof performance !== 'undefined' && performance.getEntriesByType) {{
-                            try {{
-                                var nav = performance.getEntriesByType('navigation')[0];
-                                if (nav && nav.loadEventEnd === 0) return false;
-                            }} catch(e) {{
-                                // Performance API not fully supported
-                            }}
-                        }}
-
-                        return true; // Ready
-                    }} catch(e) {{
-                        return false;
-                    }}
-                }}
-
-                // If already ready, resolve immediately
-                if (checkReady()) {{
-                    clearTimeout(timeoutId);
-                    resolve(true);
-                    return;
-                }}
-
-                // Listen for readystatechange event
-                document.addEventListener('readystatechange', function handler() {{
-                    if (checkReady()) {{
-                        clearTimeout(timeoutId);
-                        document.removeEventListener('readystatechange', handler);
-                        resolve(true);
-                    }}
-                }});
-
-                // Also listen for load event as fallback
-                window.addEventListener('load', function handler() {{
-                    // Give a small delay for final scripts to execute
-                    setTimeout(function() {{
-                        if (checkReady()) {{
-                            clearTimeout(timeoutId);
-                            window.removeEventListener('load', handler);
-                            resolve(true);
-                        }}
-                    }}, 100);
-                }});
-            }});
-        }})()
-        "#,
-            timeout_ms
+        let budget = PumpBudget::until_network_idle(
+            Duration::from_millis(timeout_ms),
+            Duration::from_millis(500),
         );
+        match self.pump_event_loop(budget) {
+            Some(PumpOutcome::BudgetExhausted) => Err(anyhow!(
+                "page still had pending timers or network activity after {}ms",
+                timeout_ms
+            )),
+            _ => Ok(()),
+        }
+    }
 
-        match self.execute_javascript(&js_code).await {
-            Ok(result) => {
-                if result.trim() == "true" {
-                    eprintln!("🔍 DEBUG: wait_for_js_execution - JavaScript execution complete");
-                    Ok(())
-                } else {
-                    eprintln!("🔍 DEBUG: wait_for_js_execution - timeout reached");
-                    Err(anyhow!("Timeout waiting for JavaScript execution"))
-                }
+    /// Wait until `condition` holds, running the event loop meanwhile.
+    /// Returns Ok(true) if it held within `timeout_ms`, Ok(false) otherwise.
+    pub async fn wait_for_condition(
+        &mut self,
+        condition: &crate::engine::browser::types::WaitCondition,
+        timeout_ms: u64,
+    ) -> Result<bool> {
+        use crate::engine::browser::types::WaitCondition;
+        use thalora_browser_apis::event_loop::{PumpBudget, PumpOutcome};
+
+        match condition {
+            WaitCondition::Selector(selector) => self.wait_for_element(selector, timeout_ms).await,
+            WaitCondition::NetworkIdle => {
+                let budget = PumpBudget::until_network_idle(
+                    Duration::from_millis(timeout_ms),
+                    Duration::from_millis(500),
+                );
+                Ok(!matches!(
+                    self.pump_event_loop(budget),
+                    Some(PumpOutcome::BudgetExhausted)
+                ))
             }
-            Err(e) => {
-                eprintln!("🔍 DEBUG: wait_for_js_execution - error: {}", e);
-                Err(e)
+            WaitCondition::Text(_) | WaitCondition::UrlContains(_) => {
+                let deadline = std::time::Instant::now() + Duration::from_millis(timeout_ms);
+                loop {
+                    if self.condition_holds(condition).await {
+                        return Ok(true);
+                    }
+                    if std::time::Instant::now() >= deadline {
+                        return Ok(false);
+                    }
+                    let pumped =
+                        self.pump_event_loop(PumpBudget::until_idle(Duration::from_millis(100)));
+                    if pumped.is_none() {
+                        sleep(Duration::from_millis(100)).await;
+                    }
+                }
             }
         }
     }
 
-    /// Wait for an element to appear in the DOM using MutationObserver
-    /// Returns true if element found, false if timeout reached
-    pub async fn wait_for_element(&mut self, selector: &str, timeout_ms: u64) -> Result<bool> {
-        eprintln!(
-            "🔍 DEBUG: wait_for_element - waiting for selector: {} (timeout: {}ms)",
-            selector, timeout_ms
-        );
-
-        let escaped_selector = selector.replace("\"", "\\\"").replace("'", "\\'");
-
-        // Use MutationObserver to watch for element appearance
-        let js_code = format!(
-            r#"
-        (function() {{
-            return new Promise(function(resolve, reject) {{
-                // Check if element already exists
-                var element = document.querySelector("{}");
-                if (element) {{
-                    resolve(true);
-                    return;
-                }}
-
-                // Set up timeout
-                var timeoutId = setTimeout(function() {{
-                    observer.disconnect();
-                    resolve(false); // Timeout - element not found
-                }}, {});
-
-                // Set up MutationObserver to watch for DOM changes
-                var observer = new MutationObserver(function(mutations) {{
-                    var element = document.querySelector("{}");
-                    if (element) {{
-                        clearTimeout(timeoutId);
-                        observer.disconnect();
-                        resolve(true);
-                    }}
-                }});
-
-                // Observe the entire document for child additions
-                observer.observe(document.body || document.documentElement, {{
-                    childList: true,
-                    subtree: true
-                }});
-            }});
-        }})()
-        "#,
-            escaped_selector, timeout_ms, escaped_selector
-        );
-
-        match self.execute_javascript(&js_code).await {
-            Ok(result) => {
-                let found = result.trim() == "true";
-                if found {
-                    eprintln!("🔍 DEBUG: wait_for_element - element found: {}", selector);
-                } else {
-                    eprintln!(
-                        "🔍 DEBUG: wait_for_element - timeout reached, element not found: {}",
-                        selector
-                    );
+    async fn condition_holds(
+        &mut self,
+        condition: &crate::engine::browser::types::WaitCondition,
+    ) -> bool {
+        use crate::engine::browser::types::WaitCondition;
+        match condition {
+            WaitCondition::Text(text) => {
+                if self.current_content.contains(text.as_str()) {
+                    return true;
                 }
-                Ok(found)
+                let js = format!(
+                    "(document.body ? document.body.textContent : '').indexOf({}) !== -1",
+                    super::forms::js_string_literal(text)
+                );
+                self.execute_javascript(&js)
+                    .await
+                    .is_ok_and(|r| r.trim() == "true")
             }
-            Err(e) => {
-                eprintln!("🔍 DEBUG: wait_for_element - error: {}", e);
-                Err(e)
+            WaitCondition::UrlContains(fragment) => self
+                .current_url
+                .as_deref()
+                .is_some_and(|url| url.contains(fragment.as_str())),
+            WaitCondition::Selector(_) | WaitCondition::NetworkIdle => false,
+        }
+    }
+
+    /// Wait for an element matching `selector` to appear, running the event
+    /// loop between checks. Returns true if found, false on timeout.
+    pub async fn wait_for_element(&mut self, selector: &str, timeout_ms: u64) -> Result<bool> {
+        tracing::debug!(
+            "wait_for_element - waiting for selector: {} (timeout: {}ms)",
+            selector,
+            timeout_ms
+        );
+
+        // Evaluate a synchronous boolean check and poll it. (Returning a
+        // Promise from the eval doesn't work: the result is stringified as
+        // "[object Promise]" before it can resolve.)
+        let js_code = format!(
+            "!!document.querySelector({})",
+            super::forms::js_string_literal(selector)
+        );
+        let deadline = std::time::Instant::now() + Duration::from_millis(timeout_ms);
+
+        loop {
+            let found = self.execute_javascript(&js_code).await?.trim() == "true";
+            if found {
+                tracing::debug!("wait_for_element - element found: {}", selector);
+                return Ok(true);
+            }
+            if std::time::Instant::now() >= deadline {
+                tracing::debug!(
+                    "wait_for_element - timeout reached, element not found: {}",
+                    selector
+                );
+                return Ok(false);
+            }
+            // Let timers/fetches make progress between checks
+            let pumped =
+                self.pump_event_loop(thalora_browser_apis::event_loop::PumpBudget::until_idle(
+                    Duration::from_millis(100),
+                ));
+            if pumped.is_none() {
+                sleep(Duration::from_millis(100)).await;
             }
         }
     }
@@ -885,20 +857,13 @@ impl super::super::HeadlessWebBrowser {
     /// # Security
     /// This function validates URLs to prevent SSRF attacks (CWE-918).
     pub(super) async fn navigate_internal(&mut self, url: &str) -> Result<String> {
-        eprintln!(
-            "🔍 DEBUG: navigate_internal - URL: {} (no history update)",
-            url
-        );
+        tracing::debug!("navigate_internal - URL: {} (no history update)", url);
 
         // SECURITY: Validate URL to prevent SSRF attacks
         SsrfProtection::new().is_safe_url(url)?;
 
-        // Reset Boa context — same leak-to-avoid-cross-thread-GC-corruption reasoning
-        // as in navigate_to_with_js_option.
-        if let Some(old_renderer) = self.renderer.take() {
-            std::mem::forget(old_renderer);
-        }
-        self.renderer = Some(RustRenderer::new());
+        // Fresh JS context (see navigate_to_with_js_option)
+        self.reset_renderer();
 
         // Get browser-specific headers for stealth
         let headers = self.create_standard_browser_headers(url);
@@ -915,14 +880,19 @@ impl super::super::HeadlessWebBrowser {
         // Previously fetched stylesheets will be cache hits, so this is fast.
         let external_css = self.fetch_all_stylesheets().await;
         self.external_stylesheets = external_css;
-        eprintln!(
-            "🔍 DEBUG: navigate_internal - stored {} external stylesheets",
+        tracing::debug!(
+            "navigate_internal - stored {} external stylesheets",
             self.external_stylesheets.len()
         );
 
         // Update document HTML in the renderer if available.
         // Non-fatal: the page content is already loaded; a renderer update failure
         // shouldn't abort navigation.
+        if let Some(ref mut renderer) = self.renderer
+            && let Some(url) = self.current_url.as_deref()
+        {
+            renderer.set_page_url(url);
+        }
         if let Some(ref mut renderer) = self.renderer
             && let Err(e) = renderer.update_document_html(&content)
         {
@@ -1009,7 +979,7 @@ impl super::super::HeadlessWebBrowser {
         if !self.bypass_cache
             && let Some(cached) = self.resource_cache.get(url)
         {
-            eprintln!("🔍 DEBUG: CACHE HIT (stylesheet): {}", url);
+            tracing::debug!("CACHE HIT (stylesheet): {}", url);
             return Ok(cached.content.clone());
         }
 
@@ -1026,7 +996,7 @@ impl super::super::HeadlessWebBrowser {
             ));
         }
 
-        eprintln!("🔍 DEBUG: CACHE MISS (stylesheet): {}", url);
+        tracing::debug!("CACHE MISS (stylesheet): {}", url);
         let response = self
             .client
             .get(url)
@@ -1098,7 +1068,7 @@ impl super::super::HeadlessWebBrowser {
                             continue;
                         }
 
-                        eprintln!("🔍 DEBUG: Found external stylesheet: {}", resolved_url);
+                        tracing::debug!("Found external stylesheet: {}", resolved_url);
 
                         // Store integrity attribute for SRI verification after fetch
                         if let Some(integrity) = link_element.value().attr("integrity") {
@@ -1129,15 +1099,15 @@ impl super::super::HeadlessWebBrowser {
             if !self.bypass_cache
                 && let Some(cached) = self.resource_cache.get(url)
             {
-                eprintln!("🔍 DEBUG: CACHE HIT (stylesheet): {}", url);
+                tracing::debug!("CACHE HIT (stylesheet): {}", url);
                 cached_results.insert(i, cached.content.clone());
                 continue;
             }
             uncached.push((i, url.clone()));
         }
 
-        eprintln!(
-            "🔍 DEBUG: Stylesheets: {} cached, {} to fetch",
+        tracing::debug!(
+            "Stylesheets: {} cached, {} to fetch",
             cached_results.len(),
             uncached.len()
         );
@@ -1191,8 +1161,8 @@ impl super::super::HeadlessWebBrowser {
                             continue;
                         }
 
-                        eprintln!(
-                            "🔍 DEBUG: CACHE MISS (stylesheet) fetched: {} ({} chars)",
+                        tracing::debug!(
+                            "CACHE MISS (stylesheet) fetched: {} ({} chars)",
                             fetched_url,
                             content.len()
                         );
@@ -1214,8 +1184,8 @@ impl super::super::HeadlessWebBrowser {
             }
         }
 
-        eprintln!(
-            "🔍 DEBUG: Successfully resolved {} of {} stylesheets",
+        tracing::debug!(
+            "Successfully resolved {} of {} stylesheets",
             stylesheets.len(),
             stylesheet_urls.len()
         );
@@ -1231,14 +1201,14 @@ impl super::super::HeadlessWebBrowser {
         if !self.bypass_cache
             && let Some(cached) = self.resource_cache.get(url)
         {
-            eprintln!("🔍 DEBUG: CACHE HIT (script): {}", url);
+            tracing::debug!("CACHE HIT (script): {}", url);
             return Ok(cached.content.clone());
         }
 
         // SECURITY: Validate script URL to prevent SSRF attacks
         SsrfProtection::new().is_safe_url(url)?;
 
-        eprintln!("🔍 DEBUG: CACHE MISS (script): {}", url);
+        tracing::debug!("CACHE MISS (script): {}", url);
         let response = self
             .client
             .get(url)

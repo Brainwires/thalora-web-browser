@@ -3,6 +3,7 @@
 //! Real native implementation of Element standard with actual DOM tree functionality
 //! https://dom.spec.whatwg.org/#interface-element
 
+use crate::events::event_target::EventListener;
 use boa_engine::{
     Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
@@ -14,7 +15,7 @@ use boa_engine::{
     string::StaticJsStrings,
     value::JsValue,
 };
-use boa_gc::{Finalize, Trace};
+use boa_gc::{Finalize, GcRefCell, Trace};
 use std::collections::HashMap;
 use std::sync::OnceLock;
 use std::sync::{
@@ -184,6 +185,36 @@ impl IntrinsicObject for Element {
 
         let scroll_height_func = BuiltInBuilder::callable(realm, get_scroll_height)
             .name(js_string!("get scrollHeight"))
+            .build();
+
+        let get_parent_element_func = BuiltInBuilder::callable(realm, get_parent_element)
+            .name(js_string!("get parentElement"))
+            .build();
+
+        let get_first_element_child_func = BuiltInBuilder::callable(realm, get_first_element_child)
+            .name(js_string!("get firstElementChild"))
+            .build();
+
+        let get_last_element_child_func = BuiltInBuilder::callable(realm, get_last_element_child)
+            .name(js_string!("get lastElementChild"))
+            .build();
+
+        let get_next_element_sibling_func =
+            BuiltInBuilder::callable(realm, get_next_element_sibling)
+                .name(js_string!("get nextElementSibling"))
+                .build();
+
+        let get_previous_element_sibling_func =
+            BuiltInBuilder::callable(realm, get_previous_element_sibling)
+                .name(js_string!("get previousElementSibling"))
+                .build();
+
+        let get_child_element_count_func = BuiltInBuilder::callable(realm, get_child_element_count)
+            .name(js_string!("get childElementCount"))
+            .build();
+
+        let get_is_connected_func = BuiltInBuilder::callable(realm, get_is_connected)
+            .name(js_string!("get isConnected"))
             .build();
 
         // shadowRoot defaults to null per spec (overridden by attachShadow for open mode)
@@ -376,6 +407,86 @@ impl IntrinsicObject for Element {
             .method(remove_event_listener, js_string!("removeEventListener"), 2)
             .method(dispatch_event, js_string!("dispatchEvent"), 1)
             .method(attach_shadow, js_string!("attachShadow"), 1)
+            .accessor(
+                js_string!("parentElement"),
+                Some(get_parent_element_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("firstElementChild"),
+                Some(get_first_element_child_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("lastElementChild"),
+                Some(get_last_element_child_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("nextElementSibling"),
+                Some(get_next_element_sibling_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("previousElementSibling"),
+                Some(get_previous_element_sibling_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("childElementCount"),
+                Some(get_child_element_count_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("isConnected"),
+                Some(get_is_connected_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .method(element_query_selector, js_string!("querySelector"), 1)
+            .method(
+                element_query_selector_all,
+                js_string!("querySelectorAll"),
+                1,
+            )
+            .method(
+                element_get_elements_by_tag_name,
+                js_string!("getElementsByTagName"),
+                1,
+            )
+            .method(
+                element_get_elements_by_class_name,
+                js_string!("getElementsByClassName"),
+                1,
+            )
+            .method(element_remove, js_string!("remove"), 0)
+            .method(element_append, js_string!("append"), 0)
+            .method(element_prepend, js_string!("prepend"), 0)
+            .method(element_before, js_string!("before"), 0)
+            .method(element_after, js_string!("after"), 0)
+            .method(element_replace_with, js_string!("replaceWith"), 0)
+            .method(
+                element_insert_adjacent_html,
+                js_string!("insertAdjacentHTML"),
+                2,
+            )
+            .method(
+                element_insert_adjacent_element,
+                js_string!("insertAdjacentElement"),
+                2,
+            )
+            .method(
+                element_get_attribute_names,
+                js_string!("getAttributeNames"),
+                0,
+            )
+            .method(element_toggle_attribute, js_string!("toggleAttribute"), 1)
             .build();
     }
 
@@ -390,7 +501,7 @@ impl BuiltInObject for Element {
 
 impl BuiltInConstructor for Element {
     const CONSTRUCTOR_ARGUMENTS: usize = 0;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 100;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 140;
     const CONSTRUCTOR_STORAGE_SLOTS: usize = 100;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
@@ -401,8 +512,6 @@ impl BuiltInConstructor for Element {
         _args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        eprintln!("DEBUG: Element constructor called!");
-
         let prototype =
             get_prototype_from_constructor(new_target, StandardConstructors::element, context)?;
 
@@ -416,16 +525,6 @@ impl BuiltInConstructor for Element {
 
         // Upcast to generic JsObject for method access
         let element = element.upcast();
-
-        // Check if dispatchEvent method exists on the created element
-        if let Ok(dispatch_event) = element.get(js_string!("dispatchEvent"), context) {
-            eprintln!(
-                "DEBUG: dispatchEvent found on element: {:?}",
-                dispatch_event.type_of()
-            );
-        } else {
-            eprintln!("DEBUG: dispatchEvent NOT found on element!");
-        }
 
         Ok(element.into())
     }
@@ -470,9 +569,9 @@ pub struct ElementData {
     /// Element's bounding box for layout
     #[unsafe_ignore_trace]
     bounding_rect: Arc<Mutex<DOMRect>>,
-    /// Event listeners attached to this element
+    /// Event listeners attached to this element, with their capture/once/passive flags
     #[unsafe_ignore_trace]
-    event_listeners: Arc<Mutex<HashMap<String, Vec<JsValue>>>>,
+    event_listeners: Arc<Mutex<HashMap<String, Vec<EventListener>>>>,
     /// Shadow root for Shadow DOM API
     #[unsafe_ignore_trace]
     shadow_root: Arc<Mutex<Option<JsObject>>>,
@@ -485,6 +584,9 @@ pub struct ElementData {
     /// Assigned slot name for Shadow DOM slotting (internal [[AssignedSlot]])
     #[unsafe_ignore_trace]
     assigned_slot_name: Arc<Mutex<Option<String>>>,
+    /// Node in the owning document's persistent tree. When set, the
+    /// element's state lives in the tree and the legacy fields are unused.
+    binding: GcRefCell<Option<crate::dom::binding::DomBinding>>,
 }
 
 /// CSS Style Declaration for real style computation
@@ -657,7 +759,43 @@ impl ElementData {
             next_sibling: Arc::new(Mutex::new(None)),
             previous_sibling: Arc::new(Mutex::new(None)),
             assigned_slot_name: Arc::new(Mutex::new(None)),
+            binding: GcRefCell::new(None),
         }
+    }
+
+    /// The element's tree binding, if it belongs to a document tree.
+    pub fn binding(&self) -> Option<crate::dom::binding::DomBinding> {
+        self.binding.borrow().clone()
+    }
+
+    pub fn set_binding(&self, binding: crate::dom::binding::DomBinding) {
+        *self.binding.borrow_mut() = Some(binding);
+    }
+
+    /// Legacy (unbound) attributes, for adopting the element into a tree.
+    pub fn legacy_attributes(&self) -> Vec<(String, String)> {
+        let mut attrs: Vec<(String, String)> = self
+            .attributes
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+        attrs.sort();
+        let id = self.id.lock().unwrap().clone();
+        if !id.is_empty() && !attrs.iter().any(|(k, _)| k == "id") {
+            attrs.push(("id".to_string(), id));
+        }
+        let class = self.class_name.lock().unwrap().clone();
+        if !class.is_empty() && !attrs.iter().any(|(k, _)| k == "class") {
+            attrs.push(("class".to_string(), class));
+        }
+        attrs
+    }
+
+    /// Legacy (unbound) innerHTML string.
+    pub fn legacy_inner_html(&self) -> String {
+        self.inner_html.lock().unwrap().clone()
     }
 
     pub fn with_tag_name(tag_name: String) -> Self {
@@ -683,19 +821,38 @@ impl ElementData {
     }
 
     pub fn get_id(&self) -> String {
+        if let Some(b) = self.binding() {
+            return b.tree.borrow().attr(b.node, "id").unwrap_or("").to_string();
+        }
         self.id.lock().unwrap().clone()
     }
 
     pub fn set_id(&self, id: String) {
+        if let Some(b) = self.binding() {
+            let _ = b.tree.borrow_mut().set_attr(b.node, "id", &id);
+            return;
+        }
         *self.id.lock().unwrap() = id.clone();
         self.attributes.lock().unwrap().insert("id".to_string(), id);
     }
 
     pub fn get_class_name(&self) -> String {
+        if let Some(b) = self.binding() {
+            return b
+                .tree
+                .borrow()
+                .attr(b.node, "class")
+                .unwrap_or("")
+                .to_string();
+        }
         self.class_name.lock().unwrap().clone()
     }
 
     pub fn set_class_name(&self, class_name: String) {
+        if let Some(b) = self.binding() {
+            let _ = b.tree.borrow_mut().set_attr(b.node, "class", &class_name);
+            return;
+        }
         *self.class_name.lock().unwrap() = class_name.clone();
         self.attributes
             .lock()
@@ -704,6 +861,9 @@ impl ElementData {
     }
 
     pub fn get_inner_html(&self) -> String {
+        if let Some(b) = self.binding() {
+            return b.tree.borrow().inner_html(b.node);
+        }
         self.inner_html.lock().unwrap().clone()
     }
 
@@ -715,6 +875,10 @@ impl ElementData {
     }
 
     pub fn set_inner_html(&self, html: String) {
+        if let Some(b) = self.binding() {
+            let _ = b.tree.borrow_mut().set_inner_html(b.node, &html);
+            return;
+        }
         *self.inner_html.lock().unwrap() = html.clone();
 
         // Parse HTML and update DOM tree
@@ -827,7 +991,7 @@ impl ElementData {
     /// Update the document's HTML content to reflect DOM changes
     /// This is CRITICAL for querySelector to find dynamically added content
     fn update_document_html_content(&self) {
-        eprintln!("DEBUG: update_document_html_content called - implementing PROPER fix");
+        tracing::debug!("update_document_html_content called - implementing PROPER fix");
 
         // REAL FIX: The bug was that serialize_to_html() only builds HTML for this one element,
         // but then we were overwriting the ENTIRE document with just that element's HTML.
@@ -842,8 +1006,8 @@ impl ElementData {
         // This allows querySelector to continue working on the full document while
         // recognizing that individual elements may have been modified in memory.
 
-        eprintln!(
-            "DEBUG: Element {} content updated - document HTML preserved",
+        tracing::debug!(
+            "Element {} content updated - document HTML preserved",
             self.get_tag_name()
         );
 
@@ -855,6 +1019,9 @@ impl ElementData {
     /// Recursively walks the children vector to capture dynamically added elements
     /// (via appendChild, insertBefore, etc.) that aren't in the cached inner_html string.
     fn serialize_to_html(&self) -> String {
+        if let Some(b) = self.binding() {
+            return b.tree.borrow().outer_html(b.node);
+        }
         let tag_name = self.get_tag_name();
 
         // Void elements (self-closing) — no children, no closing tag
@@ -930,18 +1097,34 @@ impl ElementData {
     }
 
     pub fn get_text_content(&self) -> String {
+        if let Some(b) = self.binding() {
+            return b.tree.borrow().text_content(b.node).unwrap_or_default();
+        }
         self.text_content.lock().unwrap().clone()
     }
 
     pub fn set_text_content(&self, content: String) {
+        if let Some(b) = self.binding() {
+            let _ = b.tree.borrow_mut().set_text_content(b.node, &content);
+            return;
+        }
         *self.text_content.lock().unwrap() = content;
     }
 
     pub fn get_attribute(&self, name: &str) -> Option<String> {
+        if let Some(b) = self.binding() {
+            let name = crate::dom::binding::attr_name(&b, name);
+            return b.tree.borrow().attr(b.node, &name).map(str::to_string);
+        }
         self.attributes.lock().unwrap().get(name).cloned()
     }
 
     pub fn set_attribute(&self, name: String, value: String) {
+        if let Some(b) = self.binding() {
+            let name = crate::dom::binding::attr_name(&b, &name);
+            let _ = b.tree.borrow_mut().set_attr(b.node, &name, &value);
+            return;
+        }
         // Keep className/id fields in sync when attributes are set directly
         if name == "class" {
             *self.class_name.lock().unwrap() = value.clone();
@@ -952,10 +1135,19 @@ impl ElementData {
     }
 
     pub fn has_attribute(&self, name: &str) -> bool {
+        if let Some(b) = self.binding() {
+            let name = crate::dom::binding::attr_name(&b, name);
+            return b.tree.borrow().attr(b.node, &name).is_some();
+        }
         self.attributes.lock().unwrap().contains_key(name)
     }
 
     pub fn remove_attribute(&self, name: &str) {
+        if let Some(b) = self.binding() {
+            let name = crate::dom::binding::attr_name(&b, name);
+            let _ = b.tree.borrow_mut().remove_attr(b.node, &name);
+            return;
+        }
         self.attributes.lock().unwrap().remove(name);
     }
 
@@ -1166,30 +1358,79 @@ impl ElementData {
         self.style.lock().unwrap().clone()
     }
 
-    /// Add event listener to this element
+    /// Add event listener to this element (bubble phase, no options)
     pub fn add_event_listener(&self, event_type: String, listener: JsValue) {
-        self.event_listeners
-            .lock()
-            .unwrap()
-            .entry(event_type)
-            .or_default()
-            .push(listener);
+        self.add_event_listener_with_options(event_type, listener, false, false, false);
     }
 
-    /// Remove event listener from this element
+    /// Add an event listener with its `capture` / `once` / `passive` flags.
+    /// A listener with the same callback and capture flag is only added once.
+    pub fn add_event_listener_with_options(
+        &self,
+        event_type: String,
+        listener: JsValue,
+        capture: bool,
+        once: bool,
+        passive: bool,
+    ) {
+        let entry = EventListener::new(listener, capture, once, passive);
+        let mut map = self.event_listeners.lock().unwrap();
+        crate::events::event_target::push_unique_listener(
+            map.entry(event_type).or_default(),
+            entry,
+        );
+    }
+
+    /// Remove every listener with this callback (regardless of capture)
     pub fn remove_event_listener(&self, event_type: &str, listener: &JsValue) {
         if let Some(listeners) = self.event_listeners.lock().unwrap().get_mut(event_type) {
-            listeners.retain(|l| !JsValue::same_value(l, listener));
+            listeners.retain(|l| !JsValue::same_value(l.callback(), listener));
         }
     }
 
-    /// Get event listeners for a specific event type
+    /// Remove the listener matching `(type, callback, capture)`
+    pub fn remove_event_listener_with_capture(
+        &self,
+        event_type: &str,
+        listener: &JsValue,
+        capture: bool,
+    ) {
+        if let Some(listeners) = self.event_listeners.lock().unwrap().get_mut(event_type) {
+            listeners.retain(|l| !l.matches(listener, capture));
+        }
+    }
+
+    /// Get event listener callbacks for a specific event type
     pub fn get_event_listeners(&self, event_type: &str) -> Option<Vec<JsValue>> {
         self.event_listeners
             .lock()
             .unwrap()
             .get(event_type)
+            .map(|list| list.iter().map(|l| l.callback().clone()).collect())
+    }
+
+    /// Snapshot of the listeners (with flags) for a specific event type
+    pub(crate) fn listener_entries(&self, event_type: &str) -> Vec<EventListener> {
+        self.event_listeners
+            .lock()
+            .unwrap()
+            .get(event_type)
             .cloned()
+            .unwrap_or_default()
+    }
+
+    /// Whether a listener matching `(type, callback, capture)` is registered
+    pub(crate) fn has_listener_entry(
+        &self,
+        event_type: &str,
+        listener: &JsValue,
+        capture: bool,
+    ) -> bool {
+        self.event_listeners
+            .lock()
+            .unwrap()
+            .get(event_type)
+            .is_some_and(|list| list.iter().any(|l| l.matches(listener, capture)))
     }
 
     /// Attach shadow root for Shadow DOM API
@@ -1233,16 +1474,15 @@ impl ElementData {
         event_data: &JsValue,
         context: &mut Context,
     ) -> JsResult<()> {
-        let listeners = self.event_listeners.lock().unwrap();
-        if let Some(event_listeners) = listeners.get(event_type) {
-            for listener in event_listeners {
-                if listener.is_callable() {
-                    let _ = listener.as_callable().unwrap().call(
-                        &JsValue::undefined(),
-                        std::slice::from_ref(event_data),
-                        context,
-                    );
-                }
+        // Snapshot first: never hold the listener lock while calling JS.
+        let listeners = self.listener_entries(event_type);
+        for listener in listeners {
+            if let Some(function) = listener.callback().as_callable() {
+                let _ = function.call(
+                    &JsValue::undefined(),
+                    std::slice::from_ref(event_data),
+                    context,
+                );
             }
         }
         Ok(())
@@ -1382,6 +1622,9 @@ impl ElementData {
 
     /// CSS selector matching
     pub fn matches_selector(&self, selector: &str) -> bool {
+        if let Some(b) = self.binding() {
+            return b.tree.borrow().matches(b.node, selector).unwrap_or(false);
+        }
         // Simple selector matching - real implementation would use CSS parser
         if let Some(id) = selector.strip_prefix('#') {
             // ID selector
@@ -1552,6 +1795,9 @@ fn get_inner_html(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> 
 
 /// `Element.prototype.innerHTML` setter
 fn set_inner_html(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::bound_element(this) {
+        return crate::dom::binding::set_inner_html(&b, args, context);
+    }
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Element.prototype.innerHTML setter called on non-object")
     })?;
@@ -1592,6 +1838,9 @@ fn get_text_content(
 
 /// `Element.prototype.textContent` setter
 fn set_text_content(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::bound_element(this) {
+        return crate::dom::binding::set_text_content(&b, args, context);
+    }
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ()
             .with_message("Element.prototype.textContent setter called on non-object")
@@ -1612,6 +1861,9 @@ fn set_text_content(this: &JsValue, args: &[JsValue], context: &mut Context) -> 
 
 /// `Element.prototype.children` getter
 fn get_children(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::bound_element(this) {
+        return crate::dom::binding::children(&b, context);
+    }
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Element.prototype.children called on non-object")
     })?;
@@ -1632,7 +1884,10 @@ fn get_children(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsR
 }
 
 /// `Element.prototype.parentNode` getter
-fn get_parent_node(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+fn get_parent_node(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::bound_element(this) {
+        return crate::dom::binding::parent_node(&b, context);
+    }
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Element.prototype.parentNode called on non-object")
     })?;
@@ -1721,6 +1976,9 @@ fn get_class_list(this: &JsValue, _args: &[JsValue], context: &mut Context) -> J
 
 /// `Element.prototype.setAttribute(name, value)`
 fn set_attribute(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::bound_element(this) {
+        return crate::dom::binding::set_attribute(&b, args, context);
+    }
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Element.prototype.setAttribute called on non-object")
     })?;
@@ -1772,6 +2030,9 @@ fn has_attribute(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsR
 
 /// `Element.prototype.removeAttribute(name)`
 fn remove_attribute(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::bound_element(this) {
+        return crate::dom::binding::remove_attribute(&b, args, context);
+    }
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Element.prototype.removeAttribute called on non-object")
     })?;
@@ -1787,7 +2048,10 @@ fn remove_attribute(this: &JsValue, args: &[JsValue], context: &mut Context) -> 
 }
 
 /// `Element.prototype.appendChild(child)`
-fn append_child(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+fn append_child(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::bound_element(this) {
+        return crate::dom::binding::append_child(&b, args, context);
+    }
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Element.prototype.appendChild called on non-object")
     })?;
@@ -1813,7 +2077,10 @@ fn append_child(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsR
 }
 
 /// `Element.prototype.removeChild(child)`
-fn remove_child(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+fn remove_child(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::bound_element(this) {
+        return crate::dom::binding::remove_child(&b, args, context);
+    }
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Element.prototype.removeChild called on non-object")
     })?;
@@ -2133,7 +2400,8 @@ fn attach_shadow(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsR
 }
 
 /// `Element.prototype.addEventListener(type, listener[, options])`
-/// JavaScript wrapper for EventTarget functionality
+///
+/// `options` is a boolean (capture) or `{ capture, once, passive }`.
 fn add_event_listener(
     this: &JsValue,
     args: &[JsValue],
@@ -2142,21 +2410,33 @@ fn add_event_listener(
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Element.prototype.addEventListener called on non-object")
     })?;
-
-    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-        JsNativeError::typ()
+    if this_obj.downcast_ref::<ElementData>().is_none() {
+        return Err(JsNativeError::typ()
             .with_message("Element.prototype.addEventListener called on non-Element object")
-    })?;
+            .into());
+    }
 
+    // Read everything that may run JS before borrowing the element.
     let event_type = args.get_or_undefined(0).to_string(context)?;
-    let listener = args.get_or_undefined(1);
+    let listener = args.get_or_undefined(1).clone();
+    let (capture, once, passive) =
+        crate::events::event_target::parse_listener_options(args.get_or_undefined(2), context)?;
 
-    element.add_event_listener(event_type.to_std_string_escaped(), listener.clone());
+    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
+        element.add_event_listener_with_options(
+            event_type.to_std_string_escaped(),
+            listener,
+            capture,
+            once,
+            passive,
+        );
+    }
     Ok(JsValue::undefined())
 }
 
 /// `Element.prototype.removeEventListener(type, listener[, options])`
-/// JavaScript wrapper for EventTarget functionality
+///
+/// Removes the listener matching `(type, callback, capture)`.
 fn remove_event_listener(
     this: &JsValue,
     args: &[JsValue],
@@ -2166,17 +2446,77 @@ fn remove_event_listener(
         JsNativeError::typ()
             .with_message("Element.prototype.removeEventListener called on non-object")
     })?;
-
-    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-        JsNativeError::typ()
+    if this_obj.downcast_ref::<ElementData>().is_none() {
+        return Err(JsNativeError::typ()
             .with_message("Element.prototype.removeEventListener called on non-Element object")
-    })?;
+            .into());
+    }
 
     let event_type = args.get_or_undefined(0).to_string(context)?;
-    let listener = args.get_or_undefined(1);
+    let listener = args.get_or_undefined(1).clone();
+    let (capture, _, _) =
+        crate::events::event_target::parse_listener_options(args.get_or_undefined(2), context)?;
 
-    element.remove_event_listener(&event_type.to_std_string_escaped(), listener);
+    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
+        element.remove_event_listener_with_capture(
+            &event_type.to_std_string_escaped(),
+            &listener,
+            capture,
+        );
+    }
     Ok(JsValue::undefined())
+}
+
+/// Propagation path of a bound element: the element, its tree ancestors
+/// (the document node maps to the document object), then the window when
+/// the element is connected and the event isn't `load`.
+fn bound_event_path(
+    b: &crate::dom::binding::DomBinding,
+    target: &JsObject,
+    event_type: &str,
+    context: &mut Context,
+) -> JsResult<Vec<crate::events::dispatch::PathEntry>> {
+    use crate::events::dispatch::PathEntry;
+
+    // Read the tree, then drop the borrow before creating wrappers.
+    let (ancestors, connected) = {
+        let tree = b.tree.borrow();
+        let mut ancestors = Vec::new();
+        let mut current = tree.parent(b.node);
+        while let Some(id) = current {
+            ancestors.push(id);
+            current = tree.parent(id);
+        }
+        (ancestors, tree.is_connected(b.node))
+    };
+
+    let mut path = vec![PathEntry::single(target.clone())];
+    for id in ancestors {
+        let wrapper = crate::dom::binding::wrapper_for(&b.document, &b.tree, id, context)?;
+        if let Some(object) = wrapper.as_object() {
+            path.push(PathEntry::single(object));
+        }
+    }
+    if connected
+        && event_type != "load"
+        && let Some(window) = crate::events::dispatch::window_path_entry(context)
+    {
+        path.push(window);
+    }
+    Ok(path)
+}
+
+/// DOM dispatch for a bound element (capture, at-target, bubble).
+/// Returns `!defaultPrevented`.
+fn dispatch_bound_event(
+    b: &crate::dom::binding::DomBinding,
+    target: &JsObject,
+    event: &JsObject,
+    context: &mut Context,
+) -> JsResult<bool> {
+    let event_type = crate::events::dispatch::event_type_of(event, context)?;
+    let path = bound_event_path(b, target, &event_type, context)?;
+    crate::events::dispatch::dispatch_along_path(event, &path, context)
 }
 
 /// `Element.prototype.dispatchEvent(event)`
@@ -2187,15 +2527,22 @@ fn dispatch_event(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
     })?;
 
     // Verify this is an Element
-    let _element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-        JsNativeError::typ()
+    if this_obj.downcast_ref::<ElementData>().is_none() {
+        return Err(JsNativeError::typ()
             .with_message("Element.prototype.dispatchEvent called on non-Element object")
-    })?;
+            .into());
+    }
 
     let event_arg = args.get_or_undefined(0);
     let event_obj = event_arg.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("dispatchEvent requires an Event object")
     })?;
+
+    // Tree-backed element: full propagation through ancestors, document, window.
+    if let Some(b) = crate::dom::binding::bound_element(this) {
+        let result = dispatch_bound_event(&b, &this_obj, &event_obj, context)?;
+        return Ok(JsValue::from(result));
+    }
 
     // Use spec-compliant 3-phase dispatch via EventTargetData
     if let Some(target_data) =
@@ -2211,8 +2558,21 @@ fn dispatch_event(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
 
         if !event_type_value.is_undefined() {
             let event_type = event_type_value.to_string(context)?;
-            let element = this_obj.downcast_ref::<ElementData>().unwrap();
-            element.dispatch_event(&event_type.to_std_string_escaped(), event_arg, context)?;
+            let listeners = this_obj
+                .downcast_ref::<ElementData>()
+                .map(|element| element.listener_entries(&event_type.to_std_string_escaped()))
+                .unwrap_or_default();
+            // Same as ElementData::dispatch_event, without holding the
+            // element borrow while listeners run.
+            for listener in listeners {
+                if let Some(function) = listener.callback().as_callable() {
+                    let _ = function.call(
+                        &JsValue::undefined(),
+                        std::slice::from_ref(event_arg),
+                        context,
+                    );
+                }
+            }
         }
         Ok(JsValue::from(true))
     }
@@ -2223,7 +2583,10 @@ fn dispatch_event(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
 // ============================================================================
 
 /// `Element.prototype.insertBefore(newNode, referenceNode)`
-fn insert_before(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+fn insert_before(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::bound_element(this) {
+        return crate::dom::binding::insert_before(&b, args, context);
+    }
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Element.prototype.insertBefore called on non-object")
     })?;
@@ -2258,7 +2621,10 @@ fn insert_before(this: &JsValue, args: &[JsValue], _context: &mut Context) -> Js
 }
 
 /// `Element.prototype.replaceChild(newChild, oldChild)`
-fn replace_child(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+fn replace_child(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::bound_element(this) {
+        return crate::dom::binding::replace_child(&b, args, context);
+    }
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Element.prototype.replaceChild called on non-object")
     })?;
@@ -2295,6 +2661,9 @@ fn replace_child(this: &JsValue, args: &[JsValue], _context: &mut Context) -> Js
 
 /// `Element.prototype.cloneNode(deep)`
 fn clone_node(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::bound_element(this) {
+        return crate::dom::binding::clone_node(&b, args, context);
+    }
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Element.prototype.cloneNode called on non-object")
     })?;
@@ -2311,6 +2680,9 @@ fn clone_node(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResu
 
 /// `Element.prototype.contains(node)`
 fn contains(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::bound_element(this) {
+        return Ok(crate::dom::binding::contains(&b, args));
+    }
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Element.prototype.contains called on non-object")
     })?;
@@ -2338,6 +2710,9 @@ fn contains(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResul
 
 /// `Element.prototype.closest(selector)`
 fn closest(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::bound_element(this) {
+        return crate::dom::binding::closest(&b, args, context);
+    }
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Element.prototype.closest called on non-object")
     })?;
@@ -2358,6 +2733,9 @@ fn closest(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<
 
 /// `Element.prototype.matches(selector)`
 fn matches(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::bound_element(this) {
+        return crate::dom::binding::matches(&b, args, context);
+    }
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Element.prototype.matches called on non-object")
     })?;
@@ -2378,6 +2756,7 @@ fn get_bounding_client_rect(
     _args: &[JsValue],
     context: &mut Context,
 ) -> JsResult<JsValue> {
+    crate::dom::binding::refresh_layout_of(this);
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ()
             .with_message("Element.prototype.getBoundingClientRect called on non-object")
@@ -2495,6 +2874,24 @@ fn click(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<J
         JsNativeError::typ().with_message("Element.prototype.click called on non-object")
     })?;
 
+    // Tree-backed element: a real `Event` (bubbles, cancelable) dispatched
+    // through the full propagation path.
+    if let Some(b) = crate::dom::binding::bound_element(this) {
+        let click_event = JsObject::from_proto_and_data_with_shared_shape(
+            context.root_shape(),
+            context.intrinsics().constructors().event().prototype(),
+            crate::events::event::EventData::new("click".to_string(), true, true),
+        )
+        .upcast();
+        // MouseEvent-ish fields for listeners that read them.
+        click_event.set(js_string!("clientX"), 0, false, context)?;
+        click_event.set(js_string!("clientY"), 0, false, context)?;
+        click_event.set(js_string!("button"), 0, false, context)?;
+        click_event.set(js_string!("detail"), 1, false, context)?;
+        dispatch_bound_event(&b, &this_obj, &click_event, context)?;
+        return Ok(JsValue::undefined());
+    }
+
     let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
         JsNativeError::typ().with_message("Element.prototype.click called on non-Element object")
     })?;
@@ -2519,7 +2916,10 @@ fn click(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<J
 // ============================================================================
 
 /// `Element.prototype.firstChild` getter
-fn get_first_child(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+fn get_first_child(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::bound_element(this) {
+        return crate::dom::binding::first_child(&b, context);
+    }
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Element.prototype.firstChild called on non-object")
     })?;
@@ -2536,7 +2936,10 @@ fn get_first_child(this: &JsValue, _args: &[JsValue], _context: &mut Context) ->
 }
 
 /// `Element.prototype.lastChild` getter
-fn get_last_child(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+fn get_last_child(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::bound_element(this) {
+        return crate::dom::binding::last_child(&b, context);
+    }
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Element.prototype.lastChild called on non-object")
     })?;
@@ -2553,11 +2956,10 @@ fn get_last_child(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> 
 }
 
 /// `Element.prototype.nextSibling` getter
-fn get_next_sibling(
-    this: &JsValue,
-    _args: &[JsValue],
-    _context: &mut Context,
-) -> JsResult<JsValue> {
+fn get_next_sibling(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::bound_element(this) {
+        return crate::dom::binding::next_sibling(&b, context);
+    }
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Element.prototype.nextSibling called on non-object")
     })?;
@@ -2577,8 +2979,11 @@ fn get_next_sibling(
 fn get_previous_sibling(
     this: &JsValue,
     _args: &[JsValue],
-    _context: &mut Context,
+    context: &mut Context,
 ) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::bound_element(this) {
+        return crate::dom::binding::previous_sibling(&b, context);
+    }
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Element.prototype.previousSibling called on non-object")
     })?;
@@ -2624,6 +3029,9 @@ fn get_node_name(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> J
 
 /// `Element.prototype.outerHTML` getter
 fn get_outer_html(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::bound_element(this) {
+        return Ok(crate::dom::binding::get_outer_html(&b));
+    }
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Element.prototype.outerHTML called on non-object")
     })?;
@@ -2638,6 +3046,9 @@ fn get_outer_html(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> 
 
 /// `Element.prototype.outerHTML` setter
 fn set_outer_html(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::bound_element(this) {
+        return crate::dom::binding::set_outer_html(&b, args, context);
+    }
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Element.prototype.outerHTML setter called on non-object")
     })?;
@@ -2659,6 +3070,9 @@ fn set_outer_html(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
 
 /// `Element.prototype.childNodes` getter
 fn get_child_nodes(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::bound_element(this) {
+        return crate::dom::binding::child_nodes(&b, context);
+    }
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Element.prototype.childNodes called on non-object")
     })?;
@@ -2700,6 +3114,7 @@ fn get_offset_width(
     _args: &[JsValue],
     _context: &mut Context,
 ) -> JsResult<JsValue> {
+    crate::dom::binding::refresh_layout_of(this);
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("offsetWidth getter called on non-object")
     })?;
@@ -2715,6 +3130,7 @@ fn get_offset_height(
     _args: &[JsValue],
     _context: &mut Context,
 ) -> JsResult<JsValue> {
+    crate::dom::binding::refresh_layout_of(this);
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("offsetHeight getter called on non-object")
     })?;
@@ -2726,6 +3142,7 @@ fn get_offset_height(
 }
 
 fn get_offset_left(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    crate::dom::binding::refresh_layout_of(this);
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("offsetLeft getter called on non-object")
     })?;
@@ -2737,6 +3154,7 @@ fn get_offset_left(this: &JsValue, _args: &[JsValue], _context: &mut Context) ->
 }
 
 fn get_offset_top(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    crate::dom::binding::refresh_layout_of(this);
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("offsetTop getter called on non-object")
     })?;
@@ -2752,6 +3170,7 @@ fn get_client_width(
     _args: &[JsValue],
     _context: &mut Context,
 ) -> JsResult<JsValue> {
+    crate::dom::binding::refresh_layout_of(this);
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("clientWidth getter called on non-object")
     })?;
@@ -2767,6 +3186,7 @@ fn get_client_height(
     _args: &[JsValue],
     _context: &mut Context,
 ) -> JsResult<JsValue> {
+    crate::dom::binding::refresh_layout_of(this);
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("clientHeight getter called on non-object")
     })?;
@@ -2816,4 +3236,328 @@ fn get_shadow_root_property(
     _context: &mut Context,
 ) -> JsResult<JsValue> {
     Ok(JsValue::null())
+}
+
+// ---------------------------------------------------------------------------
+// ParentNode / ChildNode / query members. Bound elements use the document
+// tree; unbound ones fall back to their legacy fields where possible.
+// ---------------------------------------------------------------------------
+
+fn legacy_element(this: &JsValue) -> Option<JsObject> {
+    this.as_object()
+        .filter(|obj| obj.downcast_ref::<ElementData>().is_some())
+}
+
+fn legacy_children(this: &JsValue) -> Vec<JsObject> {
+    legacy_element(this)
+        .and_then(|obj| obj.downcast_ref::<ElementData>().map(|e| e.get_children()))
+        .unwrap_or_default()
+}
+
+/// `Element.prototype.querySelector(selectors)`
+fn element_query_selector(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::bound_element(this) {
+        return crate::dom::binding::query_selector(&b, args, context);
+    }
+    let selector = args
+        .get_or_undefined(0)
+        .to_string(context)?
+        .to_std_string_escaped();
+    let found = legacy_element(this).and_then(|obj| {
+        obj.downcast_ref::<ElementData>()
+            .and_then(|e| e.query_selector(&selector))
+    });
+    Ok(found.map_or(JsValue::null(), JsValue::from))
+}
+
+/// `Element.prototype.querySelectorAll(selectors)`
+fn element_query_selector_all(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::bound_element(this) {
+        return crate::dom::binding::query_selector_all(&b, args, context);
+    }
+    let selector = args
+        .get_or_undefined(0)
+        .to_string(context)?
+        .to_std_string_escaped();
+    let found = legacy_element(this)
+        .and_then(|obj| {
+            obj.downcast_ref::<ElementData>()
+                .map(|e| e.query_selector_all(&selector))
+        })
+        .unwrap_or_default();
+    crate::dom::binding::node_array(found.into_iter().map(JsValue::from).collect(), context)
+}
+
+/// `Element.prototype.getElementsByTagName(name)`
+fn element_get_elements_by_tag_name(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::bound_element(this) {
+        return crate::dom::binding::get_elements_by_tag_name(&b, args, context);
+    }
+    crate::dom::binding::node_array(Vec::new(), context)
+}
+
+/// `Element.prototype.getElementsByClassName(names)`
+fn element_get_elements_by_class_name(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::bound_element(this) {
+        return crate::dom::binding::get_elements_by_class_name(&b, args, context);
+    }
+    crate::dom::binding::node_array(Vec::new(), context)
+}
+
+/// `Element.prototype.parentElement` getter
+fn get_parent_element(
+    this: &JsValue,
+    _args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::bound_element(this) {
+        return crate::dom::binding::parent_element(&b, context);
+    }
+    let parent = legacy_element(this).and_then(|obj| {
+        obj.downcast_ref::<ElementData>()
+            .and_then(|e| e.get_parent_node())
+    });
+    Ok(parent.map_or(JsValue::null(), JsValue::from))
+}
+
+/// `Element.prototype.firstElementChild` getter
+fn get_first_element_child(
+    this: &JsValue,
+    _args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::bound_element(this) {
+        return crate::dom::binding::first_element_child(&b, context);
+    }
+    Ok(legacy_children(this)
+        .into_iter()
+        .next()
+        .map_or(JsValue::null(), JsValue::from))
+}
+
+/// `Element.prototype.lastElementChild` getter
+fn get_last_element_child(
+    this: &JsValue,
+    _args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::bound_element(this) {
+        return crate::dom::binding::last_element_child(&b, context);
+    }
+    Ok(legacy_children(this)
+        .into_iter()
+        .last()
+        .map_or(JsValue::null(), JsValue::from))
+}
+
+/// `Element.prototype.nextElementSibling` getter
+fn get_next_element_sibling(
+    this: &JsValue,
+    _args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::bound_element(this) {
+        return crate::dom::binding::next_element_sibling(&b, context);
+    }
+    Ok(JsValue::null())
+}
+
+/// `Element.prototype.previousElementSibling` getter
+fn get_previous_element_sibling(
+    this: &JsValue,
+    _args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::bound_element(this) {
+        return crate::dom::binding::previous_element_sibling(&b, context);
+    }
+    Ok(JsValue::null())
+}
+
+/// `Element.prototype.childElementCount` getter
+fn get_child_element_count(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::bound_element(this) {
+        return Ok(crate::dom::binding::child_element_count(&b));
+    }
+    Ok((legacy_children(this).len() as u32).into())
+}
+
+/// `Element.prototype.isConnected` getter
+fn get_is_connected(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::bound_element(this) {
+        return Ok(crate::dom::binding::is_connected(&b));
+    }
+    Ok(false.into())
+}
+
+/// `Element.prototype.remove()`
+fn element_remove(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::bound_element(this) {
+        return crate::dom::binding::remove(&b, context);
+    }
+    if let Some(obj) = legacy_element(this) {
+        let parent = obj
+            .downcast_ref::<ElementData>()
+            .and_then(|e| e.get_parent_node());
+        if let Some(parent) = parent {
+            if let Some(parent_data) = parent.downcast_ref::<ElementData>() {
+                parent_data.remove_child(&obj);
+            }
+            if let Some(data) = obj.downcast_ref::<ElementData>() {
+                data.set_parent_node(None);
+            }
+        }
+    }
+    Ok(JsValue::undefined())
+}
+
+/// `Element.prototype.append(...nodes)`
+fn element_append(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::bound_element(this) {
+        return crate::dom::binding::append(&b, args, context);
+    }
+    for arg in args {
+        if arg.is_object() {
+            append_child(this, std::slice::from_ref(arg), context)?;
+        }
+    }
+    Ok(JsValue::undefined())
+}
+
+/// `Element.prototype.prepend(...nodes)`
+fn element_prepend(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::bound_element(this) {
+        return crate::dom::binding::prepend(&b, args, context);
+    }
+    Ok(JsValue::undefined())
+}
+
+/// `Element.prototype.before(...nodes)`
+fn element_before(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::bound_element(this) {
+        return crate::dom::binding::before(&b, args, context);
+    }
+    Ok(JsValue::undefined())
+}
+
+/// `Element.prototype.after(...nodes)`
+fn element_after(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::bound_element(this) {
+        return crate::dom::binding::after(&b, args, context);
+    }
+    Ok(JsValue::undefined())
+}
+
+/// `Element.prototype.replaceWith(...nodes)`
+fn element_replace_with(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::bound_element(this) {
+        return crate::dom::binding::replace_with(&b, args, context);
+    }
+    Ok(JsValue::undefined())
+}
+
+/// `Element.prototype.insertAdjacentHTML(position, html)`
+fn element_insert_adjacent_html(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::bound_element(this) {
+        return crate::dom::binding::insert_adjacent_html(&b, args, context);
+    }
+    Ok(JsValue::undefined())
+}
+
+/// `Element.prototype.insertAdjacentElement(position, element)`
+fn element_insert_adjacent_element(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::bound_element(this) {
+        return crate::dom::binding::insert_adjacent_element(&b, args, context);
+    }
+    Ok(JsValue::null())
+}
+
+/// `Element.prototype.getAttributeNames()`
+fn element_get_attribute_names(
+    this: &JsValue,
+    _args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::bound_element(this) {
+        return crate::dom::binding::get_attribute_names(&b, context);
+    }
+    let names: Vec<JsValue> = legacy_element(this)
+        .and_then(|obj| {
+            obj.downcast_ref::<ElementData>()
+                .map(|e| e.legacy_attributes())
+        })
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(name, _)| JsString::from(name).into())
+        .collect();
+    Ok(boa_engine::builtins::array::Array::create_array_from_list(names, context).into())
+}
+
+/// `Element.prototype.toggleAttribute(name, force)`
+fn element_toggle_attribute(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::bound_element(this) {
+        return crate::dom::binding::toggle_attribute(&b, args, context);
+    }
+    let name = args
+        .get_or_undefined(0)
+        .to_string(context)?
+        .to_std_string_escaped();
+    let force = args
+        .get(1)
+        .filter(|v| !v.is_undefined())
+        .map(JsValue::to_boolean);
+    let Some(obj) = legacy_element(this) else {
+        return Ok(false.into());
+    };
+    let Some(element) = obj.downcast_ref::<ElementData>() else {
+        return Ok(false.into());
+    };
+    let present = element.has_attribute(&name);
+    let want = force.unwrap_or(!present);
+    if want && !present {
+        element.set_attribute(name, String::new());
+    } else if !want && present {
+        element.remove_attribute(&name);
+    }
+    Ok(want.into())
 }

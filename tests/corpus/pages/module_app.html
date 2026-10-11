@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Module app</title></head>
+<body>
+  <main id="root"></main>
+  <script type="module">
+    const steps = ['Plan the route', 'Check the tides', 'Cast off'];
+    const root = document.getElementById('root');
+    const heading = document.createElement('h1');
+    heading.textContent = 'Module app ready';
+    const list = document.createElement('ol');
+    for (const step of steps) {
+      const li = document.createElement('li');
+      li.textContent = step;
+      list.appendChild(li);
+    }
+    root.append(heading, list);
+    await Promise.resolve();
+    root.insertAdjacentHTML('beforeend', '<p id="after-await">Rendered after top-level await</p>');
+  </script>
+</body>
+</html>

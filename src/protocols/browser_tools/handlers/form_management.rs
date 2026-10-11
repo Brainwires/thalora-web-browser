@@ -1,3 +1,4 @@
+use futures::FutureExt;
 use serde_json::{Value, json};
 
 use crate::protocols::browser_tools::core::BrowserTools;
@@ -33,18 +34,36 @@ impl BrowserTools {
             return McpResponse::error(-32602, format!("Session ID validation failed: {}", e));
         }
 
-        let browser = self.get_or_create_session(session_id, false);
-        let mut response = McpResponse::error(-1, "Failed to acquire browser lock".to_string());
+        let browser = match self.get_session(session_id) {
+            Ok(browser) => browser,
+            Err(e) => return McpResponse::error(-32602, e),
+        };
+        // Read the analysed forms on the browser thread, decide here
+        let forms = browser
+            .call(|browser| {
+                async move {
+                    browser.lock().ok().map(|guard| {
+                        let new_window: Vec<_> =
+                            guard.get_new_window_forms().into_iter().cloned().collect();
+                        let all = guard.get_analyzed_forms().to_vec();
+                        (new_window, all)
+                    })
+                }
+                .boxed_local()
+            })
+            .await;
+        let (new_window_forms, all_forms) = match forms {
+            Ok(Some(forms)) => forms,
+            Ok(None) => {
+                return McpResponse::error(-1, "Failed to acquire browser lock".to_string());
+            }
+            Err(e) => return McpResponse::error(-1, format!("Browser session failed: {}", e)),
+        };
+        let response;
 
         {
-            if let Ok(browser_guard) = browser.lock() {
+            {
                 // Find forms that match the selector and open new windows
-                let new_window_forms: Vec<_> = browser_guard
-                    .get_new_window_forms()
-                    .into_iter()
-                    .cloned()
-                    .collect();
-
                 let matching_form = new_window_forms.iter().find(|form| {
                         // Check if the form selector matches
                         form.selector == form_selector ||
@@ -67,18 +86,19 @@ impl BrowserTools {
                                 .as_millis()
                         );
 
-                        eprintln!(
-                            "🔍 DEBUG: Creating predictive session for form preparation: {}",
+                        tracing::debug!(
+                            "Creating predictive session for form preparation: {}",
                             predictive_session_id
                         );
 
                         // Create the predictive session
-                        let _predictive_browser =
-                            self.get_or_create_session(&predictive_session_id, false);
+                        if let Err(e) = self.get_or_create_session(&predictive_session_id, false) {
+                            return McpResponse::error(-1, e);
+                        }
 
                         response = McpResponse::success(json!({
                             "success": true,
-                            "message": format!("Predictive session created for form that opens new window"),
+                            "message": "Predictive session created for form that opens new window".to_string(),
                             "form_info": {
                                 "selector": form_info.selector,
                                 "action": form_info.action,
@@ -98,7 +118,6 @@ impl BrowserTools {
                     }
                 } else {
                     // Check if any form matches the selector but doesn't open new windows
-                    let all_forms = browser_guard.get_analyzed_forms();
                     let form_exists = all_forms.iter().any(|form| {
                         form.selector == form_selector || form.selector.contains(form_selector)
                     });

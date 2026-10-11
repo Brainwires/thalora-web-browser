@@ -7,18 +7,18 @@ use thalora_browser_apis::boa_engine::{
 /// Setup native DOM globals using Boa's built-in implementations
 /// This replaces the polyfill-based DOM with real implementations
 pub fn setup_native_dom_globals(context: &mut Context) -> Result<()> {
-    eprintln!("🔍 DEBUG: setup_native_dom_globals called!");
-    eprintln!("🔍 DEBUG: Context has intrinsics available");
+    tracing::debug!("setup_native_dom_globals called!");
+    tracing::debug!("Context has intrinsics available");
 
     // Initialize Console API first (needed for Google's JavaScript)
-    eprintln!("🔍 DEBUG: Initializing Console API");
+    tracing::debug!("Initializing Console API");
     thalora_browser_apis::console::console::Console::init(context);
-    eprintln!("🔍 DEBUG: Console API initialized successfully");
+    tracing::debug!("Console API initialized successfully");
 
     // Initialize Timers API (setTimeout, setInterval - needed for Google's JavaScript)
-    eprintln!("🔍 DEBUG: Initializing Timers API");
+    tracing::debug!("Initializing Timers API");
     thalora_browser_apis::timers::timers::Timers::init(context);
-    eprintln!("🔍 DEBUG: Timers API initialized successfully");
+    tracing::debug!("Timers API initialized successfully");
 
     // Create instances using constructor functions directly instead of evaluating JavaScript
 
@@ -64,8 +64,8 @@ pub fn setup_native_dom_globals(context: &mut Context) -> Result<()> {
         value: JsValue,
         context: &mut Context,
     ) -> Result<()> {
-        eprintln!(
-            "🔍 DEBUG: Setting global property '{}' with value type: {:?}",
+        tracing::debug!(
+            "Setting global property '{}' with value type: {:?}",
             name,
             value.get_type()
         );
@@ -75,13 +75,13 @@ pub fn setup_native_dom_globals(context: &mut Context) -> Result<()> {
             .unwrap_or(false)
         {
             // Property exists, just update its value
-            eprintln!("🔍 DEBUG: Property '{}' exists, updating...", name);
+            tracing::debug!("Property '{}' exists, updating...", name);
             global
                 .set(js_string!(name), value, true, context)
                 .map_err(|e| anyhow::Error::msg(format!("Failed to update {} global: {}", name, e)))
         } else {
             // Property doesn't exist, define it
-            eprintln!("🔍 DEBUG: Property '{}' doesn't exist, defining...", name);
+            tracing::debug!("Property '{}' doesn't exist, defining...", name);
             global
                 .define_property_or_throw(
                     js_string!(name),
@@ -98,11 +98,11 @@ pub fn setup_native_dom_globals(context: &mut Context) -> Result<()> {
 
         match result {
             Ok(_) => {
-                eprintln!("🔍 DEBUG: Successfully set global property '{}'", name);
+                tracing::debug!("Successfully set global property '{}'", name);
                 Ok(())
             }
             Err(e) => {
-                eprintln!("🔍 DEBUG: Failed to set global property '{}': {}", name, e);
+                tracing::debug!("Failed to set global property '{}': {}", name, e);
                 Err(e)
             }
         }

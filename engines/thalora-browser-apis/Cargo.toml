@@ -25,12 +25,18 @@ native = [
     "boa_engine/native",
 ]
 
+# Allow THALORA_ALLOW_LOOPBACK in release builds (test fixtures only)
+test-hooks = []
+
 # WASM build - excludes native-only dependencies
 wasm = [
     "boa_engine/wasm",
 ]
 
 [dependencies]
+# Diagnostics (debug output is off unless RUST_LOG enables it)
+tracing = "0.1"
+
 # Shared constants
 thalora-constants = { path = "../../shared/thalora-constants" }
 

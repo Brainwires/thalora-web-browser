@@ -16,24 +16,9 @@ pub async fn search(query: &str, num_results: usize) -> Result<SearchResults> {
         num_results
     );
 
-    // Create temporary browser for stateless search
-    let temp_browser = crate::engine::browser::HeadlessWebBrowser::new();
-
-    // Navigate using the browser's full navigation system which includes stealth features
-    tokio::task::block_in_place(|| {
-        let mut browser = temp_browser
-            .lock()
-            .map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
-        tokio::runtime::Handle::current()
-            .block_on(browser.navigate_to_with_options(&search_url, true))
-    })?;
-
-    let html = {
-        let browser = temp_browser
-            .lock()
-            .map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
-        browser.get_current_content()
-    };
+    // Temporary browser on its own thread for this stateless search
+    let temp_browser = super::temporary_browser("bing")?;
+    let html = super::navigate_and_read(&temp_browser, search_url, false).await?;
 
     // Explicitly drop browser to ensure cleanup
     drop(temp_browser);
@@ -49,19 +34,13 @@ pub async fn search(query: &str, num_results: usize) -> Result<SearchResults> {
 }
 
 pub fn parse_results(html: &str, query: &str, num_results: usize) -> Result<SearchResults> {
-    eprintln!("🔍 DEBUG: Bing HTML length: {}", html.len());
-    eprintln!(
-        "🔍 DEBUG: Bing HTML contains .b_algo: {}",
-        html.contains(".b_algo")
-    );
-    eprintln!(
-        "🔍 DEBUG: Bing HTML contains cloudflare: {}",
+    tracing::debug!("Bing HTML length: {}", html.len());
+    tracing::debug!("Bing HTML contains .b_algo: {}", html.contains(".b_algo"));
+    tracing::debug!(
+        "Bing HTML contains cloudflare: {}",
         html.contains("cloudflare")
     );
-    eprintln!(
-        "🔍 DEBUG: First 500 chars: {}",
-        &html[..html.len().min(500)]
-    );
+    tracing::debug!("First 500 chars: {}", &html[..html.len().min(500)]);
 
     let document = Html::parse_document(html);
     let mut results = Vec::new();
@@ -174,31 +153,10 @@ pub async fn image_search(query: &str, num_results: usize) -> Result<ImageSearch
         query, search_url
     );
 
-    let url = search_url.clone();
-    // Use spawn_blocking to ensure the browser is created and dropped outside
-    // the async runtime context, avoiding "Cannot drop a runtime" panics.
-    let html = tokio::task::spawn_blocking(move || -> Result<String> {
-        let rt = tokio::runtime::Handle::current();
-        let temp_browser = crate::engine::browser::HeadlessWebBrowser::new();
-
-        {
-            let mut browser = temp_browser
-                .lock()
-                .map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
-            rt.block_on(browser.navigate_to_with_options(&url, true))?;
-        }
-
-        let content = {
-            let browser = temp_browser
-                .lock()
-                .map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
-            browser.get_current_content()
-        };
-
-        Ok(content)
-    })
-    .await
-    .map_err(|e| anyhow::anyhow!("Task join error: {}", e))??;
+    // Temporary browser on its own thread (created and dropped there)
+    let temp_browser = super::temporary_browser("bing-images")?;
+    let html = super::navigate_and_read(&temp_browser, search_url.clone(), false).await?;
+    drop(temp_browser);
 
     let query_owned = query.to_string();
     parse_image_results(&html, &query_owned, num_results)

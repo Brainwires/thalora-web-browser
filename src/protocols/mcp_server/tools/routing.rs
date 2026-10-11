@@ -49,6 +49,7 @@ impl McpServer {
                     .get_credentials(arguments, &mut self.ai_memory)
                     .await
             }
+            "browser_fill_credential" => self.handle_fill_credential(arguments).await,
             "ai_memory_store_bookmark" => {
                 self.memory_tools
                     .store_bookmark(arguments, &mut self.ai_memory)
@@ -163,6 +164,20 @@ impl McpServer {
             }
             "browser_navigate_back" => self.browser_tools.handle_navigate_back(arguments).await,
             "browser_navigate_to" => self.browser_tools.handle_navigate_to(arguments).await,
+            "browser_snapshot" => self.browser_tools.handle_snapshot(arguments).await,
+            "browser_wait" => self.browser_tools.handle_wait(arguments).await,
+            "browser_select_option"
+            | "browser_check"
+            | "browser_press_key"
+            | "browser_hover"
+            | "browser_scroll" => {
+                self.browser_tools
+                    .handle_element_action(name, arguments)
+                    .await
+            }
+            "browser_console_messages" => {
+                self.browser_tools.handle_console_messages(arguments).await
+            }
 
             // ── BrainClaw agent-friendly aliases ────────────────────────────────
             // One-shot read: navigate + extract markdown in a single call
@@ -171,18 +186,14 @@ impl McpServer {
             "browser_navigate" => self.browser_tools.handle_navigate_to(arguments).await,
             // Interaction
             "browser_click" => self.browser_tools.handle_click_element(arguments).await,
-            "browser_fill" => self.browser_tools.handle_fill_form(arguments).await,
+            "browser_fill" => self.browser_tools.handle_fill_field(arguments).await,
             // CDP
             "browser_eval" => {
                 self.cdp_tools
                     .evaluate_javascript(arguments, &mut self.cdp_server)
                     .await
             }
-            "browser_screenshot" => {
-                self.cdp_tools
-                    .take_screenshot(arguments, &mut self.cdp_server)
-                    .await
-            }
+            "browser_screenshot" => self.browser_tools.handle_screenshot(arguments).await,
             // Extraction / search
             "browser_extract" => self.handle_snapshot_url(arguments).await,
             "browser_search" => self.web_search(arguments).await,
@@ -211,10 +222,12 @@ impl McpServer {
                     .and_then(|v| v.as_u64())
                     .unwrap_or(10) as usize;
 
-                let browser = self.browser_tools.get_or_create_session(session_id, false);
-                match browser.lock() {
-                    Ok(guard) => {
-                        let content = guard.get_current_content();
+                let browser = match self.browser_tools.get_session(session_id) {
+                    Ok(browser) => browser,
+                    Err(e) => return McpResponse::error(-32602, e),
+                };
+                match crate::protocols::browser_tools::core::page_state(&browser).await {
+                    Ok((page_url, content)) => {
                         if content.is_empty() {
                             McpResponse::error(
                                 -1,
@@ -225,10 +238,10 @@ impl McpServer {
                                 crate::engine::browser::accessibility::build_accessibility_tree(
                                     &content, max_depth,
                                 );
-                            McpResponse::success(tree)
+                            McpResponse::page_content(page_url.as_deref(), tree)
                         }
                     }
-                    Err(_) => McpResponse::error(-1, "Failed to acquire browser lock".to_string()),
+                    Err(e) => McpResponse::error(-1, e),
                 }
             }
 

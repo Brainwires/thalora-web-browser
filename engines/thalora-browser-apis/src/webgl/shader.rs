@@ -301,10 +301,8 @@ impl WebGLProgram {
                     self.vertex_shader = None;
                 }
             }
-            WebGLConstants::FRAGMENT_SHADER => {
-                if self.fragment_shader == Some(shader.id) {
-                    self.fragment_shader = None;
-                }
+            WebGLConstants::FRAGMENT_SHADER if self.fragment_shader == Some(shader.id) => {
+                self.fragment_shader = None;
             }
             _ => {}
         }

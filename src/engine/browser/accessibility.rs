@@ -10,7 +10,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 /// Compute the implicit ARIA role for an HTML element based on its tag and attributes.
-fn implicit_role(tag: &str, attrs: &HashMap<&str, &str>) -> Option<&'static str> {
+pub(crate) fn implicit_role(tag: &str, attrs: &HashMap<&str, &str>) -> Option<&'static str> {
     match tag {
         "button" | "summary" => Some("button"),
         "a" if attrs.contains_key("href") => Some("link"),
@@ -84,7 +84,7 @@ fn implicit_role(tag: &str, attrs: &HashMap<&str, &str>) -> Option<&'static str>
 }
 
 /// Compute the heading level from an h1-h6 tag.
-fn heading_level(tag: &str) -> Option<u8> {
+pub(crate) fn heading_level(tag: &str) -> Option<u8> {
     match tag {
         "h1" => Some(1),
         "h2" => Some(2),
@@ -97,7 +97,7 @@ fn heading_level(tag: &str) -> Option<u8> {
 }
 
 /// Compute the accessible name for an element per the Accessible Name Computation spec.
-fn compute_accessible_name(element: &ElementRef, doc: &Html) -> String {
+pub(crate) fn compute_accessible_name(element: &ElementRef, doc: &Html) -> String {
     // 1. aria-label takes highest priority
     if let Some(label) = element.value().attr("aria-label")
         && !label.trim().is_empty()
@@ -168,8 +168,8 @@ fn compute_accessible_name(element: &ElementRef, doc: &Html) -> String {
             let text = text.trim().to_string();
             if !text.is_empty() {
                 // Truncate long names
-                if text.len() > 200 {
-                    return format!("{}...", &text[..197]);
+                if text.chars().count() > 200 {
+                    return format!("{}...", text.chars().take(197).collect::<String>());
                 }
                 return text;
             }

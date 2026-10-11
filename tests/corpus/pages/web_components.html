@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Team</title></head>
+<body>
+  <h1>Our team</h1>
+  <!-- Parsed before the definition exists: upgraded when define() runs -->
+  <user-card name="Ada Lovelace" role="Analyst"></user-card>
+  <user-card name="Grace Hopper" role="Compiler author"></user-card>
+  <script>
+    class UserCard extends HTMLElement {
+      followers = 0;
+      connectedCallback() { this.render(); }
+      static get observedAttributes() { return ['role']; }
+      attributeChangedCallback() { if (this.isConnected) this.render(); }
+      render() {
+        this.innerHTML = '';
+        const name = document.createElement('strong');
+        name.textContent = this.getAttribute('name');
+        const role = document.createElement('em');
+        role.textContent = ' — ' + this.getAttribute('role') + ' ';
+        const follow = document.createElement('button');
+        follow.textContent = 'Follow ' + this.getAttribute('name');
+        this.append(name, role, follow);
+      }
+    }
+    customElements.define('user-card', UserCard);
+    // Created after definition: constructed synchronously
+    const late = document.createElement('user-card');
+    late.setAttribute('name', 'Katherine Johnson');
+    late.setAttribute('role', 'Mathematician');
+    document.body.appendChild(late);
+    document.querySelector('user-card').setAttribute('role', 'First programmer');
+  </script>
+</body>
+</html>

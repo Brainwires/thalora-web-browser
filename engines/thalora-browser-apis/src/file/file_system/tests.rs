@@ -26,7 +26,10 @@ fn test_file_system_constructors_not_directly_constructible() {
         );
         let new_expr = format!("new {ctor}()");
         let result = context.eval(Source::from_bytes(&new_expr));
-        assert!(result.is_err(), "{ctor} should not be directly constructible");
+        assert!(
+            result.is_err(),
+            "{ctor} should not be directly constructible"
+        );
     }
 }
 
@@ -252,8 +255,14 @@ fn opfs_get_directory_resolves_to_directory_handle() {
     crate::initialize_browser_apis(&mut context).expect("init");
     crate::realm_ext::set_active_origin(&mut context, origin.clone());
 
-    context.eval(Source::from_bytes(r#"let kind = null; navigator.storage.getDirectory().then(d => { kind = d.kind; });"#)).expect("eval");
-    for _ in 0..30 { context.run_jobs().ok(); }
+    context
+        .eval(Source::from_bytes(
+            r#"let kind = null; navigator.storage.getDirectory().then(d => { kind = d.kind; });"#,
+        ))
+        .expect("eval");
+    for _ in 0..30 {
+        context.run_jobs().ok();
+    }
     let kind = context.eval(Source::from_bytes("kind")).unwrap();
     assert_eq!(kind, JsValue::from(JsString::from("directory")));
     cleanup_origin(&origin);
@@ -279,7 +288,9 @@ fn opfs_round_trip_string_write_and_read() {
         })().catch(e => { outcome = "error:" + (e && e.message); });
     "#;
     context.eval(Source::from_bytes(script)).expect("eval");
-    for _ in 0..50 { context.run_jobs().ok(); }
+    for _ in 0..50 {
+        context.run_jobs().ok();
+    }
     let outcome = context.eval(Source::from_bytes("outcome")).unwrap();
     assert_eq!(outcome, JsValue::from(JsString::from("hello opfs")));
 
@@ -305,7 +316,9 @@ fn opfs_get_file_handle_create_false_throws_not_found() {
         })();
     "#;
     context.eval(Source::from_bytes(script)).expect("eval");
-    for _ in 0..30 { context.run_jobs().ok(); }
+    for _ in 0..30 {
+        context.run_jobs().ok();
+    }
     let err_name = context.eval(Source::from_bytes("errName")).unwrap();
     assert_eq!(err_name, JsValue::from(JsString::from("NotFoundError")));
     cleanup_origin(&origin);
@@ -328,7 +341,9 @@ fn opfs_directory_async_iteration() {
         })();
     "#;
     context.eval(Source::from_bytes(script)).expect("eval");
-    for _ in 0..50 { context.run_jobs().ok(); }
+    for _ in 0..50 {
+        context.run_jobs().ok();
+    }
     let len = context.eval(Source::from_bytes("names.length")).unwrap();
     assert_eq!(len, JsValue::from(2_i32));
     cleanup_origin(&origin);
@@ -348,7 +363,9 @@ fn opfs_persistence_across_contexts() {
             await w.write("survives"); await w.close();
         })();"#;
         context.eval(Source::from_bytes(script)).expect("eval");
-        for _ in 0..30 { context.run_jobs().ok(); }
+        for _ in 0..30 {
+            context.run_jobs().ok();
+        }
     }
     let mut context2 = Context::default();
     crate::initialize_browser_apis(&mut context2).expect("init2");
@@ -363,7 +380,9 @@ fn opfs_persistence_across_contexts() {
         })();
     "#;
     context2.eval(Source::from_bytes(script)).expect("eval");
-    for _ in 0..30 { context2.run_jobs().ok(); }
+    for _ in 0..30 {
+        context2.run_jobs().ok();
+    }
     let txt = context2.eval(Source::from_bytes("txt")).unwrap();
     assert_eq!(txt, JsValue::from(JsString::from("survives")));
     cleanup_origin(&origin);
@@ -384,7 +403,9 @@ fn opfs_query_permission_returns_granted() {
         })();
     "#;
     context.eval(Source::from_bytes(script)).expect("eval");
-    for _ in 0..30 { context.run_jobs().ok(); }
+    for _ in 0..30 {
+        context.run_jobs().ok();
+    }
     let state = context.eval(Source::from_bytes("state")).unwrap();
     assert_eq!(state, JsValue::from(JsString::from("granted")));
     cleanup_origin(&origin);
@@ -407,7 +428,9 @@ fn opfs_create_sync_access_handle_blocked_on_main_thread() {
         })();
     "#;
     context.eval(Source::from_bytes(script)).expect("eval");
-    for _ in 0..30 { context.run_jobs().ok(); }
+    for _ in 0..30 {
+        context.run_jobs().ok();
+    }
     let err_name = context.eval(Source::from_bytes("errName")).unwrap();
     assert_eq!(err_name, JsValue::from(JsString::from("InvalidStateError")));
     cleanup_origin(&origin);
@@ -432,9 +455,13 @@ fn opfs_remove_entry_non_empty_requires_recursive() {
         })();
     "#;
     context.eval(Source::from_bytes(script)).expect("eval");
-    for _ in 0..50 { context.run_jobs().ok(); }
+    for _ in 0..50 {
+        context.run_jobs().ok();
+    }
     let err_name = context.eval(Source::from_bytes("errName")).unwrap();
-    assert_eq!(err_name, JsValue::from(JsString::from("InvalidModificationError")));
+    assert_eq!(
+        err_name,
+        JsValue::from(JsString::from("InvalidModificationError"))
+    );
     cleanup_origin(&origin);
 }
-

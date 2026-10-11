@@ -31,8 +31,58 @@ pub(crate) fn get_session_tool_definitions() -> Vec<Value> {
             }
         }),
         serde_json::json!({
+            "name": "browser_snapshot",
+            "description": "Compact outline of the current page for deciding what to do next: interactive elements with refs (e.g. [ref=e12]) plus headings, landmarks and text, within a token budget. Pass a ref instead of a CSS selector to browser_click_element, browser_type_text, browser_fill and browser_wait_for_element. Refs stay valid until the page content changes; a stale ref returns an error asking for a new snapshot.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "session_id": {
+                        "type": "string",
+                        "description": "Browser session ID (default: \"default\")"
+                    },
+                    "max_tokens": {
+                        "type": "integer",
+                        "description": "Approximate output budget in tokens (default 4000, 200-50000). Text is dropped first, interactive elements last."
+                    },
+                    "interactive_only": {
+                        "type": "boolean",
+                        "description": "Only list interactive elements (default false)"
+                    },
+                    "focus_ref": {
+                        "type": "string",
+                        "description": "Only snapshot the subtree of this ref"
+                    }
+                }
+            }
+        }),
+        serde_json::json!({
+            "name": "browser_screenshot",
+            "description": "PNG screenshot of the current page, rendered by Thalora's own layout engine (approximate: boxes, colours, borders and text; images are shown as placeholders).",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "session_id": {
+                        "type": "string",
+                        "description": "Browser session ID (optional)"
+                    },
+                    "full_page": {
+                        "type": "boolean",
+                        "description": "Capture the whole page height instead of the viewport (default false)"
+                    },
+                    "width": {
+                        "type": "integer",
+                        "description": "Viewport width in px (default 1280, 320-2560)"
+                    },
+                    "height": {
+                        "type": "integer",
+                        "description": "Viewport height in px (default 800, 240-4000)"
+                    }
+                }
+            }
+        }),
+        serde_json::json!({
             "name": "browser_get_page_content",
-            "description": "Get the current page content and URL from a browser session",
+            "description": "Get the current page's visible text (scripts, styles and hidden content removed; one block per line) and URL from a browser session. Set include_html for the raw HTML. Output is capped at max_length bytes (default 20000) and reports truncated: true when cut.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -47,6 +97,10 @@ pub(crate) fn get_session_tool_definitions() -> Vec<Value> {
                     "include_text": {
                         "type": "boolean",
                         "description": "Whether to include extracted text (default: true)"
+                    },
+                    "max_length": {
+                        "type": "integer",
+                        "description": "Maximum bytes of text/HTML to return (default: 20000)"
                     }
                 }
             }

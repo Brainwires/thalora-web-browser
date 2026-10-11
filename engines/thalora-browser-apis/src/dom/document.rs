@@ -326,8 +326,9 @@ pub struct DocumentData {
     content_type: Arc<Mutex<String>>,
     #[unsafe_ignore_trace]
     elements: Arc<Mutex<HashMap<String, JsObject>>>,
+    /// Event listeners with their capture/once/passive flags
     #[unsafe_ignore_trace]
-    event_listeners: Arc<Mutex<HashMap<String, Vec<JsValue>>>>,
+    event_listeners: Arc<Mutex<HashMap<String, Vec<crate::events::event_target::EventListener>>>>,
     #[unsafe_ignore_trace]
     html_content: Arc<Mutex<String>>,
     /// Cached layout geometry data keyed by CSS selector path
@@ -336,6 +337,12 @@ pub struct DocumentData {
     /// Adopted stylesheets (CSSStyleSheet objects)
     #[unsafe_ignore_trace]
     adopted_style_sheets: Arc<Mutex<Vec<JsObject>>>,
+    /// Persistent DOM tree, built when the page HTML is loaded
+    /// (absent for empty documents and with `THALORA_DOM=legacy`).
+    #[unsafe_ignore_trace]
+    tree: std::cell::RefCell<Option<crate::dom::tree::SharedTree>>,
+    /// JS wrapper per tree node, so each node keeps one identity.
+    wrappers: boa_gc::GcRefCell<HashMap<crate::dom::tree::NodeId, JsObject>>,
 }
 
 /// Cached layout rectangle for an element, computed by the layout engine
@@ -381,6 +388,8 @@ impl DocumentData {
             html_content: Arc::new(Mutex::new("".to_string())),
             layout_rects: Arc::new(Mutex::new(HashMap::new())),
             adopted_style_sheets: Arc::new(Mutex::new(Vec::new())),
+            tree: std::cell::RefCell::new(None),
+            wrappers: boa_gc::GcRefCell::new(HashMap::new()),
         };
 
         // Set up DOM sync bridge - connect Element changes to Document updates
@@ -405,10 +414,35 @@ impl DocumentData {
 
     pub fn set_title(&self, title: &str) {
         *self.title.lock().unwrap() = title.to_string();
+        // With a tree, document.title writes the <title> element
+        if let Some(tree) = self.tree() {
+            let mut tree = tree.borrow_mut();
+            let doc = tree.document();
+            let existing = tree.elements_by_tag(doc, "title").into_iter().next();
+            let title_node = match existing {
+                Some(node) => Some(node),
+                None => {
+                    let parent = tree.html_child("head").or_else(|| tree.document_element());
+                    parent.map(|parent| {
+                        let node = tree.create_element("title");
+                        let _ = tree.append(parent, node);
+                        node
+                    })
+                }
+            };
+            if let Some(node) = title_node {
+                let _ = tree.set_text_content(node, title);
+            }
+        }
     }
 
     pub fn set_html_content(&self, html: &str) {
         *self.html_content.lock().unwrap() = html.to_string();
+        // A new page gets a new tree; wrappers of the old one stay bound to it
+        self.wrappers.borrow_mut().clear();
+        *self.tree.borrow_mut() = (crate::dom::binding::tree_dom_enabled()
+            && !html.trim().is_empty())
+        .then(|| crate::dom::tree::DomTree::from_html(html).into_shared());
         // Clear stale layout data when HTML changes
         self.layout_rects.lock().unwrap().clear();
         self.process_forms_in_html(html);
@@ -430,7 +464,23 @@ impl DocumentData {
     }
 
     pub fn get_html_content(&self) -> String {
+        if let Some(tree) = self.tree() {
+            return tree.borrow().to_html();
+        }
         self.html_content.lock().unwrap().clone()
+    }
+
+    /// The document's persistent tree, if it has one.
+    pub fn tree(&self) -> Option<crate::dom::tree::SharedTree> {
+        self.tree.borrow().clone()
+    }
+
+    pub(crate) fn cached_wrapper(&self, node: crate::dom::tree::NodeId) -> Option<JsObject> {
+        self.wrappers.borrow().get(&node).cloned()
+    }
+
+    pub(crate) fn cache_wrapper(&self, node: crate::dom::tree::NodeId, object: JsObject) {
+        self.wrappers.borrow_mut().insert(node, object);
     }
 
     pub fn get_ready_state(&self) -> String {
@@ -442,6 +492,16 @@ impl DocumentData {
     }
 
     pub fn get_title(&self) -> String {
+        // With a tree, document.title reads the first <title> element
+        // (whitespace collapsed, per spec)
+        if let Some(tree) = self.tree() {
+            let tree = tree.borrow();
+            let doc = tree.document();
+            if let Some(node) = tree.elements_by_tag(doc, "title").into_iter().next() {
+                let text = tree.text_content(node).unwrap_or_default();
+                return text.split_ascii_whitespace().collect::<Vec<_>>().join(" ");
+            }
+        }
         self.title.lock().unwrap().clone()
     }
 
@@ -456,8 +516,8 @@ impl DocumentData {
     /// Process all forms in HTML content and prepare elements collections
     /// This ensures that forms accessed via DOM events have proper elements collections
     fn process_forms_in_html(&self, html_content: &str) {
-        eprintln!(
-            "🔍 DEBUG: process_forms_in_html called with {} characters of HTML",
+        tracing::debug!(
+            "process_forms_in_html called with {} characters of HTML",
             html_content.len()
         );
 
@@ -467,7 +527,7 @@ impl DocumentData {
         // Find all form elements
         if let Ok(form_selector) = scraper::Selector::parse("form") {
             let form_count = document.select(&form_selector).count();
-            eprintln!("🔍 DEBUG: Found {} forms in HTML", form_count);
+            tracing::debug!("Found {} forms in HTML", form_count);
 
             for (form_index, form_element) in document.select(&form_selector).enumerate() {
                 // Create a unique ID for this form if it doesn't have one
@@ -517,41 +577,90 @@ impl DocumentData {
         // For now, store the metadata - we'll need a context to create the actual objects
         // This processing happens at document level so all forms are known before JavaScript queries them
         // TODO: This needs to be enhanced to create actual JavaScript objects when we have a context
-        eprintln!(
-            "🔍 DEBUG: Found form '{}' with {} inputs",
-            form_id,
-            inputs.len()
-        );
+        tracing::debug!("Found form '{}' with {} inputs", form_id, inputs.len());
         for (name, value, input_type) in &inputs {
-            eprintln!(
-                "🔍 DEBUG: - Input '{}' = '{}' (type: {})",
-                name, value, input_type
-            );
+            tracing::debug!("- Input '{}' = '{}' (type: {})", name, value, input_type);
         }
     }
 
+    /// Add a bubble-phase listener without options.
     pub fn add_event_listener(&self, event_type: String, listener: JsValue) {
+        self.add_event_listener_with_options(event_type, listener, false, false, false);
+    }
+
+    /// Add a listener with its `capture` / `once` / `passive` flags. A
+    /// listener with the same callback and capture flag is only added once.
+    pub fn add_event_listener_with_options(
+        &self,
+        event_type: String,
+        listener: JsValue,
+        capture: bool,
+        once: bool,
+        passive: bool,
+    ) {
+        let entry =
+            crate::events::event_target::EventListener::new(listener, capture, once, passive);
+        let mut map = self.event_listeners.lock().unwrap();
+        crate::events::event_target::push_unique_listener(
+            map.entry(event_type).or_default(),
+            entry,
+        );
+    }
+
+    /// Remove every listener with this callback (regardless of capture).
+    pub fn remove_event_listener(&self, event_type: &str, listener: &JsValue) {
+        if let Some(listeners) = self.event_listeners.lock().unwrap().get_mut(event_type) {
+            listeners.retain(|l| !JsValue::same_value(l.callback(), listener));
+        }
+    }
+
+    /// Remove the listener matching `(type, callback, capture)`.
+    pub fn remove_event_listener_with_capture(
+        &self,
+        event_type: &str,
+        listener: &JsValue,
+        capture: bool,
+    ) {
+        if let Some(listeners) = self.event_listeners.lock().unwrap().get_mut(event_type) {
+            listeners.retain(|l| !l.matches(listener, capture));
+        }
+    }
+
+    /// Listener callbacks for `event_type`, in registration order.
+    pub fn get_event_listeners(&self, event_type: &str) -> Vec<JsValue> {
         self.event_listeners
             .lock()
             .unwrap()
-            .entry(event_type)
-            .or_default()
-            .push(listener);
+            .get(event_type)
+            .map(|list| list.iter().map(|l| l.callback().clone()).collect())
+            .unwrap_or_default()
     }
 
-    pub fn remove_event_listener(&self, event_type: &str, listener: &JsValue) {
-        if let Some(listeners) = self.event_listeners.lock().unwrap().get_mut(event_type) {
-            listeners.retain(|l| !JsValue::same_value(l, listener));
-        }
-    }
-
-    pub fn get_event_listeners(&self, event_type: &str) -> Vec<JsValue> {
+    /// Snapshot of the listeners (with flags) for `event_type`.
+    pub(crate) fn listener_entries(
+        &self,
+        event_type: &str,
+    ) -> Vec<crate::events::event_target::EventListener> {
         self.event_listeners
             .lock()
             .unwrap()
             .get(event_type)
             .cloned()
             .unwrap_or_default()
+    }
+
+    /// Whether a listener matching `(type, callback, capture)` is registered.
+    pub(crate) fn has_listener_entry(
+        &self,
+        event_type: &str,
+        listener: &JsValue,
+        capture: bool,
+    ) -> bool {
+        self.event_listeners
+            .lock()
+            .unwrap()
+            .get(event_type)
+            .is_some_and(|list| list.iter().any(|l| l.matches(listener, capture)))
     }
 }
 
@@ -621,6 +730,9 @@ fn set_title(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResul
 
 /// `Document.prototype.body` getter
 fn get_body(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::document_root(this) {
+        return crate::dom::binding::document_body(&b, context);
+    }
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Document.prototype.body called on non-object")
     })?;
@@ -644,6 +756,9 @@ fn get_body(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResul
 
 /// `Document.prototype.head` getter
 fn get_head(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::document_root(this) {
+        return crate::dom::binding::document_head(&b, context);
+    }
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Document.prototype.head called on non-object")
     })?;
@@ -682,13 +797,37 @@ fn create_element(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
         JsNativeError::typ().with_message("Document.prototype.createElement called on non-object")
     })?;
 
-    let _document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Document.prototype.createElement called on non-Document object")
-    })?;
+    let tree = this_obj
+        .downcast_ref::<DocumentData>()
+        .ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("Document.prototype.createElement called on non-Document object")
+        })?
+        .tree();
 
-    let tag_name = args.get_or_undefined(0).to_string(context)?;
-    let tag_name_upper = tag_name.to_std_string_escaped().to_uppercase();
+    let tag_name = args
+        .get_or_undefined(0)
+        .to_string(context)?
+        .to_std_string_escaped();
+    let element = build_element_object(&tag_name, context)?;
+    if let Some(tree) = tree {
+        crate::dom::binding::bind_new_element(&this_obj, &tree, &element, &tag_name);
+    }
+    // Defined custom elements are constructed synchronously
+    if tag_name.contains('-') {
+        crate::web_components::custom_element_registry::construct_created_element(
+            &element,
+            &tag_name.to_ascii_lowercase(),
+            context,
+        )?;
+    }
+    Ok(element)
+}
+
+/// Build the JS object for an element named `tag_name` (not attached to
+/// any tree). Shared by `createElement` and tree wrappers.
+pub(crate) fn build_element_object(tag_name: &str, context: &mut Context) -> JsResult<JsValue> {
+    let tag_name_upper = tag_name.to_uppercase();
 
     // Create a proper Element object using Element constructor pattern
     let element_constructor = context.intrinsics().constructors().element().constructor();
@@ -769,31 +908,6 @@ fn create_element(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
                 .enumerable(true)
                 .writable(true)
                 .value(elements_collection)
-                .build(),
-            context,
-        )?;
-
-        // Add getAttribute method that Google's code uses
-        let get_attribute_func = BuiltInBuilder::callable(context.realm(), |_this, args, ctx| {
-            let attr_name = args.get_or_undefined(0).to_string(ctx)?;
-            let attr_name_str = attr_name.to_std_string_escaped();
-
-            // Return common attributes that Google checks
-            match attr_name_str.as_str() {
-                "data-submitfalse" => Ok(JsValue::null()), // Google checks this
-                _ => Ok(JsValue::null()),
-            }
-        })
-        .name(js_string!("getAttribute"))
-        .build();
-
-        element_obj.define_property_or_throw(
-            js_string!("getAttribute"),
-            PropertyDescriptorBuilder::new()
-                .configurable(true)
-                .enumerable(true)
-                .writable(true)
-                .value(get_attribute_func)
                 .build(),
             context,
         )?;
@@ -887,7 +1001,7 @@ fn create_element(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
 }
 
 /// `Document.prototype.createTextNode(data)`
-fn create_text_node(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn create_text_node(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let data = args.get_or_undefined(0).to_string(context)?;
 
     // Create a Text node using the Text constructor
@@ -898,6 +1012,9 @@ fn create_text_node(_this: &JsValue, args: &[JsValue], context: &mut Context) ->
         context,
     )?;
 
+    if let Some((document, tree)) = crate::dom::binding::document_tree(this) {
+        crate::dom::binding::bind_new_text(&document, &tree, &text);
+    }
     Ok(text)
 }
 
@@ -934,6 +1051,9 @@ fn create_range(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> Js
 
 /// `Document.prototype.getElementById(id)`
 fn get_element_by_id(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::document_root(this) {
+        return crate::dom::binding::get_element_by_id(&b, args, context);
+    }
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Document.prototype.getElementById called on non-object")
     })?;
@@ -954,7 +1074,10 @@ fn get_element_by_id(this: &JsValue, args: &[JsValue], context: &mut Context) ->
 
 /// `Document.prototype.querySelector(selector)`
 fn query_selector(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    eprintln!("DEBUG: query_selector called!");
+    if let Some(b) = crate::dom::binding::document_root(this) {
+        return crate::dom::binding::query_selector(&b, args, context);
+    }
+    tracing::debug!("query_selector called!");
 
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Document.prototype.querySelector called on non-object")
@@ -967,14 +1090,11 @@ fn query_selector(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
 
     let selector = args.get_or_undefined(0).to_string(context)?;
     let selector_str = selector.to_std_string_escaped();
-    eprintln!("DEBUG: query_selector selector: {}", selector_str);
+    tracing::debug!("query_selector selector: {}", selector_str);
 
     // Get the HTML content from the document
     let html_content = document.get_html_content();
-    eprintln!(
-        "DEBUG: query_selector HTML content length: {}",
-        html_content.len()
-    );
+    tracing::debug!("query_selector HTML content length: {}", html_content.len());
 
     // Get cached layout data for geometry injection
     let layout_rects = document.layout_rects.lock().unwrap().clone();
@@ -986,7 +1106,7 @@ fn query_selector(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
         return Ok(element.into());
     }
 
-    eprintln!("DEBUG: query_selector returning null - no element found");
+    tracing::debug!("query_selector returning null - no element found");
     Ok(JsValue::null())
 }
 
@@ -1003,21 +1123,21 @@ fn create_real_element_from_html(
     if let Ok(css_selector) = scraper::Selector::parse(selector)
         && let Some(element_ref) = document.select(&css_selector).next()
     {
-        eprintln!("DEBUG: querySelector creating element using Element constructor");
+        tracing::debug!("querySelector creating element using Element constructor");
 
         // Actually construct a new Element instance using the Element constructor
         let element_constructor = context.intrinsics().constructors().element().constructor();
         let element_obj =
             element_constructor.construct(&[], Some(&element_constructor), context)?;
 
-        eprintln!("DEBUG: Element created, checking for dispatchEvent...");
+        tracing::debug!("Element created, checking for dispatchEvent...");
         if let Ok(dispatch_event) = element_obj.get(js_string!("dispatchEvent"), context) {
-            eprintln!(
-                "DEBUG: dispatchEvent found on created element: {:?}",
+            tracing::debug!(
+                "dispatchEvent found on created element: {:?}",
                 dispatch_event.type_of()
             );
         } else {
-            eprintln!("DEBUG: dispatchEvent NOT found on created element!");
+            tracing::debug!("dispatchEvent NOT found on created element!");
         }
 
         // Set real properties from the actual HTML element
@@ -1253,6 +1373,9 @@ fn query_selector_all(
     args: &[JsValue],
     context: &mut Context,
 ) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::document_root(this) {
+        return crate::dom::binding::query_selector_all(&b, args, context);
+    }
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ()
             .with_message("Document.prototype.querySelectorAll called on non-object")
@@ -1277,7 +1400,9 @@ fn query_selector_all(
     Ok(array.into())
 }
 
-/// `Document.prototype.addEventListener(type, listener)`
+/// `Document.prototype.addEventListener(type, listener[, options])`
+///
+/// `options` is a boolean (capture) or `{ capture, once, passive }`.
 fn add_event_listener(
     this: &JsValue,
     args: &[JsValue],
@@ -1287,20 +1412,32 @@ fn add_event_listener(
         JsNativeError::typ()
             .with_message("Document.prototype.addEventListener called on non-object")
     })?;
-
-    let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
-        JsNativeError::typ()
+    if this_obj.downcast_ref::<DocumentData>().is_none() {
+        return Err(JsNativeError::typ()
             .with_message("Document.prototype.addEventListener called on non-Document object")
-    })?;
+            .into());
+    }
 
     let event_type = args.get_or_undefined(0).to_string(context)?;
     let listener = args.get_or_undefined(1).clone();
+    let (capture, once, passive) =
+        crate::events::event_target::parse_listener_options(args.get_or_undefined(2), context)?;
 
-    document.add_event_listener(event_type.to_std_string_escaped(), listener);
+    if let Some(document) = this_obj.downcast_ref::<DocumentData>() {
+        document.add_event_listener_with_options(
+            event_type.to_std_string_escaped(),
+            listener,
+            capture,
+            once,
+            passive,
+        );
+    }
     Ok(JsValue::undefined())
 }
 
-/// `Document.prototype.removeEventListener(type, listener)`
+/// `Document.prototype.removeEventListener(type, listener[, options])`
+///
+/// Removes the listener matching `(type, callback, capture)`.
 fn remove_event_listener(
     this: &JsValue,
     args: &[JsValue],
@@ -1310,16 +1447,24 @@ fn remove_event_listener(
         JsNativeError::typ()
             .with_message("Document.prototype.removeEventListener called on non-object")
     })?;
-
-    let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
-        JsNativeError::typ()
+    if this_obj.downcast_ref::<DocumentData>().is_none() {
+        return Err(JsNativeError::typ()
             .with_message("Document.prototype.removeEventListener called on non-Document object")
-    })?;
+            .into());
+    }
 
     let event_type = args.get_or_undefined(0).to_string(context)?;
-    let listener = args.get_or_undefined(1);
+    let listener = args.get_or_undefined(1).clone();
+    let (capture, _, _) =
+        crate::events::event_target::parse_listener_options(args.get_or_undefined(2), context)?;
 
-    document.remove_event_listener(&event_type.to_std_string_escaped(), listener);
+    if let Some(document) = this_obj.downcast_ref::<DocumentData>() {
+        document.remove_event_listener_with_capture(
+            &event_type.to_std_string_escaped(),
+            &listener,
+            capture,
+        );
+    }
     Ok(JsValue::undefined())
 }
 
@@ -1469,6 +1614,9 @@ fn get_elements_by_class_name(
     args: &[JsValue],
     context: &mut Context,
 ) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::document_root(this) {
+        return crate::dom::binding::get_elements_by_class_name(&b, args, context);
+    }
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ()
             .with_message("Document.prototype.getElementsByClassName called on non-object")
@@ -1577,6 +1725,9 @@ fn get_elements_by_tag_name(
     args: &[JsValue],
     context: &mut Context,
 ) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::document_root(this) {
+        return crate::dom::binding::get_elements_by_tag_name(&b, args, context);
+    }
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ()
             .with_message("Document.prototype.getElementsByTagName called on non-object")
@@ -1677,6 +1828,9 @@ fn get_elements_by_name(
     args: &[JsValue],
     context: &mut Context,
 ) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::document_root(this) {
+        return crate::dom::binding::get_elements_by_name(&b, args, context);
+    }
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ()
             .with_message("Document.prototype.getElementsByName called on non-object")
@@ -1757,7 +1911,12 @@ fn get_elements_by_name(
 /// `Document.prototype.createComment(data)`
 fn create_comment(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let data = args.get_or_undefined(0).to_string(context)?;
-    let data_str = data.to_std_string_escaped();
+    create_comment_object(&data.to_std_string_escaped(), context)
+}
+
+/// Build a Comment node object holding `data_str`.
+pub(crate) fn create_comment_object(data_str: &str, context: &mut Context) -> JsResult<JsValue> {
+    let data_str = data_str.to_string();
 
     // Create a Comment node object
     let comment = JsObject::default(context.intrinsics());
@@ -1932,6 +2091,11 @@ fn document_write(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
 
     // Skip empty writes
     if content.is_empty() {
+        return Ok(JsValue::undefined());
+    }
+
+    if let Some(b) = crate::dom::binding::document_root(this) {
+        crate::dom::binding::document_write(&b, &content, context)?;
         return Ok(JsValue::undefined());
     }
 
@@ -2769,6 +2933,9 @@ fn get_document_element(
     _args: &[JsValue],
     context: &mut Context,
 ) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::document_root(this) {
+        return crate::dom::binding::document_element(&b, context);
+    }
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Document.prototype.documentElement called on non-object")
     })?;
@@ -2811,6 +2978,9 @@ fn get_document_element(
 
 /// `Document.prototype.forms` getter - returns HTMLCollection of all form elements
 fn get_forms(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::document_root(this) {
+        return crate::dom::binding::document_collection(&b, "form", context);
+    }
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Document.prototype.forms called on non-object")
     })?;
@@ -2859,6 +3029,9 @@ fn get_forms(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResu
 
 /// `Document.prototype.images` getter - returns HTMLCollection of all img elements
 fn get_images(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::document_root(this) {
+        return crate::dom::binding::document_collection(&b, "img", context);
+    }
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Document.prototype.images called on non-object")
     })?;
@@ -2900,6 +3073,9 @@ fn get_images(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsRes
 
 /// `Document.prototype.links` getter - returns HTMLCollection of all a and area elements with href
 fn get_links(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::document_root(this) {
+        return crate::dom::binding::document_collection(&b, "a[href], area[href]", context);
+    }
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Document.prototype.links called on non-object")
     })?;
@@ -2938,6 +3114,9 @@ fn get_links(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResu
 
 /// `Document.prototype.scripts` getter - returns HTMLCollection of all script elements
 fn get_scripts(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    if let Some(b) = crate::dom::binding::document_root(this) {
+        return crate::dom::binding::document_collection(&b, "script", context);
+    }
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Document.prototype.scripts called on non-object")
     })?;
@@ -3278,7 +3457,7 @@ fn set_adopted_style_sheets(
 /// Produces paths like: "html>body:nth-child(1)>div:nth-child(1)>p:nth-child(2)"
 /// These paths are deterministic for a given HTML document and match the paths
 /// produced by the layout bridge's `flatten_layout_to_rects`.
-fn css_path_for_scraper_element(element_ref: &scraper::ElementRef) -> String {
+pub(crate) fn css_path_for_scraper_element(element_ref: &scraper::ElementRef) -> String {
     let mut parts: Vec<String> = Vec::new();
     let mut current = Some(*element_ref);
 

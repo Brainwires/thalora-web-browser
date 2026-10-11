@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Chandlery</title></head>
+<body>
+  <div id="app"><p class="loading">Loading…</p></div>
+  <script>
+    // Client-side rendered single-page app: fetch JSON (relative URL),
+    // build the view with DOM APIs, update the URL with pushState.
+    function h(tag, attrs, ...children) {
+      const el = document.createElement(tag);
+      for (const [k, v] of Object.entries(attrs || {})) el.setAttribute(k, v);
+      for (const c of children) el.append(c);
+      return el;
+    }
+    async function render() {
+      const res = await fetch('data/products.json');
+      const { products } = await res.json();
+      const app = document.getElementById('app');
+      app.textContent = '';
+      app.append(h('h1', {}, 'Chandlery: ' + products.length + ' products'));
+      const list = h('ul', { id: 'products' });
+      for (const p of products) {
+        list.append(h('li', { 'data-id': String(p.id) },
+          h('span', { class: 'name' }, p.name), ' $' + p.price + ' ',
+          h('button', { type: 'button' }, 'Add ' + p.name + ' to cart')));
+      }
+      app.append(list);
+      history.pushState({ view: 'products' }, '', '#products');
+    }
+    render().catch(e => { document.getElementById('app').textContent = 'Error: ' + e; });
+  </script>
+</body>
+</html>

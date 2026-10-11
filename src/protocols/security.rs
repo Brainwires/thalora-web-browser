@@ -126,38 +126,41 @@ pub fn validate_url_for_navigation(url: &str) -> Result<()> {
         }
     }
 
-    // Get the host
-    let host = parsed
-        .host_str()
-        .ok_or_else(|| anyhow!("URL has no host"))?;
+    let loopback_ok = crate::engine::security::loopback_override_enabled();
 
-    // Block localhost and loopback
-    let host_lower = host.to_lowercase();
-    if host_lower == "localhost"
-        || host_lower == "127.0.0.1"
-        || host_lower == "::1"
-        || host_lower == "[::1]"
-        || host_lower == "0.0.0.0"
-    {
-        return Err(anyhow!("Access to localhost is blocked for security"));
-    }
-
-    // Block cloud metadata endpoints
-    if host_lower == "169.254.169.254"
-        || host_lower == "metadata.google.internal"
-        || host_lower.ends_with(".internal")
-    {
-        return Err(anyhow!("Access to cloud metadata endpoints is blocked"));
-    }
-
-    // Parse IP address if it looks like one
-    if let Ok(ip) = host.parse::<std::net::IpAddr>()
-        && !is_public_ip(&ip)
-    {
-        return Err(anyhow!(
-            "Access to private/internal IP address {} is blocked",
-            ip
-        ));
+    // Use `Url::host()` so IP literals (including bracketed IPv6) are parsed
+    // as addresses rather than compared as strings.
+    match parsed.host().ok_or_else(|| anyhow!("URL has no host"))? {
+        url::Host::Domain(domain) => {
+            let host_lower = domain.to_lowercase();
+            if (host_lower == "localhost" || host_lower.ends_with(".localhost")) && !loopback_ok {
+                return Err(anyhow!("Access to localhost is blocked for security"));
+            }
+            // Block cloud metadata endpoints
+            if host_lower == "metadata.google.internal" || host_lower.ends_with(".internal") {
+                return Err(anyhow!("Access to cloud metadata endpoints is blocked"));
+            }
+        }
+        host => {
+            let ip = match host {
+                url::Host::Ipv4(v4) => std::net::IpAddr::V4(v4),
+                url::Host::Ipv6(v6) => std::net::IpAddr::V6(v6),
+                url::Host::Domain(_) => unreachable!("handled above"),
+            };
+            let loopback = crate::engine::security::is_loopback_ip(&ip);
+            if loopback && !loopback_ok {
+                return Err(anyhow!("Access to localhost is blocked for security"));
+            }
+            if ip == std::net::IpAddr::V4(std::net::Ipv4Addr::new(169, 254, 169, 254)) {
+                return Err(anyhow!("Access to cloud metadata endpoints is blocked"));
+            }
+            if !loopback && !is_public_ip(&ip) {
+                return Err(anyhow!(
+                    "Access to private/internal IP address {} is blocked",
+                    ip
+                ));
+            }
+        }
     }
 
     // Block potential DNS rebinding with numeric-looking hosts
@@ -374,6 +377,16 @@ mod tests {
         assert!(validate_url_for_navigation("http://127.0.0.1").is_err());
         assert!(validate_url_for_navigation("http://[::1]").is_err());
         assert!(validate_url_for_navigation("http://0.0.0.0").is_err());
+    }
+
+    #[test]
+    fn test_validate_url_ipv6_literals_blocked() {
+        assert!(validate_url_for_navigation("http://[fd00::1]").is_err());
+        assert!(validate_url_for_navigation("http://[fe80::1]").is_err());
+        assert!(validate_url_for_navigation("http://[::ffff:127.0.0.1]").is_err());
+        assert!(validate_url_for_navigation("http://[::ffff:10.0.0.1]").is_err());
+        assert!(validate_url_for_navigation("http://[::]").is_err());
+        assert!(validate_url_for_navigation("http://[2001:4860:4860::8888]").is_ok());
     }
 
     #[test]

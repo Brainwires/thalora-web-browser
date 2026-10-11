@@ -29,13 +29,13 @@ fn test_navigator_id_properties() {
     let proto_check = context
         .eval(Source::from_bytes("Navigator.prototype.appCodeName"))
         .unwrap();
-    eprintln!("DEBUG: Navigator.prototype.appCodeName = {:?}", proto_check);
+    tracing::debug!("Navigator.prototype.appCodeName = {:?}", proto_check);
 
     // Test appCodeName property
     let result = context
         .eval(Source::from_bytes("window.navigator.appCodeName"))
         .unwrap();
-    eprintln!("DEBUG: window.navigator.appCodeName = {:?}", result);
+    tracing::debug!("window.navigator.appCodeName = {:?}", result);
     assert_eq!(result, JsValue::from(JsString::from("Mozilla")));
 
     // Test appName property

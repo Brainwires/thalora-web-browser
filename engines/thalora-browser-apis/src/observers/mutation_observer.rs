@@ -9,6 +9,7 @@ use boa_engine::{
     Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
+    job::{Job, PromiseJob},
     js_string,
     object::{JsObject, internal_methods::get_prototype_from_constructor},
     property::Attribute,
@@ -124,12 +125,16 @@ impl MutationObserver {
             }
 
             // Parse attributes option
-            if let Ok(attributes) = options_obj.get(js_string!("attributes"), context) {
+            if let Ok(attributes) = options_obj.get(js_string!("attributes"), context)
+                && !attributes.is_undefined()
+            {
                 config.attributes = Some(attributes.to_boolean());
             }
 
             // Parse characterData option
-            if let Ok(character_data) = options_obj.get(js_string!("characterData"), context) {
+            if let Ok(character_data) = options_obj.get(js_string!("characterData"), context)
+                && !character_data.is_undefined()
+            {
                 config.character_data = Some(character_data.to_boolean());
             }
 
@@ -139,13 +144,16 @@ impl MutationObserver {
             }
 
             // Parse attributeOldValue option
-            if let Ok(attr_old_value) = options_obj.get(js_string!("attributeOldValue"), context) {
+            if let Ok(attr_old_value) = options_obj.get(js_string!("attributeOldValue"), context)
+                && !attr_old_value.is_undefined()
+            {
                 config.attribute_old_value = Some(attr_old_value.to_boolean());
             }
 
             // Parse characterDataOldValue option
             if let Ok(char_old_value) =
                 options_obj.get(js_string!("characterDataOldValue"), context)
+                && !char_old_value.is_undefined()
             {
                 config.character_data_old_value = Some(char_old_value.to_boolean());
             }
@@ -242,16 +250,18 @@ impl MutationObserver {
             JsNativeError::typ().with_message("MutationObserver.takeRecords called on non-object")
         })?;
 
-        let mut observer_data = observer_obj
-            .downcast_mut::<MutationObserverData>()
-            .ok_or_else(|| {
-                JsNativeError::typ().with_message(
-                    "MutationObserver.takeRecords called on non-MutationObserver object",
-                )
-            })?;
-
-        // Take records and clear the queue
-        let records = std::mem::take(&mut observer_data.records);
+        // Take records and clear the queue; release the borrow before
+        // building JS objects.
+        let records = {
+            let mut observer_data = observer_obj
+                .downcast_mut::<MutationObserverData>()
+                .ok_or_else(|| {
+                    JsNativeError::typ().with_message(
+                        "MutationObserver.takeRecords called on non-MutationObserver object",
+                    )
+                })?;
+            std::mem::take(&mut observer_data.records)
+        };
 
         // Create JavaScript array of MutationRecord objects
         let records_array =
@@ -934,4 +944,116 @@ fn is_descendant_of(node: &JsObject, ancestor: &JsObject) -> bool {
         }
     }
     false
+}
+
+// --- Tree-DOM integration (used by `dom::mutation_bridge`) ---
+
+/// Snapshot of the registered observers. No borrow is kept.
+pub(crate) fn registered_observers() -> Vec<JsObject> {
+    OBSERVER_REGISTRY.with(|registry| registry.borrow().clone())
+}
+
+/// Snapshot of an observer's `(target, options)` pairs. No borrow is kept.
+pub(crate) fn observations_of(observer: &JsObject) -> Vec<(JsObject, MutationObserverConfig)> {
+    let Some(data) = observer.downcast_ref::<MutationObserverData>() else {
+        return Vec::new();
+    };
+    if !data.is_observing {
+        return Vec::new();
+    }
+    data.observations
+        .values()
+        .map(|entry| (entry.target.clone(), entry.config.clone()))
+        .collect()
+}
+
+thread_local! {
+    /// Observers with records waiting for the next delivery microtask
+    /// (the spec's "pending mutation observers").
+    static PENDING_OBSERVERS: RefCell<Vec<JsObject>> = const { RefCell::new(Vec::new()) };
+    /// Global object of the context a delivery microtask is queued in (the
+    /// spec's "mutation observer microtask queued" flag, per context).
+    static DELIVERY_QUEUED_FOR: RefCell<Option<JsObject>> = const { RefCell::new(None) };
+}
+
+/// Queue `record` on `observer` and make sure a delivery microtask is
+/// scheduled ("queue a mutation observer microtask").
+pub(crate) fn queue_mutation_record(
+    observer: &JsObject,
+    record: MutationRecordData,
+    context: &mut Context,
+) {
+    {
+        let Some(mut data) = observer.downcast_mut::<MutationObserverData>() else {
+            return;
+        };
+        data.queue_record(record);
+    }
+    PENDING_OBSERVERS.with(|pending| {
+        let mut pending = pending.borrow_mut();
+        if !pending.iter().any(|o| JsObject::equals(o, observer)) {
+            pending.push(observer.clone());
+        }
+    });
+    schedule_delivery(context);
+}
+
+fn schedule_delivery(context: &mut Context) {
+    let global = context.global_object();
+    let already_queued = DELIVERY_QUEUED_FOR.with(|queued| {
+        let mut queued = queued.borrow_mut();
+        if queued
+            .as_ref()
+            .is_some_and(|g| JsObject::equals(g, &global))
+        {
+            true
+        } else {
+            *queued = Some(global);
+            false
+        }
+    });
+    if !already_queued {
+        context.enqueue_job(Job::PromiseJob(PromiseJob::new(|ctx| {
+            notify_mutation_observers(ctx);
+            Ok(JsValue::undefined())
+        })));
+    }
+}
+
+/// The spec's "notify mutation observers": deliver every pending
+/// observer's records to its callback as `callback(records, observer)`.
+pub(crate) fn notify_mutation_observers(context: &mut Context) {
+    DELIVERY_QUEUED_FOR.with(|queued| *queued.borrow_mut() = None);
+    let observers = PENDING_OBSERVERS.with(|pending| std::mem::take(&mut *pending.borrow_mut()));
+    for observer in observers {
+        // Collect under the borrow, then release it before calling into JS
+        let (records, callback) = {
+            let Some(mut data) = observer.downcast_mut::<MutationObserverData>() else {
+                continue;
+            };
+            (std::mem::take(&mut data.records), data.callback.clone())
+        };
+        if records.is_empty() {
+            continue;
+        }
+        let Some(callback) = callback.as_callable() else {
+            continue;
+        };
+        let mut values = Vec::with_capacity(records.len());
+        for record in &records {
+            match record.to_js_object(context) {
+                Ok(obj) => values.push(JsValue::from(obj)),
+                Err(_) => continue,
+            }
+        }
+        let array = boa_engine::builtins::array::Array::create_array_from_list(values, context);
+        let observer_value = JsValue::from(observer.clone());
+        // Exceptions are reported (here: dropped) and don't stop delivery
+        // to the remaining observers.
+        let _ = callback.call(
+            &observer_value,
+            &[array.into(), observer_value.clone()],
+            context,
+        );
+    }
 }

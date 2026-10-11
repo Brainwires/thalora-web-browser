@@ -9,40 +9,19 @@ use crate::protocols::mcp_server::scraping::utils::{
 };
 
 pub async fn search(query: &str, num_results: usize) -> Result<SearchResults> {
-    eprintln!("🔍 DEBUG: search_google started");
+    tracing::debug!("search_google started");
     let search_url = format!(
         "https://www.google.com/search?q={}&num={}&hl=en&gl=us",
         urlencoding::encode(query),
         num_results
     );
-    eprintln!("🔍 DEBUG: Google search URL: {}", search_url);
+    tracing::debug!("Google search URL: {}", search_url);
 
-    // Create temporary browser for stateless search
-    eprintln!("🔍 DEBUG: Creating temporary browser");
-    let temp_browser = crate::engine::browser::HeadlessWebBrowser::new();
-    eprintln!("🔍 DEBUG: Temporary browser created, about to navigate");
-
-    // Navigate using the browser's full navigation system which includes stealth features
-    // Google requires JavaScript execution to display search results
-    tokio::task::block_in_place(|| {
-        let mut browser = temp_browser
-            .lock()
-            .map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
-        tokio::runtime::Handle::current().block_on(browser.navigate_to_with_js_option(
-            &search_url,
-            true,
-            true,
-        ))
-    })?;
-    eprintln!("🔍 DEBUG: Navigation completed, getting content");
-
-    let html = {
-        let browser = temp_browser
-            .lock()
-            .map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
-        browser.get_current_content()
-    };
-    eprintln!("🔍 DEBUG: Content retrieved");
+    // Temporary browser on its own thread for this stateless search.
+    // Google requires JavaScript execution to display search results.
+    let temp_browser = super::temporary_browser("google")?;
+    let html = super::navigate_and_read(&temp_browser, search_url.clone(), true).await?;
+    tracing::debug!("Content retrieved");
 
     // Check for Google's bot detection challenges
     if html.contains("Our systems have detected unusual traffic")
@@ -61,10 +40,10 @@ pub async fn search(query: &str, num_results: usize) -> Result<SearchResults> {
         || (html.contains("<style>table,div,span,p{display:none}</style>")
             && html.contains("refresh"))
     {
-        eprintln!(
-            "🔍 DEBUG: Google returned JavaScript challenge page, but attempting to parse anyway"
+        tracing::debug!(
+            "Google returned JavaScript challenge page, but attempting to parse anyway"
         );
-        eprintln!("🔍 DEBUG: Challenge page length: {} chars", html.len());
+        tracing::debug!("Challenge page length: {} chars", html.len());
         // Instead of failing, let's try to follow the redirect or parse what we can
 
         // Try to extract the redirect URL and follow it
@@ -76,7 +55,7 @@ pub async fn search(query: &str, num_results: usize) -> Result<SearchResults> {
                 let url_part = &content_part[url_start + 4..];
                 if let Some(url_end) = url_part.find("\"") {
                     let redirect_url = &url_part[..url_end];
-                    eprintln!("🔍 DEBUG: Found redirect URL: {}", redirect_url);
+                    tracing::debug!("Found redirect URL: {}", redirect_url);
 
                     // Make a new request to the redirect URL
                     let full_redirect_url = if redirect_url.starts_with("/") {
@@ -85,36 +64,20 @@ pub async fn search(query: &str, num_results: usize) -> Result<SearchResults> {
                         redirect_url.to_string()
                     };
 
-                    eprintln!("🔍 DEBUG: Following redirect to: {}", full_redirect_url);
+                    tracing::debug!("Following redirect to: {}", full_redirect_url);
 
-                    // Reuse the existing browser to follow the redirect (avoid IndexedDB lock conflict)
-                    tokio::task::block_in_place(|| {
-                        let mut browser = temp_browser.lock().map_err(|_| {
-                            anyhow::anyhow!("Failed to acquire browser lock for redirect")
-                        })?;
-                        tokio::runtime::Handle::current().block_on(
-                            browser.navigate_to_with_js_option(&full_redirect_url, true, true),
-                        )
-                    })?;
+                    // Reuse the same browser to follow the redirect (keeps cookies)
+                    let redirect_html =
+                        super::navigate_and_read(&temp_browser, full_redirect_url.clone(), true)
+                            .await?;
 
-                    let redirect_html = {
-                        let browser = temp_browser.lock().map_err(|_| {
-                            anyhow::anyhow!("Failed to acquire browser lock for redirect")
-                        })?;
-                        browser.get_current_content()
-                    };
-
-                    eprintln!(
-                        "🔍 DEBUG: Redirect response length: {} chars",
-                        redirect_html.len()
-                    );
-                    eprintln!(
-                        "🔍 DEBUG: Redirect response preview: {}",
-                        if redirect_html.len() > 500 {
-                            &redirect_html[..500]
-                        } else {
-                            &redirect_html
-                        }
+                    tracing::debug!("Redirect response length: {} chars", redirect_html.len());
+                    tracing::debug!(
+                        "Redirect response preview: {}",
+                        redirect_html
+                            .char_indices()
+                            .nth(500)
+                            .map_or(redirect_html.as_str(), |(i, _)| &redirect_html[..i])
                     );
 
                     // Explicitly drop browser to ensure cleanup
@@ -127,22 +90,17 @@ pub async fn search(query: &str, num_results: usize) -> Result<SearchResults> {
         }
 
         // If we can't follow the redirect, just try to parse what we have
-        eprintln!("🔍 DEBUG: Could not extract redirect URL, parsing challenge page directly");
+        tracing::debug!("Could not extract redirect URL, parsing challenge page directly");
     }
 
     // Let's also check if we got valid search results
     if !html.contains("</html>") || html.len() < 1000 {
-        eprintln!(
-            "🔍 DEBUG: Got incomplete HTML response: {} chars",
-            html.len()
-        );
-        eprintln!(
-            "🔍 DEBUG: HTML content: {}",
-            if html.len() > 500 {
-                &html[..500]
-            } else {
-                &html
-            }
+        tracing::debug!("Got incomplete HTML response: {} chars", html.len());
+        tracing::debug!(
+            "HTML content: {}",
+            html.char_indices()
+                .nth(500)
+                .map_or(html.as_str(), |(i, _)| &html[..i])
         );
     }
 
@@ -153,19 +111,13 @@ pub async fn search(query: &str, num_results: usize) -> Result<SearchResults> {
 }
 
 pub fn parse_results(html: &str, query: &str, num_results: usize) -> Result<SearchResults> {
-    eprintln!("🔍 DEBUG: Google HTML length: {}", html.len());
-    eprintln!(
-        "🔍 DEBUG: Google HTML contains .g class: {}",
+    tracing::debug!("Google HTML length: {}", html.len());
+    tracing::debug!(
+        "Google HTML contains .g class: {}",
         html.contains("class=\"g\"")
     );
-    eprintln!(
-        "🔍 DEBUG: Google HTML contains .tF2Cxc: {}",
-        html.contains("tF2Cxc")
-    );
-    eprintln!(
-        "🔍 DEBUG: First 500 chars: {}",
-        &html[..html.len().min(500)]
-    );
+    tracing::debug!("Google HTML contains .tF2Cxc: {}", html.contains("tF2Cxc"));
+    tracing::debug!("First 500 chars: {}", &html[..html.len().min(500)]);
 
     let document = Html::parse_document(html);
     let mut results = Vec::new();
@@ -263,25 +215,8 @@ pub async fn image_search(query: &str, num_results: usize) -> Result<ImageSearch
         query, search_url
     );
 
-    let temp_browser = crate::engine::browser::HeadlessWebBrowser::new();
-
-    tokio::task::block_in_place(|| {
-        let mut browser = temp_browser
-            .lock()
-            .map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
-        tokio::runtime::Handle::current().block_on(browser.navigate_to_with_js_option(
-            &search_url,
-            true,
-            true,
-        ))
-    })?;
-
-    let html = {
-        let browser = temp_browser
-            .lock()
-            .map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
-        browser.get_current_content()
-    };
+    let temp_browser = super::temporary_browser("google-images")?;
+    let html = super::navigate_and_read(&temp_browser, search_url.clone(), true).await?;
 
     drop(temp_browser);
 

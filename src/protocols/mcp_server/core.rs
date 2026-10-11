@@ -209,7 +209,8 @@ impl McpServer {
 
         let local = tokio::task::LocalSet::new();
         let service = McpServerService::new(self);
-        let (stdin, stdout) = rmcp::transport::io::stdio();
+        let stdin = tokio::io::stdin();
+        let stdout = protocol_stdout()?;
         local
             .run_until(async move {
                 let running = service
@@ -224,4 +225,36 @@ impl McpServer {
             })
             .await
     }
+}
+
+/// The writer the stdio MCP transport sends JSON-RPC on.
+///
+/// On Unix the real stdout is duplicated for the protocol and file
+/// descriptor 1 is then pointed at stderr, so stray `println!`s and page
+/// `console.log` output can never be interleaved with (and corrupt) the
+/// JSON-RPC stream.
+#[cfg(all(feature = "http-transport", unix))]
+fn protocol_stdout() -> Result<tokio::fs::File> {
+    use std::os::fd::FromRawFd;
+
+    // SAFETY: plain fd syscalls on the process's own standard descriptors.
+    let protocol_fd = unsafe { libc::dup(libc::STDOUT_FILENO) };
+    if protocol_fd < 0 {
+        return Err(std::io::Error::last_os_error().into());
+    }
+    // SAFETY: as above; on failure stdout is simply left as it was.
+    if unsafe { libc::dup2(libc::STDERR_FILENO, libc::STDOUT_FILENO) } < 0 {
+        tracing::warn!(
+            "could not redirect stdout to stderr: {}",
+            std::io::Error::last_os_error()
+        );
+    }
+    // SAFETY: `protocol_fd` is a freshly duplicated descriptor we own.
+    let file = unsafe { std::fs::File::from_raw_fd(protocol_fd) };
+    Ok(tokio::fs::File::from_std(file))
+}
+
+#[cfg(all(feature = "http-transport", not(unix)))]
+fn protocol_stdout() -> Result<tokio::io::Stdout> {
+    Ok(tokio::io::stdout())
 }

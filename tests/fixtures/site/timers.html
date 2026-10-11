@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Fixture Timers</title></head>
+<body>
+  <h1>Timers</h1>
+  <div id="timeout">pending</div>
+  <div id="microtask">pending</div>
+  <div id="raf">pending</div>
+  <script>
+    // Results are recorded in a global (window.fixtureLog) as well as the DOM
+    // so tests can check the event loop independently of DOM persistence.
+    var fixtureLog = [];
+    function mark(id, text) {
+      fixtureLog.push(id);
+      var el = document.querySelector('#' + id);
+      if (el) { el.textContent = text; }
+    }
+    console.log('timers fixture loaded');
+    setTimeout(function () { mark('timeout', 'timeout fired'); }, 50);
+    Promise.resolve().then(function () { mark('microtask', 'microtask ran'); });
+    requestAnimationFrame(function () { mark('raf', 'raf fired'); });
+  </script>
+</body>
+</html>

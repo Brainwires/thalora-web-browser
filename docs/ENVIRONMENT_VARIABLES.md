@@ -76,6 +76,28 @@ unset THALORA_ENABLE_AI_MEMORY
 
 ---
 
+## MCP Tool Selection
+
+| Variable | Default | Effect |
+|---|---|---|
+| `THALORA_MCP_MODE` | `minimal` | `minimal` lists only `snapshot_url` and `web_search`; `full` lists the categories enabled below |
+| `THALORA_PRESET` | unset | `brainclaw` enables sessions, CDP and search in full mode and adds agent-friendly alias tools |
+| `THALORA_ENABLE_SCRAPING` | `true` | `snapshot_url` |
+| `THALORA_ENABLE_SEARCH` | `false` | `web_search`, `image_search` |
+| `THALORA_ENABLE_SESSIONS` | `false` | Browser session, navigation and form automation tools |
+| `THALORA_ENABLE_CDP` | `false` | `cdp_runtime_evaluate` (also enables sessions) |
+| `THALORA_ENABLE_CDP_EXPERIMENTAL` | `false` | Also list the mock-backed CDP tools (`cdp_dom_*`, `cdp_network_*`, `cdp_console_get_messages`, `cdp_page_*`) |
+| `THALORA_ENABLE_ADVANCED` | `false` | List the not-yet-implemented advanced tools (`extract_pdf`, `download_file`, …); calls fail with "Tool not found" |
+| `THALORA_EXPOSE_PASSWORDS` | `false` | **Unsafe.** Make `ai_memory_get_credentials` return stored secrets to the model |
+| `THALORA_STEALTH_DELAYS` | `false` | Add 1.5–5 s of random "human-like" delay to every navigation (anti-bot evasion) |
+| `THALORA_PAGE_SCRIPT_TIMEOUT_MS` | `3000` | Synchronous execution limit per page `<script>` |
+| `THALORA_EVENT_LOOP` | unset | `legacy` disables the event loop (timers never fire, promises only settle during module loading) — temporary escape hatch |
+| `THALORA_IDLE_PUMP_MS` | `50` | How often an idle browser thread runs due timers and microtasks between tool calls; `0` disables |
+| `THALORA_LEAK_RENDERERS` | unset | `1` leaks replaced JS renderers instead of dropping them (pre-BrowserThread behaviour) — escape hatch |
+| `THALORA_DOM` | unset | `legacy` disables the persistent DOM tree (string-backed DOM, no node identity) — escape hatch |
+| `THALORA_DISABLE_RATE_LIMIT` | unset | `1` disables MCP tool rate limiting (trusted local agents, tests) |
+| `THALORA_ALLOW_LOOPBACK` | unset | Test-only: allow navigation to 127.0.0.1/localhost. Honoured only in debug builds or with the `test-hooks` feature |
+
 ## Engine Configuration
 
 ### `THALORA_ENGINE`
@@ -212,5 +234,5 @@ rm -rf ~/.cache/thalora/ai_memory/
 ## See Also
 
 - [SECURITY.md](SECURITY.md) - Security architecture and best practices
-- [SECURITY_REMEDIATION_SUMMARY.md](SECURITY_REMEDIATION_SUMMARY.md) - Security fixes and verification
+- [SECURITY_REMEDIATION_SUMMARY.md](archive/SECURITY_REMEDIATION_SUMMARY.md) - Security fixes and verification
 - [FEATURES.md](FEATURES.md) - Complete feature list including AI Memory

@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Fixture Todo</title></head>
+<body>
+  <main>
+    <h1>Todos</h1>
+    <form id="add-form">
+      <input id="new-todo" name="todo" placeholder="What needs doing?">
+      <button id="add" type="submit">Add</button>
+    </form>
+    <ul id="list"></ul>
+    <p id="count">0 items</p>
+  </main>
+  <script>
+    var form = document.getElementById('add-form');
+    form.addEventListener('submit', function (event) {
+      event.preventDefault();
+      var input = document.getElementById('new-todo');
+      if (!input.value) { return; }
+      var li = document.createElement('li');
+      li.textContent = input.value;
+      document.getElementById('list').appendChild(li);
+      document.getElementById('count').textContent =
+        document.querySelectorAll('#list li').length + ' items';
+      input.value = '';
+    });
+  </script>
+</body>
+</html>
