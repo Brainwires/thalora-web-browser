@@ -1,0 +1,4813 @@
+{
+  "chains": {
+    "body": [
+      "Element",
+      "Object"
+    ],
+    "document": [
+      "Document",
+      "Node",
+      "EventTarget",
+      "Object"
+    ],
+    "documentElement": [
+      "Element",
+      "Object"
+    ],
+    "error": [
+      "Error",
+      "Object"
+    ],
+    "history": [
+      "History",
+      "Object"
+    ],
+    "location": [
+      "Location",
+      "Object"
+    ],
+    "navigator": [
+      "Navigator",
+      "Object"
+    ],
+    "performance": [
+      "Object"
+    ],
+    "screen": null,
+    "window": [
+      "Object"
+    ]
+  },
+  "digest": "sha256:4327c9a90a44ae39be5c72992ae8dfdc6747bc18a68a9142ed4e81bcb64ebf80",
+  "errors": {
+    "captureStackTrace": "function",
+    "constructed": {
+      "ctor": "Error",
+      "message": "probe",
+      "ownKeys": [
+        "message",
+        "stack"
+      ],
+      "stack": "Error\n    at <anonymous>:1:1\n    at eval (eval at <anonymous>:1:1)\n    at Object.eval (native)",
+      "toString": "Error: probe"
+    },
+    "errorPrototypeStack": "missing",
+    "referenceError": {
+      "ctor": "ReferenceError",
+      "message": "undefinedFingerprintProbe is not defined",
+      "ownKeys": [
+        "message"
+      ],
+      "stack": "<undefined>",
+      "toString": "ReferenceError: undefinedFingerprintProbe is not defined"
+    },
+    "stackTraceLimit": "<undefined>",
+    "typeError": {
+      "ctor": "TypeError",
+      "message": "cannot convert 'null' or 'undefined' to object",
+      "ownKeys": [
+        "message"
+      ],
+      "stack": "<undefined>",
+      "toString": "TypeError: cannot convert 'null' or 'undefined' to object"
+    }
+  },
+  "format": "thalora-fingerprint-dump/1",
+  "globals": {
+    "count": 226,
+    "order": [
+      "globalThis",
+      "Infinity",
+      "NaN",
+      "undefined",
+      "Function",
+      "Object",
+      "Math",
+      "JSON",
+      "Array",
+      "Proxy",
+      "ArrayBuffer",
+      "SharedArrayBuffer",
+      "BigInt",
+      "Boolean",
+      "Date",
+      "DataView",
+      "Map",
+      "isFinite",
+      "isNaN",
+      "parseInt",
+      "parseFloat",
+      "Number",
+      "eval",
+      "Set",
+      "String",
+      "RegExp",
+      "TypedArray",
+      "Int8Array",
+      "Uint8Array",
+      "Uint8ClampedArray",
+      "Int16Array",
+      "Uint16Array",
+      "Int32Array",
+      "Uint32Array",
+      "BigInt64Array",
+      "BigUint64Array",
+      "Float32Array",
+      "Float64Array",
+      "Symbol",
+      "Error",
+      "RangeError",
+      "ReferenceError",
+      "TypeError",
+      "SyntaxError",
+      "EvalError",
+      "URIError",
+      "AggregateError",
+      "Reflect",
+      "Promise",
+      "encodeURI",
+      "encodeURIComponent",
+      "decodeURI",
+      "decodeURIComponent",
+      "WeakRef",
+      "WeakMap",
+      "WeakSet",
+      "Iterator",
+      "Atomics",
+      "FinalizationRegistry",
+      "Intl",
+      "console",
+      "setTimeout",
+      "setInterval",
+      "clearTimeout",
+      "clearInterval",
+      "requestAnimationFrame",
+      "cancelAnimationFrame",
+      "queueMicrotask",
+      "crypto",
+      "PerformanceObserver",
+      "customElements",
+      "HTMLTemplateElement",
+      "Navigator",
+      "Event",
+      "EventTarget",
+      "CustomEvent",
+      "ErrorEvent",
+      "MessageEvent",
+      "AbortSignal",
+      "UIEvent",
+      "MouseEvent",
+      "KeyboardEvent",
+      "FocusEvent",
+      "InputEvent",
+      "ProgressEvent",
+      "HashChangeEvent",
+      "PopStateEvent",
+      "CloseEvent",
+      "FetchEvent",
+      "PointerEvent",
+      "TouchEvent",
+      "fetch",
+      "Request",
+      "Response",
+      "Headers",
+      "XMLHttpRequest",
+      "WebSocket",
+      "Blob",
+      "File",
+      "FileReader",
+      "IntersectionObserver",
+      "MutationObserver",
+      "ResizeObserver",
+      "IntersectionObserverEntry",
+      "MutationRecord",
+      "BroadcastChannel",
+      "MessageChannel",
+      "MessagePort",
+      "AbortController",
+      "TextEncoder",
+      "TextDecoder",
+      "atob",
+      "btoa",
+      "URL",
+      "URLSearchParams",
+      "CSS",
+      "HTMLFormElement",
+      "HTMLInputElement",
+      "ReadableStream",
+      "WritableStream",
+      "TransformStream",
+      "CountQueuingStrategy",
+      "ByteLengthQueuingStrategy",
+      "Node",
+      "Attr",
+      "NodeList",
+      "DOMTokenList",
+      "Document",
+      "Element",
+      "CharacterData",
+      "Text",
+      "DocumentFragment",
+      "Range",
+      "NamedNodeMap",
+      "TreeWalker",
+      "NodeIterator",
+      "Selection",
+      "HTMLCollection",
+      "HTMLImageElement",
+      "Image",
+      "ImageBitmap",
+      "createImageBitmap",
+      "HTMLElement",
+      "HTMLScriptElement",
+      "HTMLDialogElement",
+      "HTMLDetailsElement",
+      "DOMParser",
+      "FormData",
+      "CSSStyleDeclaration",
+      "CSSStyleSheet",
+      "SVGElement",
+      "SVGSVGElement",
+      "getComputedStyle",
+      "Path2D",
+      "HTMLCanvasElement",
+      "CanvasRenderingContext2D",
+      "OffscreenCanvas",
+      "HTMLAudioElement",
+      "Audio",
+      "AudioContext",
+      "HTMLVideoElement",
+      "Worker",
+      "ServiceWorker",
+      "Notification",
+      "ClipboardItem",
+      "WebGLRenderingContext",
+      "WebGL2RenderingContext",
+      "Storage",
+      "StorageEvent",
+      "StorageManager",
+      "IDBFactory",
+      "IDBKeyRange",
+      "IDBDatabase",
+      "IDBTransaction",
+      "IDBObjectStore",
+      "IDBCursor",
+      "IDBIndex",
+      "IDBRequest",
+      "LockManager",
+      "document",
+      "window",
+      "navigator",
+      "location",
+      "history",
+      "performance",
+      "__globalEventTarget__",
+      "addEventListener",
+      "removeEventListener",
+      "dispatchEvent",
+      "postMessage",
+      "localStorage",
+      "sessionStorage",
+      "indexedDB",
+      "showOpenFilePicker",
+      "showSaveFilePicker",
+      "showDirectoryPicker",
+      "FileSystemHandle",
+      "FileSystemFileHandle",
+      "FileSystemDirectoryHandle",
+      "FileSystemWritableFileStream",
+      "FileSystemSyncAccessHandle",
+      "RTCPeerConnection",
+      "WebAssembly",
+      "MediaRecorder",
+      "speechSynthesis",
+      "SpeechRecognition",
+      "self",
+      "PressureObserver",
+      "SecurityPolicyViolationEvent",
+      "PermissionsPolicyViolationEvent",
+      "documentPictureInPicture",
+      "translation",
+      "ai",
+      "fetchLater",
+      "VideoFrame",
+      "originalError",
+      "prop",
+      "WebSocketStream",
+      "originalRegExp",
+      "Record",
+      "Tuple",
+      "match",
+      "pipe",
+      "Observable",
+      "AsyncContext",
+      "caches"
+    ],
+    "props": {
+      "AbortController": "v|w-c|function|AbortController|0|N",
+      "AbortSignal": "v|w-c|function|AbortSignal|0|N",
+      "AggregateError": "v|w-c|function|AggregateError|2|N",
+      "Array": "v|w-c|function|Array|1|N",
+      "ArrayBuffer": "v|w-c|function|ArrayBuffer|1|N",
+      "AsyncContext": "v|we-|function|AsyncContext|1|X",
+      "Atomics": "v|w-c|object|Object",
+      "Attr": "v|w-c|function|Attr|0|N",
+      "Audio": "v|w-c|function|HTMLAudioElement|1|N",
+      "AudioContext": "v|w-c|function|AudioContext|0|N",
+      "BigInt": "v|w-c|function|BigInt|1|N",
+      "BigInt64Array": "v|w-c|function|BigInt64Array|3|N",
+      "BigUint64Array": "v|w-c|function|BigUint64Array|3|N",
+      "Blob": "v|w-c|function|Blob|0|N",
+      "Boolean": "v|w-c|function|Boolean|1|N",
+      "BroadcastChannel": "v|w-c|function|BroadcastChannel|1|N",
+      "ByteLengthQueuingStrategy": "v|w-c|function|ByteLengthQueuingStrategy|1|N",
+      "CSS": "v|w-c|object|Object",
+      "CSSStyleDeclaration": "v|w-c|function|CSSStyleDeclaration|0|N",
+      "CSSStyleSheet": "v|wec|function|CSSStyleSheet|0|N",
+      "CanvasRenderingContext2D": "v|w-c|function|CanvasRenderingContext2D|0|N",
+      "CharacterData": "v|w-c|function|CharacterData|0|N",
+      "ClipboardItem": "v|w-c|function|ClipboardItem|1|N",
+      "CloseEvent": "v|w-c|function|CloseEvent|2|N",
+      "CountQueuingStrategy": "v|w-c|function|CountQueuingStrategy|1|N",
+      "CustomEvent": "v|w-c|function|CustomEvent|2|N",
+      "DOMParser": "v|w-c|function|DOMParser|0|N",
+      "DOMTokenList": "v|w-c|function|DOMTokenList|0|N",
+      "DataView": "v|w-c|function|DataView|1|N",
+      "Date": "v|w-c|function|Date|7|N",
+      "Document": "v|w-c|function|Document|0|N",
+      "DocumentFragment": "v|w-c|function|DocumentFragment|0|N",
+      "Element": "v|w-c|function|Element|0|N",
+      "Error": "v|w-c|function|Error|1|X",
+      "ErrorEvent": "v|w-c|function|ErrorEvent|2|N",
+      "EvalError": "v|w-c|function|EvalError|1|N",
+      "Event": "v|w-c|function|Event|1|N",
+      "EventTarget": "v|w-c|function|EventTarget|0|N",
+      "FetchEvent": "v|w-c|function|FetchEvent|2|N",
+      "File": "v|w-c|function|File|2|N",
+      "FileReader": "v|w-c|function|FileReader|0|N",
+      "FileSystemDirectoryHandle": "v|w-c|function||0|N",
+      "FileSystemFileHandle": "v|w-c|function||0|N",
+      "FileSystemHandle": "v|w-c|function||0|N",
+      "FileSystemSyncAccessHandle": "v|w-c|function||0|N",
+      "FileSystemWritableFileStream": "v|w-c|function||0|N",
+      "FinalizationRegistry": "v|w-c|function|FinalizationRegistry|1|N",
+      "Float32Array": "v|w-c|function|Float32Array|3|N",
+      "Float64Array": "v|w-c|function|Float64Array|3|N",
+      "FocusEvent": "v|w-c|function|FocusEvent|1|N",
+      "FormData": "v|w-c|function|FormData|1|N",
+      "Function": "v|w-c|function|Function|1|N",
+      "HTMLAudioElement": "v|w-c|function|HTMLAudioElement|1|N",
+      "HTMLCanvasElement": "v|w-c|function|HTMLCanvasElement|0|N",
+      "HTMLCollection": "v|w-c|function|HTMLCollection|0|N",
+      "HTMLDetailsElement": "v|w-c|function|HTMLDetailsElement|0|N",
+      "HTMLDialogElement": "v|w-c|function|HTMLDialogElement|0|N",
+      "HTMLElement": "v|w-c|function|HTMLElement|0|N",
+      "HTMLFormElement": "v|w-c|function|HTMLFormElement|0|N",
+      "HTMLImageElement": "v|w-c|function|HTMLImageElement|0|N",
+      "HTMLInputElement": "v|w-c|function|HTMLInputElement|0|N",
+      "HTMLScriptElement": "v|w-c|function|HTMLScriptElement|0|N",
+      "HTMLTemplateElement": "v|w-c|function|HTMLTemplateElement|0|N",
+      "HTMLVideoElement": "v|w-c|function|HTMLVideoElement|0|N",
+      "HashChangeEvent": "v|w-c|function|HashChangeEvent|2|N",
+      "Headers": "v|w-c|function|Headers|0|N",
+      "IDBCursor": "v|w-c|function|IDBCursor|0|N",
+      "IDBDatabase": "v|w-c|function|IDBDatabase|0|N",
+      "IDBFactory": "v|w-c|function|IDBFactory|0|N",
+      "IDBIndex": "v|w-c|function|IDBIndex|0|N",
+      "IDBKeyRange": "v|w-c|function|IDBKeyRange|0|N",
+      "IDBObjectStore": "v|w-c|function|IDBObjectStore|0|N",
+      "IDBRequest": "v|w-c|function|IDBRequest|0|N",
+      "IDBTransaction": "v|w-c|function|IDBTransaction|0|N",
+      "Image": "v|w-c|function|HTMLImageElement|0|N",
+      "ImageBitmap": "v|w-c|function|ImageBitmap|0|N",
+      "Infinity": "v|---|number",
+      "InputEvent": "v|w-c|function|InputEvent|1|N",
+      "Int16Array": "v|w-c|function|Int16Array|3|N",
+      "Int32Array": "v|w-c|function|Int32Array|3|N",
+      "Int8Array": "v|w-c|function|Int8Array|3|N",
+      "IntersectionObserver": "v|w-c|function|IntersectionObserver|1|N",
+      "IntersectionObserverEntry": "v|w-c|function|IntersectionObserverEntry|0|N",
+      "Intl": "v|w-c|object|Object",
+      "Iterator": "v|w-c|function|Iterator|0|N",
+      "JSON": "v|w-c|object|Object",
+      "KeyboardEvent": "v|w-c|function|KeyboardEvent|1|N",
+      "LockManager": "v|w-c|function|LockManager|0|N",
+      "Map": "v|w-c|function|Map|0|N",
+      "Math": "v|w-c|object|Object",
+      "MediaRecorder": "v|wec|function|MediaRecorder|2|X",
+      "MessageChannel": "v|w-c|function|MessageChannel|0|N",
+      "MessageEvent": "v|w-c|function|MessageEvent|1|N",
+      "MessagePort": "v|w-c|function|MessagePort|0|N",
+      "MouseEvent": "v|w-c|function|MouseEvent|1|N",
+      "MutationObserver": "v|w-c|function|MutationObserver|1|N",
+      "MutationRecord": "v|w-c|function|MutationRecord|0|N",
+      "NaN": "v|---|number",
+      "NamedNodeMap": "v|w-c|function|NamedNodeMap|0|N",
+      "Navigator": "v|w-c|function|Navigator|0|N",
+      "Node": "v|w-c|function|Node|0|N",
+      "NodeIterator": "v|w-c|function|NodeIterator|0|N",
+      "NodeList": "v|w-c|function|NodeList|0|N",
+      "Notification": "v|w-c|function|Notification|1|N",
+      "Number": "v|w-c|function|Number|1|N",
+      "Object": "v|w-c|function|Object|1|N",
+      "Observable": "v|we-|function|Observable|1|X",
+      "OffscreenCanvas": "v|w-c|function|OffscreenCanvas|2|N",
+      "Path2D": "v|w-c|function|Path2D|1|N",
+      "PerformanceObserver": "v|w-c|function|PerformanceObserver|1|N",
+      "PermissionsPolicyViolationEvent": "v|we-|function|PermissionsPolicyViolationEvent|2|X",
+      "PointerEvent": "v|w-c|function|PointerEvent|2|N",
+      "PopStateEvent": "v|w-c|function|PopStateEvent|2|N",
+      "PressureObserver": "v|we-|function|PressureObserver|2|X",
+      "ProgressEvent": "v|w-c|function|ProgressEvent|2|N",
+      "Promise": "v|w-c|function|Promise|1|N",
+      "Proxy": "v|w-c|function|Proxy|2|N",
+      "RTCPeerConnection": "v|w-c|function|RTCPeerConnection|0|N",
+      "Range": "v|w-c|function|Range|0|N",
+      "RangeError": "v|w-c|function|RangeError|1|N",
+      "ReadableStream": "v|w-c|function|ReadableStream|0|N",
+      "Record": "v|we-|function|Record|1|X",
+      "ReferenceError": "v|w-c|function|ReferenceError|1|N",
+      "Reflect": "v|w-c|object|Object",
+      "RegExp": "v|w-c|function|RegExp|2|X",
+      "Request": "v|w-c|function|Request|1|N",
+      "ResizeObserver": "v|w-c|function|ResizeObserver|1|N",
+      "Response": "v|w-c|function|Response|0|N",
+      "SVGElement": "v|wec|function|SVGElement|0|N",
+      "SVGSVGElement": "v|wec|function|SVGSVGElement|0|N",
+      "SecurityPolicyViolationEvent": "v|we-|function|SecurityPolicyViolationEvent|2|X",
+      "Selection": "v|w-c|function|Selection|0|N",
+      "ServiceWorker": "v|w-c|function|ServiceWorker|1|N",
+      "Set": "v|w-c|function|Set|0|N",
+      "SharedArrayBuffer": "v|w-c|function|SharedArrayBuffer|1|N",
+      "SpeechRecognition": "v|wec|function|SpeechRecognition|0|X",
+      "Storage": "v|w-c|function|Storage|0|N",
+      "StorageEvent": "v|w-c|function|StorageEvent|1|N",
+      "StorageManager": "v|w-c|function|StorageManager|0|N",
+      "String": "v|w-c|function|String|1|N",
+      "Symbol": "v|w-c|function|Symbol|0|N",
+      "SyntaxError": "v|w-c|function|SyntaxError|1|N",
+      "Text": "v|w-c|function|Text|0|N",
+      "TextDecoder": "v|w-c|function|TextDecoder|2|N",
+      "TextEncoder": "v|w-c|function|TextEncoder|0|N",
+      "TouchEvent": "v|w-c|function|TouchEvent|2|N",
+      "TransformStream": "v|w-c|function|TransformStream|0|N",
+      "TreeWalker": "v|w-c|function|TreeWalker|0|N",
+      "Tuple": "v|we-|function|Tuple|0|X",
+      "TypeError": "v|w-c|function|TypeError|1|N",
+      "TypedArray": "v|w-c|function|TypedArray|0|N",
+      "UIEvent": "v|w-c|function|UIEvent|1|N",
+      "URIError": "v|w-c|function|URIError|1|N",
+      "URL": "v|w-c|function|URL|2|N",
+      "URLSearchParams": "v|w-c|function|URLSearchParams|1|N",
+      "Uint16Array": "v|w-c|function|Uint16Array|3|N",
+      "Uint32Array": "v|w-c|function|Uint32Array|3|N",
+      "Uint8Array": "v|w-c|function|Uint8Array|3|N",
+      "Uint8ClampedArray": "v|w-c|function|Uint8ClampedArray|3|N",
+      "VideoFrame": "v|we-|function|VideoFrame|2|X",
+      "WeakMap": "v|w-c|function|WeakMap|0|N",
+      "WeakRef": "v|w-c|function|WeakRef|1|N",
+      "WeakSet": "v|w-c|function|WeakSet|0|N",
+      "WebAssembly": "v|wec|object|Object",
+      "WebGL2RenderingContext": "v|w-c|function|WebGL2RenderingContext|0|N",
+      "WebGLRenderingContext": "v|w-c|function|WebGLRenderingContext|0|N",
+      "WebSocket": "v|w-c|function|WebSocket|1|N",
+      "WebSocketStream": "v|wec|function|WebSocketStream|1|X",
+      "Worker": "v|w-c|function|Worker|1|N",
+      "WritableStream": "v|w-c|function|WritableStream|0|N",
+      "XMLHttpRequest": "v|w-c|function|XMLHttpRequest|0|N",
+      "__globalEventTarget__": "v|---|object|EventTarget>Object",
+      "addEventListener": "v|wec|function|addEventListener|2|N",
+      "ai": "v|we-|object|Object",
+      "atob": "v|wec|function|atob|1|N",
+      "btoa": "v|wec|function|btoa|1|N",
+      "caches": "v|wec|object|Object",
+      "cancelAnimationFrame": "v|w-c|function|cancelAnimationFrame|1|N",
+      "clearInterval": "v|w-c|function|clearInterval|1|N",
+      "clearTimeout": "v|w-c|function|clearTimeout|1|N",
+      "console": "v|wec|object|Object",
+      "createImageBitmap": "v|wec|function|createImageBitmap|1|N",
+      "crypto": "v|wec|object|Object",
+      "customElements": "v|---|object|Object",
+      "decodeURI": "v|w-c|function|decodeURI|1|N",
+      "decodeURIComponent": "v|w-c|function|decodeURIComponent|1|N",
+      "dispatchEvent": "v|wec|function|dispatchEvent|1|N",
+      "document": "v|wec|object|Document>Node>EventTarget>Object",
+      "documentPictureInPicture": "v|we-|object|Object",
+      "encodeURI": "v|w-c|function|encodeURI|1|N",
+      "encodeURIComponent": "v|w-c|function|encodeURIComponent|1|N",
+      "eval": "v|w-c|function|eval|1|N",
+      "fetch": "v|w-c|function|fetch|1|N",
+      "fetchLater": "v|we-|function|fetchLater|2|X",
+      "getComputedStyle": "v|wec|function|getComputedStyle|1|N",
+      "globalThis": "v|w-c|object|Object",
+      "history": "v|wec|object|History>Object",
+      "indexedDB": "v|wec|object|IDBFactory>Object",
+      "isFinite": "v|w-c|function|isFinite|1|N",
+      "isNaN": "v|w-c|function|isNaN|1|N",
+      "localStorage": "v|wec|object|Storage>Object",
+      "location": "v|wec|object|Location>Object",
+      "match": "v|we-|function|match|1|X",
+      "navigator": "v|-ec|object|Navigator>Object",
+      "originalError": "v|we-|function|Error|1|N",
+      "originalRegExp": "v|we-|function|RegExp|2|N",
+      "parseFloat": "v|w-c|function|parseFloat|1|N",
+      "parseInt": "v|w-c|function|parseInt|2|N",
+      "performance": "v|wec|object|Object",
+      "pipe": "v|we-|function|pipe|1|X",
+      "postMessage": "v|wec|function|postMessage|1|N",
+      "prop": "v|we-|undefined",
+      "queueMicrotask": "v|w-c|function|queueMicrotask|1|N",
+      "removeEventListener": "v|wec|function|removeEventListener|2|N",
+      "requestAnimationFrame": "v|w-c|function|requestAnimationFrame|1|N",
+      "self": "v|wec|object|Object",
+      "sessionStorage": "v|wec|object|Storage>Object",
+      "setInterval": "v|w-c|function|setInterval|2|N",
+      "setTimeout": "v|w-c|function|setTimeout|2|N",
+      "showDirectoryPicker": "v|wec|function|showDirectoryPicker|0|N",
+      "showOpenFilePicker": "v|wec|function|showOpenFilePicker|0|N",
+      "showSaveFilePicker": "v|wec|function|showSaveFilePicker|0|N",
+      "speechSynthesis": "v|wec|object|Object",
+      "translation": "v|we-|object|Object",
+      "undefined": "v|---|undefined",
+      "window": "v|wec|object|Window>Object"
+    },
+    "symbols": []
+  },
+  "interfaces": {
+    "AbortController": {
+      "inherits": "",
+      "prototype": {
+        "abort": "v|w-c|function|abort|0|N",
+        "constructor": "v|w-c|function|AbortController|0|N",
+        "signal": "a|--c|get:N|set:-"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "AbortSignal": {
+      "inherits": "",
+      "prototype": {
+        "aborted": "a|--c|get:N|set:-",
+        "constructor": "v|w-c|function|AbortSignal|0|N",
+        "reason": "a|--c|get:N|set:-",
+        "throwIfAborted": "v|w-c|function|throwIfAborted|0|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "abort": "v|w-c|function|abort|0|N",
+        "any": "v|w-c|function|any|1|N",
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object",
+        "timeout": "v|w-c|function|timeout|1|N"
+      }
+    },
+    "AggregateError": {
+      "inherits": "Error",
+      "prototype": {
+        "constructor": "v|w-c|function|AggregateError|2|N",
+        "message": "v|w-c|string",
+        "name": "v|w-c|string"
+      },
+      "prototypeChain": [
+        "Error",
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Error>Object"
+      }
+    },
+    "Array": {
+      "inherits": "",
+      "prototype": {
+        "@@Symbol.iterator": "v|w-c|function|values|0|N",
+        "@@Symbol.unscopables": "v|--c|object|",
+        "at": "v|w-c|function|at|1|N",
+        "concat": "v|w-c|function|concat|1|N",
+        "constructor": "v|w-c|function|Array|1|N",
+        "copyWithin": "v|w-c|function|copyWithin|2|N",
+        "entries": "v|w-c|function|entries|0|N",
+        "every": "v|w-c|function|every|1|N",
+        "fill": "v|w-c|function|fill|1|N",
+        "filter": "v|w-c|function|filter|1|N",
+        "find": "v|w-c|function|find|1|N",
+        "findIndex": "v|w-c|function|findIndex|1|N",
+        "findLast": "v|w-c|function|findLast|1|N",
+        "findLastIndex": "v|w-c|function|findLastIndex|1|N",
+        "flat": "v|w-c|function|flat|0|N",
+        "flatMap": "v|w-c|function|flatMap|1|N",
+        "forEach": "v|w-c|function|forEach|1|N",
+        "includes": "v|w-c|function|includes|1|N",
+        "indexOf": "v|w-c|function|indexOf|1|N",
+        "join": "v|w-c|function|join|1|N",
+        "keys": "v|w-c|function|keys|0|N",
+        "lastIndexOf": "v|w-c|function|lastIndexOf|1|N",
+        "length": "v|w--|number",
+        "map": "v|w-c|function|map|1|N",
+        "pop": "v|w-c|function|pop|0|N",
+        "push": "v|w-c|function|push|1|N",
+        "reduce": "v|w-c|function|reduce|1|N",
+        "reduceRight": "v|w-c|function|reduceRight|1|N",
+        "reverse": "v|w-c|function|reverse|0|N",
+        "shift": "v|w-c|function|shift|0|N",
+        "slice": "v|w-c|function|slice|2|N",
+        "some": "v|w-c|function|some|1|N",
+        "sort": "v|w-c|function|sort|1|N",
+        "splice": "v|w-c|function|splice|2|N",
+        "toLocaleString": "v|w-c|function|toLocaleString|0|N",
+        "toReversed": "v|w-c|function|toReversed|0|N",
+        "toSorted": "v|w-c|function|toSorted|1|N",
+        "toSpliced": "v|w-c|function|toSpliced|2|N",
+        "toString": "v|w-c|function|toString|0|N",
+        "unshift": "v|w-c|function|unshift|1|N",
+        "values": "v|w-c|function|values|0|N",
+        "with": "v|w-c|function|with|2|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "@@Symbol.species": "a|--c|get:N|set:-",
+        "from": "v|w-c|function|from|1|N",
+        "fromAsync": "v|wec|function||3|X",
+        "isArray": "v|w-c|function|isArray|1|N",
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "of": "v|w-c|function|of|0|N",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "ArrayBuffer": {
+      "inherits": "",
+      "prototype": {
+        "@@Symbol.toStringTag": "v|--c|string",
+        "byteLength": "a|--c|get:N|set:-",
+        "constructor": "v|w-c|function|ArrayBuffer|1|N",
+        "maxByteLength": "a|--c|get:N|set:-",
+        "resizable": "a|--c|get:N|set:-",
+        "resize": "v|w-c|function|resize|1|N",
+        "slice": "v|w-c|function|slice|2|N",
+        "transfer": "v|wec|function||1|X",
+        "transferToFixedLength": "v|wec|function||1|X"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "@@Symbol.species": "a|--c|get:N|set:-",
+        "isView": "v|w-c|function|isView|1|N",
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "AsyncContext": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function|AsyncContext|1|X",
+        "get": "v|wec|function||0|X",
+        "run": "v|wec|function||2|X"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|w--|object|Object"
+      }
+    },
+    "Attr": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function|Attr|0|N",
+        "localName": "a|-ec|get:N|set:-",
+        "name": "a|-ec|get:N|set:-",
+        "namespaceURI": "a|-ec|get:N|set:-",
+        "ownerElement": "a|-ec|get:N|set:-",
+        "prefix": "a|-ec|get:N|set:-",
+        "specified": "a|-ec|get:N|set:-",
+        "value": "a|-ec|get:N|set:N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "Audio": {
+      "inherits": "",
+      "prototype": {
+        "autoplay": "a|--c|get:N|set:N",
+        "canPlayType": "v|w-c|function|canPlayType|1|N",
+        "constructor": "v|w-c|function|HTMLAudioElement|1|N",
+        "currentTime": "a|--c|get:N|set:N",
+        "duration": "a|--c|get:N|set:-",
+        "ended": "a|--c|get:N|set:-",
+        "load": "v|w-c|function|load|0|N",
+        "loop": "a|--c|get:N|set:N",
+        "muted": "a|--c|get:N|set:N",
+        "pause": "v|w-c|function|pause|0|N",
+        "paused": "a|--c|get:N|set:-",
+        "play": "v|w-c|function|play|0|N",
+        "readyState": "a|--c|get:N|set:-",
+        "src": "a|--c|get:N|set:N",
+        "volume": "a|--c|get:N|set:N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "AudioContext": {
+      "inherits": "",
+      "prototype": {
+        "HAVE_NOTHING": "v|---|number",
+        "baseLatency": "a|--c|get:N|set:-",
+        "close": "v|w-c|function|close|0|N",
+        "constructor": "v|w-c|function|AudioContext|0|N",
+        "createAnalyser": "v|w-c|function|createAnalyser|0|N",
+        "createBuffer": "v|w-c|function|createBuffer|3|N",
+        "createBufferSource": "v|w-c|function|createBufferSource|0|N",
+        "createGain": "v|w-c|function|createGain|0|N",
+        "createOscillator": "v|w-c|function|createOscillator|0|N",
+        "currentTime": "a|--c|get:N|set:-",
+        "decodeAudioData": "v|w-c|function|decodeAudioData|1|N",
+        "destination": "a|--c|get:N|set:-",
+        "outputLatency": "a|--c|get:N|set:-",
+        "resume": "v|w-c|function|resume|0|N",
+        "sampleRate": "a|--c|get:N|set:-",
+        "state": "a|--c|get:N|set:-",
+        "suspend": "v|w-c|function|suspend|0|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "BigInt": {
+      "inherits": "",
+      "prototype": {
+        "@@Symbol.toStringTag": "v|--c|string",
+        "constructor": "v|w-c|function|BigInt|1|N",
+        "toLocaleString": "v|w-c|function|toLocaleString|0|N",
+        "toString": "v|w-c|function|toString|0|N",
+        "valueOf": "v|w-c|function|valueOf|0|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "asIntN": "v|w-c|function|asIntN|2|N",
+        "asUintN": "v|w-c|function|asUintN|2|N",
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "BigInt64Array": {
+      "inherits": "TypedArray",
+      "prototype": {
+        "BYTES_PER_ELEMENT": "v|---|number",
+        "constructor": "v|w-c|function|BigInt64Array|3|N"
+      },
+      "prototypeChain": [
+        "TypedArray",
+        "Object"
+      ],
+      "static": {
+        "@@Symbol.species": "a|--c|get:N|set:-",
+        "BYTES_PER_ELEMENT": "v|---|number",
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|TypedArray>Object"
+      }
+    },
+    "BigUint64Array": {
+      "inherits": "TypedArray",
+      "prototype": {
+        "BYTES_PER_ELEMENT": "v|---|number",
+        "constructor": "v|w-c|function|BigUint64Array|3|N"
+      },
+      "prototypeChain": [
+        "TypedArray",
+        "Object"
+      ],
+      "static": {
+        "@@Symbol.species": "a|--c|get:N|set:-",
+        "BYTES_PER_ELEMENT": "v|---|number",
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|TypedArray>Object"
+      }
+    },
+    "Blob": {
+      "inherits": "",
+      "prototype": {
+        "arrayBuffer": "v|w-c|function|arrayBuffer|0|N",
+        "constructor": "v|w-c|function|Blob|0|N",
+        "size": "a|-ec|get:N|set:-",
+        "slice": "v|w-c|function|slice|0|N",
+        "stream": "v|w-c|function|stream|0|N",
+        "text": "v|w-c|function|text|0|N",
+        "type": "a|-ec|get:N|set:-"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "Boolean": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function|Boolean|1|N",
+        "toString": "v|w-c|function|toString|0|N",
+        "valueOf": "v|w-c|function|valueOf|0|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "BroadcastChannel": {
+      "inherits": "",
+      "prototype": {
+        "close": "v|w-c|function|close|0|N",
+        "constructor": "v|w-c|function|BroadcastChannel|1|N",
+        "name": "a|--c|get:N|set:-",
+        "postMessage": "v|w-c|function|postMessage|1|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "ByteLengthQueuingStrategy": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function|ByteLengthQueuingStrategy|1|N",
+        "highWaterMark": "a|--c|get:N|set:-",
+        "size": "a|--c|get:N|set:-"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "CSSStyleDeclaration": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function|CSSStyleDeclaration|0|N",
+        "cssText": "a|--c|get:N|set:N",
+        "getPropertyPriority": "v|w-c|function|getPropertyPriority|1|N",
+        "getPropertyValue": "v|w-c|function|getPropertyValue|1|N",
+        "item": "v|w-c|function|item|1|N",
+        "length": "a|--c|get:N|set:-",
+        "removeProperty": "v|w-c|function|removeProperty|1|N",
+        "setProperty": "v|w-c|function|setProperty|2|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "CSSStyleSheet": {
+      "inherits": "",
+      "prototype": {
+        "deleteRule": "v|wec|function|deleteRule|1|N",
+        "insertRule": "v|wec|function|insertRule|1|N",
+        "replace": "v|wec|function|replace|1|N",
+        "replaceSync": "v|wec|function|replaceSync|1|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|wec|object|Object"
+      }
+    },
+    "CanvasRenderingContext2D": {
+      "inherits": "",
+      "prototype": {
+        "arc": "v|w-c|function|arc|5|N",
+        "arcTo": "v|w-c|function|arcTo|5|N",
+        "beginPath": "v|w-c|function|beginPath|0|N",
+        "bezierCurveTo": "v|w-c|function|bezierCurveTo|6|N",
+        "clearRect": "v|w-c|function|clearRect|4|N",
+        "clip": "v|w-c|function|clip|0|N",
+        "closePath": "v|w-c|function|closePath|0|N",
+        "constructor": "v|w-c|function|CanvasRenderingContext2D|0|N",
+        "createImageData": "v|w-c|function|createImageData|2|N",
+        "drawImage": "v|w-c|function|drawImage|3|N",
+        "ellipse": "v|w-c|function|ellipse|7|N",
+        "fill": "v|w-c|function|fill|0|N",
+        "fillRect": "v|w-c|function|fillRect|4|N",
+        "fillStyle": "a|--c|get:N|set:N",
+        "fillText": "v|w-c|function|fillText|3|N",
+        "font": "a|--c|get:N|set:N",
+        "getImageData": "v|w-c|function|getImageData|4|N",
+        "getLineDash": "v|w-c|function|getLineDash|0|N",
+        "getTransform": "v|w-c|function|getTransform|0|N",
+        "globalAlpha": "a|--c|get:N|set:N",
+        "isPointInPath": "v|w-c|function|isPointInPath|2|N",
+        "isPointInStroke": "v|w-c|function|isPointInStroke|2|N",
+        "lineCap": "a|--c|get:N|set:N",
+        "lineDashOffset": "a|--c|get:N|set:N",
+        "lineJoin": "a|--c|get:N|set:N",
+        "lineTo": "v|w-c|function|lineTo|2|N",
+        "lineWidth": "a|--c|get:N|set:N",
+        "measureText": "v|w-c|function|measureText|1|N",
+        "miterLimit": "a|--c|get:N|set:N",
+        "moveTo": "v|w-c|function|moveTo|2|N",
+        "putImageData": "v|w-c|function|putImageData|3|N",
+        "quadraticCurveTo": "v|w-c|function|quadraticCurveTo|4|N",
+        "rect": "v|w-c|function|rect|4|N",
+        "resetTransform": "v|w-c|function|resetTransform|0|N",
+        "restore": "v|w-c|function|restore|0|N",
+        "rotate": "v|w-c|function|rotate|1|N",
+        "roundRect": "v|w-c|function|roundRect|5|N",
+        "save": "v|w-c|function|save|0|N",
+        "scale": "v|w-c|function|scale|2|N",
+        "setLineDash": "v|w-c|function|setLineDash|1|N",
+        "setTransform": "v|w-c|function|setTransform|6|N",
+        "shadowBlur": "a|--c|get:N|set:N",
+        "shadowColor": "a|--c|get:N|set:N",
+        "shadowOffsetX": "a|--c|get:N|set:N",
+        "shadowOffsetY": "a|--c|get:N|set:N",
+        "stroke": "v|w-c|function|stroke|0|N",
+        "strokeRect": "v|w-c|function|strokeRect|4|N",
+        "strokeStyle": "a|--c|get:N|set:N",
+        "strokeText": "v|w-c|function|strokeText|3|N",
+        "textAlign": "a|--c|get:N|set:N",
+        "textBaseline": "a|--c|get:N|set:N",
+        "transform": "v|w-c|function|transform|6|N",
+        "translate": "v|w-c|function|translate|2|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "CharacterData": {
+      "inherits": "",
+      "prototype": {
+        "appendData": "v|w-c|function|appendData|1|N",
+        "constructor": "v|w-c|function|CharacterData|0|N",
+        "data": "a|-ec|get:N|set:N",
+        "deleteData": "v|w-c|function|deleteData|2|N",
+        "insertData": "v|w-c|function|insertData|2|N",
+        "length": "a|-ec|get:N|set:-",
+        "replaceData": "v|w-c|function|replaceData|3|N",
+        "substringData": "v|w-c|function|substringData|2|N"
+      },
+      "prototypeChain": [
+        "Node",
+        "EventTarget",
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Node>EventTarget>Object"
+      }
+    },
+    "CloseEvent": {
+      "inherits": "",
+      "prototype": {
+        "code": "a|--c|get:N|set:-",
+        "constructor": "v|w-c|function|CloseEvent|2|N",
+        "reason": "a|--c|get:N|set:-",
+        "wasClean": "a|--c|get:N|set:-"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "CountQueuingStrategy": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function|CountQueuingStrategy|1|N",
+        "highWaterMark": "a|--c|get:N|set:-",
+        "size": "a|--c|get:N|set:-"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "CustomEvent": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function|CustomEvent|2|N",
+        "detail": "a|--c|get:N|set:-",
+        "initCustomEvent": "v|w-c|function|initCustomEvent|4|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "DOMParser": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function|DOMParser|0|N",
+        "parseFromString": "v|w-c|function|parseFromString|2|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "DOMTokenList": {
+      "inherits": "",
+      "prototype": {
+        "add": "v|w-c|function|add|1|N",
+        "constructor": "v|w-c|function|DOMTokenList|0|N",
+        "contains": "v|w-c|function|contains|1|N",
+        "item": "v|w-c|function|item|1|N",
+        "length": "a|--c|get:N|set:-",
+        "remove": "v|w-c|function|remove|1|N",
+        "toggle": "v|w-c|function|toggle|1|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "DataView": {
+      "inherits": "",
+      "prototype": {
+        "@@Symbol.toStringTag": "v|--c|string",
+        "buffer": "a|--c|get:N|set:-",
+        "byteLength": "a|--c|get:N|set:-",
+        "byteOffset": "a|--c|get:N|set:-",
+        "constructor": "v|w-c|function|DataView|1|N",
+        "getBigInt64": "v|w-c|function|getBigInt64|1|N",
+        "getBigUint64": "v|w-c|function|getBigUint64|1|N",
+        "getFloat32": "v|w-c|function|getFloat32|1|N",
+        "getFloat64": "v|w-c|function|getFloat64|1|N",
+        "getInt16": "v|w-c|function|getInt16|1|N",
+        "getInt32": "v|w-c|function|getInt32|1|N",
+        "getInt8": "v|w-c|function|getInt8|1|N",
+        "getUint16": "v|w-c|function|getUint16|1|N",
+        "getUint32": "v|w-c|function|getUint32|1|N",
+        "getUint8": "v|w-c|function|getUint8|1|N",
+        "setBigInt64": "v|w-c|function|setBigInt64|2|N",
+        "setBigUint64": "v|w-c|function|setBigUint64|2|N",
+        "setFloat32": "v|w-c|function|setFloat32|2|N",
+        "setFloat64": "v|w-c|function|setFloat64|2|N",
+        "setInt16": "v|w-c|function|setInt16|2|N",
+        "setInt32": "v|w-c|function|setInt32|2|N",
+        "setInt8": "v|w-c|function|setInt8|2|N",
+        "setUint16": "v|w-c|function|setUint16|2|N",
+        "setUint32": "v|w-c|function|setUint32|2|N",
+        "setUint8": "v|w-c|function|setUint8|2|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "Date": {
+      "inherits": "",
+      "prototype": {
+        "@@Symbol.toPrimitive": "v|--c|function|[Symbol.toPrimitive]|1|N",
+        "constructor": "v|w-c|function|Date|7|N",
+        "getDate": "v|w-c|function|getDate|0|N",
+        "getDay": "v|w-c|function|getDay|0|N",
+        "getFullYear": "v|w-c|function|getFullYear|0|N",
+        "getHours": "v|w-c|function|getHours|0|N",
+        "getMilliseconds": "v|w-c|function|getMilliseconds|0|N",
+        "getMinutes": "v|w-c|function|getMinutes|0|N",
+        "getMonth": "v|w-c|function|getMonth|0|N",
+        "getSeconds": "v|w-c|function|getSeconds|0|N",
+        "getTime": "v|w-c|function|getTime|0|N",
+        "getTimezoneOffset": "v|w-c|function|getTimezoneOffset|0|N",
+        "getUTCDate": "v|w-c|function|getUTCDate|0|N",
+        "getUTCDay": "v|w-c|function|getUTCDay|0|N",
+        "getUTCFullYear": "v|w-c|function|getUTCFullYear|0|N",
+        "getUTCHours": "v|w-c|function|getUTCHours|0|N",
+        "getUTCMilliseconds": "v|w-c|function|getUTCMilliseconds|0|N",
+        "getUTCMinutes": "v|w-c|function|getUTCMinutes|0|N",
+        "getUTCMonth": "v|w-c|function|getUTCMonth|0|N",
+        "getUTCSeconds": "v|w-c|function|getUTCSeconds|0|N",
+        "getYear": "v|w-c|function|getYear|0|N",
+        "setDate": "v|w-c|function|setDate|1|N",
+        "setFullYear": "v|w-c|function|setFullYear|3|N",
+        "setHours": "v|w-c|function|setHours|4|N",
+        "setMilliseconds": "v|w-c|function|setMilliseconds|1|N",
+        "setMinutes": "v|w-c|function|setMinutes|3|N",
+        "setMonth": "v|w-c|function|setMonth|2|N",
+        "setSeconds": "v|w-c|function|setSeconds|2|N",
+        "setTime": "v|w-c|function|setTime|1|N",
+        "setUTCDate": "v|w-c|function|setUTCDate|1|N",
+        "setUTCFullYear": "v|w-c|function|setUTCFullYear|3|N",
+        "setUTCHours": "v|w-c|function|setUTCHours|4|N",
+        "setUTCMilliseconds": "v|w-c|function|setUTCMilliseconds|1|N",
+        "setUTCMinutes": "v|w-c|function|setUTCMinutes|3|N",
+        "setUTCMonth": "v|w-c|function|setUTCMonth|2|N",
+        "setUTCSeconds": "v|w-c|function|setUTCSeconds|2|N",
+        "setYear": "v|w-c|function|setYear|1|N",
+        "toDateString": "v|w-c|function|toDateString|0|N",
+        "toGMTString": "v|w-c|function|toUTCString|0|N",
+        "toISOString": "v|w-c|function|toISOString|0|N",
+        "toJSON": "v|w-c|function|toJSON|1|N",
+        "toLocaleDateString": "v|w-c|function|toLocaleDateString|0|N",
+        "toLocaleString": "v|w-c|function|toLocaleString|0|N",
+        "toLocaleTimeString": "v|w-c|function|toLocaleTimeString|0|N",
+        "toString": "v|w-c|function|toString|0|N",
+        "toTimeString": "v|w-c|function|toTimeString|0|N",
+        "toUTCString": "v|w-c|function|toUTCString|0|N",
+        "valueOf": "v|w-c|function|valueOf|0|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "UTC": "v|w-c|function|UTC|7|N",
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "now": "v|w-c|function|now|0|N",
+        "parse": "v|w-c|function|parse|1|N",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "Document": {
+      "inherits": "",
+      "prototype": {
+        "URL": "a|--c|get:N|set:-",
+        "activeElement": "a|--c|get:N|set:-",
+        "addEventListener": "v|w-c|function|addEventListener|2|N",
+        "adoptedStyleSheets": "a|--c|get:N|set:N",
+        "body": "a|--c|get:N|set:-",
+        "characterSet": "a|--c|get:N|set:-",
+        "constructor": "v|w-c|function|Document|0|N",
+        "contentType": "a|--c|get:N|set:-",
+        "cookie": "a|--c|get:N|set:N",
+        "createAttribute": "v|w-c|function|createAttribute|1|N",
+        "createComment": "v|w-c|function|createComment|1|N",
+        "createDocumentFragment": "v|w-c|function|createDocumentFragment|0|N",
+        "createElement": "v|w-c|function|createElement|1|N",
+        "createNodeIterator": "v|w-c|function|createNodeIterator|1|N",
+        "createRange": "v|w-c|function|createRange|0|N",
+        "createTextNode": "v|w-c|function|createTextNode|1|N",
+        "createTreeWalker": "v|w-c|function|createTreeWalker|1|N",
+        "dispatchEvent": "v|w-c|function|dispatchEvent|1|N",
+        "documentElement": "a|--c|get:N|set:-",
+        "domain": "a|--c|get:N|set:-",
+        "execCommand": "v|w-c|function|execCommand|3|N",
+        "forms": "a|--c|get:N|set:-",
+        "getElementById": "v|w-c|function|getElementById|1|N",
+        "getElementsByClassName": "v|w-c|function|getElementsByClassName|1|N",
+        "getElementsByName": "v|w-c|function|getElementsByName|1|N",
+        "getElementsByTagName": "v|w-c|function|getElementsByTagName|1|N",
+        "hasFocus": "v|w-c|function|hasFocus|0|N",
+        "head": "a|--c|get:N|set:-",
+        "hidden": "a|--c|get:N|set:-",
+        "images": "a|--c|get:N|set:-",
+        "links": "a|--c|get:N|set:-",
+        "querySelector": "v|w-c|function|querySelector|1|N",
+        "querySelectorAll": "v|w-c|function|querySelectorAll|1|N",
+        "readyState": "a|--c|get:N|set:-",
+        "referrer": "a|--c|get:N|set:-",
+        "removeEventListener": "v|w-c|function|removeEventListener|2|N",
+        "scripts": "a|--c|get:N|set:-",
+        "startViewTransition": "v|w-c|function|startViewTransition|0|N",
+        "title": "a|--c|get:N|set:N",
+        "visibilityState": "a|--c|get:N|set:-",
+        "write": "v|w-c|function|write|1|N",
+        "writeln": "v|w-c|function|writeln|1|N"
+      },
+      "prototypeChain": [
+        "Node",
+        "EventTarget",
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "parseHTMLUnsafe": "v|wec|function||1|X",
+        "prototype": "v|---|object|Node>EventTarget>Object"
+      }
+    },
+    "DocumentFragment": {
+      "inherits": "",
+      "prototype": {
+        "append": "v|w-c|function|append|0|N",
+        "childElementCount": "a|-ec|get:N|set:-",
+        "children": "a|-ec|get:N|set:-",
+        "constructor": "v|w-c|function|DocumentFragment|0|N",
+        "firstElementChild": "a|-ec|get:N|set:-",
+        "getElementById": "v|w-c|function|getElementById|1|N",
+        "lastElementChild": "a|-ec|get:N|set:-",
+        "prepend": "v|w-c|function|prepend|0|N",
+        "querySelector": "v|w-c|function|querySelector|1|N",
+        "querySelectorAll": "v|w-c|function|querySelectorAll|1|N",
+        "replaceChildren": "v|w-c|function|replaceChildren|0|N"
+      },
+      "prototypeChain": [
+        "Node",
+        "EventTarget",
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Node>EventTarget>Object"
+      }
+    },
+    "Element": {
+      "inherits": "",
+      "prototype": {
+        "addEventListener": "v|w-c|function|addEventListener|2|N",
+        "after": "v|w-c|function|after|0|N",
+        "animate": "v|wec|function||2|X",
+        "append": "v|w-c|function|append|0|N",
+        "appendChild": "v|w-c|function|appendChild|1|N",
+        "attachShadow": "v|w-c|function|attachShadow|1|N",
+        "before": "v|w-c|function|before|0|N",
+        "blur": "v|w-c|function|blur|0|N",
+        "childElementCount": "a|--c|get:N|set:-",
+        "childNodes": "a|--c|get:N|set:-",
+        "children": "a|--c|get:N|set:-",
+        "classList": "a|--c|get:N|set:-",
+        "className": "a|--c|get:N|set:N",
+        "click": "v|w-c|function|click|0|N",
+        "clientHeight": "a|--c|get:N|set:-",
+        "clientWidth": "a|--c|get:N|set:-",
+        "cloneNode": "v|w-c|function|cloneNode|1|N",
+        "closest": "v|w-c|function|closest|1|N",
+        "constructor": "v|w-c|function|Element|0|N",
+        "contains": "v|w-c|function|contains|1|N",
+        "dispatchEvent": "v|w-c|function|dispatchEvent|1|N",
+        "firstChild": "a|--c|get:N|set:-",
+        "firstElementChild": "a|--c|get:N|set:-",
+        "focus": "v|w-c|function|focus|0|N",
+        "getAttribute": "v|w-c|function|getAttribute|1|N",
+        "getAttributeNames": "v|w-c|function|getAttributeNames|0|N",
+        "getBoundingClientRect": "v|w-c|function|getBoundingClientRect|0|N",
+        "getElementsByClassName": "v|w-c|function|getElementsByClassName|1|N",
+        "getElementsByTagName": "v|w-c|function|getElementsByTagName|1|N",
+        "hasAttribute": "v|w-c|function|hasAttribute|1|N",
+        "id": "a|--c|get:N|set:N",
+        "innerHTML": "a|--c|get:N|set:N",
+        "insertAdjacentElement": "v|w-c|function|insertAdjacentElement|2|N",
+        "insertAdjacentHTML": "v|w-c|function|insertAdjacentHTML|2|N",
+        "insertBefore": "v|w-c|function|insertBefore|2|N",
+        "isConnected": "a|--c|get:N|set:-",
+        "lastChild": "a|--c|get:N|set:-",
+        "lastElementChild": "a|--c|get:N|set:-",
+        "matches": "v|w-c|function|matches|1|N",
+        "nextElementSibling": "a|--c|get:N|set:-",
+        "nextSibling": "a|--c|get:N|set:-",
+        "nodeName": "a|--c|get:N|set:-",
+        "nodeType": "a|--c|get:N|set:-",
+        "offsetHeight": "a|--c|get:N|set:-",
+        "offsetLeft": "a|--c|get:N|set:-",
+        "offsetTop": "a|--c|get:N|set:-",
+        "offsetWidth": "a|--c|get:N|set:-",
+        "outerHTML": "a|--c|get:N|set:N",
+        "parentElement": "a|--c|get:N|set:-",
+        "parentNode": "a|--c|get:N|set:-",
+        "prepend": "v|w-c|function|prepend|0|N",
+        "previousElementSibling": "a|--c|get:N|set:-",
+        "previousSibling": "a|--c|get:N|set:-",
+        "querySelector": "v|w-c|function|querySelector|1|N",
+        "querySelectorAll": "v|w-c|function|querySelectorAll|1|N",
+        "remove": "v|w-c|function|remove|0|N",
+        "removeAttribute": "v|w-c|function|removeAttribute|1|N",
+        "removeChild": "v|w-c|function|removeChild|1|N",
+        "removeEventListener": "v|w-c|function|removeEventListener|2|N",
+        "replaceChild": "v|w-c|function|replaceChild|2|N",
+        "replaceWith": "v|w-c|function|replaceWith|0|N",
+        "scrollHeight": "a|--c|get:N|set:-",
+        "scrollIntoView": "v|w-c|function|scrollIntoView|1|N",
+        "scrollWidth": "a|--c|get:N|set:-",
+        "setAttribute": "v|w-c|function|setAttribute|2|N",
+        "setHTML": "v|w-c|function|setHTML|1|N",
+        "setHTMLUnsafe": "v|w-c|function|setHTMLUnsafe|1|N",
+        "shadowRoot": "a|--c|get:N|set:-",
+        "style": "a|--c|get:N|set:-",
+        "tagName": "a|--c|get:N|set:-",
+        "textContent": "a|--c|get:N|set:N",
+        "toggleAttribute": "v|w-c|function|toggleAttribute|1|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "Error": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function|Error|1|N",
+        "message": "v|w-c|string",
+        "name": "v|w-c|string",
+        "toString": "v|w-c|function|toString|0|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "captureStackTrace": "v|wec|function||2|X",
+        "isError": "v|wec|function||1|X",
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|w--|object|Object"
+      }
+    },
+    "ErrorEvent": {
+      "inherits": "",
+      "prototype": {
+        "colno": "a|--c|get:N|set:-",
+        "constructor": "v|w-c|function|ErrorEvent|2|N",
+        "error": "a|--c|get:N|set:-",
+        "filename": "a|--c|get:N|set:-",
+        "lineno": "a|--c|get:N|set:-",
+        "message": "a|--c|get:N|set:-"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "EvalError": {
+      "inherits": "Error",
+      "prototype": {
+        "constructor": "v|w-c|function|EvalError|1|N",
+        "message": "v|w-c|string",
+        "name": "v|w-c|string"
+      },
+      "prototypeChain": [
+        "Error",
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Error>Object"
+      }
+    },
+    "Event": {
+      "inherits": "",
+      "prototype": {
+        "bubbles": "a|--c|get:N|set:-",
+        "cancelable": "a|--c|get:N|set:-",
+        "composed": "a|--c|get:N|set:-",
+        "constructor": "v|w-c|function|Event|1|N",
+        "currentTarget": "a|--c|get:N|set:-",
+        "defaultPrevented": "a|--c|get:N|set:-",
+        "eventPhase": "a|--c|get:N|set:-",
+        "initEvent": "v|w-c|function|initEvent|3|N",
+        "isTrusted": "a|--c|get:N|set:-",
+        "preventDefault": "v|w-c|function|preventDefault|0|N",
+        "stopImmediatePropagation": "v|w-c|function|stopImmediatePropagation|0|N",
+        "stopPropagation": "v|w-c|function|stopPropagation|0|N",
+        "target": "a|--c|get:N|set:-",
+        "timeStamp": "a|--c|get:N|set:-",
+        "type": "a|--c|get:N|set:-"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "AT_TARGET": "v|---|number",
+        "BUBBLING_PHASE": "v|---|number",
+        "CAPTURING_PHASE": "v|---|number",
+        "NONE": "v|---|number",
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "EventTarget": {
+      "inherits": "",
+      "prototype": {
+        "addEventListener": "v|w-c|function|addEventListener|2|N",
+        "constructor": "v|w-c|function|EventTarget|0|N",
+        "dispatchEvent": "v|w-c|function|dispatchEvent|1|N",
+        "removeEventListener": "v|w-c|function|removeEventListener|2|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "FetchEvent": {
+      "inherits": "",
+      "prototype": {
+        "clientId": "a|--c|get:N|set:-",
+        "constructor": "v|w-c|function|FetchEvent|2|N",
+        "handled": "a|--c|get:N|set:-",
+        "replacesClientId": "a|--c|get:N|set:-",
+        "request": "a|--c|get:N|set:-",
+        "respondWith": "v|w-c|function|respondWith|1|N",
+        "resultingClientId": "a|--c|get:N|set:-",
+        "waitUntil": "v|w-c|function|waitUntil|1|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "File": {
+      "inherits": "",
+      "prototype": {
+        "arrayBuffer": "v|w-c|function|arrayBuffer|0|N",
+        "bytes": "v|w-c|function|bytes|0|N",
+        "constructor": "v|w-c|function|File|2|N",
+        "lastModified": "a|-ec|get:N|set:-",
+        "name": "a|-ec|get:N|set:-",
+        "size": "a|-ec|get:N|set:-",
+        "slice": "v|w-c|function|slice|0|N",
+        "stream": "v|w-c|function|stream|0|N",
+        "text": "v|w-c|function|text|0|N",
+        "type": "a|-ec|get:N|set:-",
+        "webkitRelativePath": "a|-ec|get:N|set:-"
+      },
+      "prototypeChain": [
+        "Blob",
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Blob>Object"
+      }
+    },
+    "FileReader": {
+      "inherits": "",
+      "prototype": {
+        "DONE": "v|---|number",
+        "EMPTY": "v|---|number",
+        "LOADING": "v|---|number",
+        "abort": "v|w-c|function|abort|0|N",
+        "constructor": "v|w-c|function|FileReader|0|N",
+        "error": "a|-ec|get:N|set:-",
+        "onabort": "a|-ec|get:N|set:N",
+        "onerror": "a|-ec|get:N|set:N",
+        "onload": "a|-ec|get:N|set:N",
+        "onloadend": "a|-ec|get:N|set:N",
+        "onloadstart": "a|-ec|get:N|set:N",
+        "onprogress": "a|-ec|get:N|set:N",
+        "readAsArrayBuffer": "v|w-c|function|readAsArrayBuffer|1|N",
+        "readAsBinaryString": "v|w-c|function|readAsBinaryString|1|N",
+        "readAsDataURL": "v|w-c|function|readAsDataURL|1|N",
+        "readAsText": "v|w-c|function|readAsText|1|N",
+        "readyState": "a|-ec|get:N|set:-",
+        "result": "a|-ec|get:N|set:-"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "DONE": "v|---|number",
+        "EMPTY": "v|---|number",
+        "LOADING": "v|---|number",
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "FileSystemDirectoryHandle": {
+      "inherits": "",
+      "prototype": {
+        "@@Symbol.asyncIterator": "v|w-c|function|[Symbol.asyncIterator]|0|N",
+        "constructor": "v|w-c|function||0|N",
+        "entries": "v|w-c|function|entries|0|N",
+        "getDirectoryHandle": "v|w-c|function|getDirectoryHandle|1|N",
+        "getFileHandle": "v|w-c|function|getFileHandle|1|N",
+        "isSameEntry": "v|w-c|function|isSameEntry|1|N",
+        "keys": "v|w-c|function|keys|0|N",
+        "kind": "v|--c|string",
+        "queryPermission": "v|w-c|function|queryPermission|0|N",
+        "removeEntry": "v|w-c|function|removeEntry|1|N",
+        "requestPermission": "v|w-c|function|requestPermission|0|N",
+        "resolve": "v|w-c|function|resolve|1|N",
+        "values": "v|w-c|function|values|0|N"
+      },
+      "prototypeChain": [
+        "Object",
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object>Object"
+      }
+    },
+    "FileSystemFileHandle": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function||0|N",
+        "createSyncAccessHandle": "v|w-c|function|createSyncAccessHandle|0|N",
+        "createWritable": "v|w-c|function|createWritable|0|N",
+        "getFile": "v|w-c|function|getFile|0|N",
+        "isSameEntry": "v|w-c|function|isSameEntry|1|N",
+        "kind": "v|--c|string",
+        "queryPermission": "v|w-c|function|queryPermission|0|N",
+        "requestPermission": "v|w-c|function|requestPermission|0|N"
+      },
+      "prototypeChain": [
+        "Object",
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object>Object"
+      }
+    },
+    "FileSystemHandle": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function||0|N",
+        "isSameEntry": "v|w-c|function|isSameEntry|1|N",
+        "queryPermission": "v|w-c|function|queryPermission|0|N",
+        "requestPermission": "v|w-c|function|requestPermission|0|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "FileSystemSyncAccessHandle": {
+      "inherits": "",
+      "prototype": {
+        "close": "v|w-c|function|close|0|N",
+        "constructor": "v|w-c|function||0|N",
+        "flush": "v|w-c|function|flush|0|N",
+        "getSize": "v|w-c|function|getSize|0|N",
+        "read": "v|w-c|function|read|2|N",
+        "truncate": "v|w-c|function|truncate|1|N",
+        "write": "v|w-c|function|write|2|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "FileSystemWritableFileStream": {
+      "inherits": "",
+      "prototype": {
+        "abort": "v|w-c|function|abort|1|N",
+        "close": "v|w-c|function|close|0|N",
+        "constructor": "v|w-c|function||0|N",
+        "seek": "v|w-c|function|seek|1|N",
+        "truncate": "v|w-c|function|truncate|1|N",
+        "write": "v|w-c|function|write|1|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "FinalizationRegistry": {
+      "inherits": "",
+      "prototype": {
+        "@@Symbol.toStringTag": "v|--c|string",
+        "constructor": "v|w-c|function|FinalizationRegistry|1|N",
+        "register": "v|w-c|function|register|2|N",
+        "unregister": "v|w-c|function|unregister|1|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "Float32Array": {
+      "inherits": "TypedArray",
+      "prototype": {
+        "BYTES_PER_ELEMENT": "v|---|number",
+        "constructor": "v|w-c|function|Float32Array|3|N"
+      },
+      "prototypeChain": [
+        "TypedArray",
+        "Object"
+      ],
+      "static": {
+        "@@Symbol.species": "a|--c|get:N|set:-",
+        "BYTES_PER_ELEMENT": "v|---|number",
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|TypedArray>Object"
+      }
+    },
+    "Float64Array": {
+      "inherits": "TypedArray",
+      "prototype": {
+        "BYTES_PER_ELEMENT": "v|---|number",
+        "constructor": "v|w-c|function|Float64Array|3|N"
+      },
+      "prototypeChain": [
+        "TypedArray",
+        "Object"
+      ],
+      "static": {
+        "@@Symbol.species": "a|--c|get:N|set:-",
+        "BYTES_PER_ELEMENT": "v|---|number",
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|TypedArray>Object"
+      }
+    },
+    "FocusEvent": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function|FocusEvent|1|N",
+        "detail": "a|--c|get:N|set:-",
+        "relatedTarget": "a|--c|get:N|set:-",
+        "view": "a|--c|get:N|set:-"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "FormData": {
+      "inherits": "",
+      "prototype": {
+        "append": "v|w-c|function|append|2|N",
+        "constructor": "v|w-c|function|FormData|1|N",
+        "delete": "v|w-c|function|delete|1|N",
+        "entries": "v|w-c|function|entries|0|N",
+        "forEach": "v|w-c|function|forEach|1|N",
+        "get": "v|w-c|function|get|1|N",
+        "getAll": "v|w-c|function|getAll|1|N",
+        "has": "v|w-c|function|has|1|N",
+        "keys": "v|w-c|function|keys|0|N",
+        "set": "v|w-c|function|set|2|N",
+        "values": "v|w-c|function|values|0|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "HTMLAudioElement": {
+      "inherits": "",
+      "prototype": {
+        "autoplay": "a|--c|get:N|set:N",
+        "canPlayType": "v|w-c|function|canPlayType|1|N",
+        "constructor": "v|w-c|function|HTMLAudioElement|1|N",
+        "currentTime": "a|--c|get:N|set:N",
+        "duration": "a|--c|get:N|set:-",
+        "ended": "a|--c|get:N|set:-",
+        "load": "v|w-c|function|load|0|N",
+        "loop": "a|--c|get:N|set:N",
+        "muted": "a|--c|get:N|set:N",
+        "pause": "v|w-c|function|pause|0|N",
+        "paused": "a|--c|get:N|set:-",
+        "play": "v|w-c|function|play|0|N",
+        "readyState": "a|--c|get:N|set:-",
+        "src": "a|--c|get:N|set:N",
+        "volume": "a|--c|get:N|set:N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "HTMLCanvasElement": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function|HTMLCanvasElement|0|N",
+        "getContext": "v|w-c|function|getContext|1|N",
+        "height": "a|--c|get:N|set:N",
+        "toBlob": "v|w-c|function|toBlob|1|N",
+        "toDataURL": "v|w-c|function|toDataURL|0|N",
+        "transferControlToOffscreen": "v|w-c|function|transferControlToOffscreen|0|N",
+        "width": "a|--c|get:N|set:N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "HTMLCollection": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function|HTMLCollection|0|N",
+        "item": "v|w-c|function|item|1|N",
+        "length": "a|-ec|get:N|set:-",
+        "namedItem": "v|w-c|function|namedItem|1|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "HTMLDetailsElement": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function|HTMLDetailsElement|0|N",
+        "open": "a|--c|get:N|set:N",
+        "toggle": "v|w-c|function|toggle|0|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "HTMLDialogElement": {
+      "inherits": "",
+      "prototype": {
+        "close": "v|w-c|function|close|1|N",
+        "constructor": "v|w-c|function|HTMLDialogElement|0|N",
+        "open": "a|--c|get:N|set:N",
+        "returnValue": "a|--c|get:N|set:N",
+        "show": "v|w-c|function|show|0|N",
+        "showModal": "v|w-c|function|showModal|0|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "HTMLElement": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function|HTMLElement|0|N",
+        "hidden": "a|--c|get:N|set:N",
+        "innerText": "a|--c|get:N|set:N"
+      },
+      "prototypeChain": [
+        "Element",
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Element>Object"
+      }
+    },
+    "HTMLFormElement": {
+      "inherits": "",
+      "prototype": {
+        "action": "a|--c|get:N|set:N",
+        "checkValidity": "v|w-c|function|checkValidity|0|N",
+        "constructor": "v|w-c|function|HTMLFormElement|0|N",
+        "enctype": "a|--c|get:N|set:N",
+        "length": "a|--c|get:N|set:-",
+        "method": "a|--c|get:N|set:N",
+        "name": "a|--c|get:N|set:N",
+        "noValidate": "a|--c|get:N|set:N",
+        "reportValidity": "v|w-c|function|reportValidity|0|N",
+        "requestSubmit": "v|w-c|function|requestSubmit|0|N",
+        "reset": "v|w-c|function|reset|0|N",
+        "submit": "v|w-c|function|submit|0|N",
+        "target": "a|--c|get:N|set:N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "namedItem": "v|w-c|function|namedItem|1|N",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "HTMLImageElement": {
+      "inherits": "",
+      "prototype": {
+        "alt": "a|--c|get:N|set:N",
+        "complete": "a|--c|get:N|set:-",
+        "constructor": "v|w-c|function|HTMLImageElement|0|N",
+        "crossOrigin": "a|--c|get:N|set:N",
+        "currentSrc": "a|--c|get:N|set:-",
+        "decode": "v|w-c|function|decode|0|N",
+        "decoding": "a|--c|get:N|set:N",
+        "height": "a|--c|get:N|set:N",
+        "isMap": "a|--c|get:N|set:N",
+        "loading": "a|--c|get:N|set:N",
+        "naturalHeight": "a|--c|get:N|set:-",
+        "naturalWidth": "a|--c|get:N|set:-",
+        "nodeName": "a|--c|get:N|set:-",
+        "src": "a|--c|get:N|set:N",
+        "tagName": "a|--c|get:N|set:-",
+        "width": "a|--c|get:N|set:N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "HTMLInputElement": {
+      "inherits": "",
+      "prototype": {
+        "blur": "v|w-c|function|blur|0|N",
+        "checkValidity": "v|w-c|function|checkValidity|0|N",
+        "checked": "a|--c|get:N|set:N",
+        "click": "v|w-c|function|click|0|N",
+        "constructor": "v|w-c|function|HTMLInputElement|0|N",
+        "disabled": "a|--c|get:N|set:N",
+        "focus": "v|w-c|function|focus|0|N",
+        "maxLength": "a|--c|get:N|set:N",
+        "minLength": "a|--c|get:N|set:N",
+        "name": "a|--c|get:N|set:N",
+        "pattern": "a|--c|get:N|set:N",
+        "placeholder": "a|--c|get:N|set:N",
+        "readOnly": "a|--c|get:N|set:N",
+        "reportValidity": "v|w-c|function|reportValidity|0|N",
+        "required": "a|--c|get:N|set:N",
+        "select": "v|w-c|function|select|0|N",
+        "setCustomValidity": "v|w-c|function|setCustomValidity|1|N",
+        "type": "a|--c|get:N|set:N",
+        "validationMessage": "a|--c|get:N|set:-",
+        "value": "a|--c|get:N|set:N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "HTMLScriptElement": {
+      "inherits": "",
+      "prototype": {
+        "async": "a|--c|get:N|set:N",
+        "constructor": "v|w-c|function|HTMLScriptElement|0|N",
+        "defer": "a|--c|get:N|set:N",
+        "src": "a|--c|get:N|set:N",
+        "text": "a|--c|get:N|set:N",
+        "type": "a|--c|get:N|set:N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "HTMLTemplateElement": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|wec|function|HTMLTemplateElement|0|N",
+        "content": "a|-ec|get:N|set:-"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|wec|object|Object"
+      }
+    },
+    "HTMLVideoElement": {
+      "inherits": "",
+      "prototype": {
+        "autoplay": "a|--c|get:N|set:N",
+        "canPlayType": "v|w-c|function|canPlayType|1|N",
+        "constructor": "v|w-c|function|HTMLVideoElement|0|N",
+        "controls": "a|--c|get:N|set:N",
+        "currentTime": "a|--c|get:N|set:N",
+        "duration": "a|--c|get:N|set:-",
+        "ended": "a|--c|get:N|set:-",
+        "getVideoPlaybackQuality": "v|w-c|function|getVideoPlaybackQuality|0|N",
+        "load": "v|w-c|function|load|0|N",
+        "loop": "a|--c|get:N|set:N",
+        "muted": "a|--c|get:N|set:N",
+        "networkState": "a|--c|get:N|set:-",
+        "pause": "v|w-c|function|pause|0|N",
+        "paused": "a|--c|get:N|set:-",
+        "play": "v|w-c|function|play|0|N",
+        "playbackRate": "a|--c|get:N|set:N",
+        "poster": "a|--c|get:N|set:N",
+        "preload": "a|--c|get:N|set:N",
+        "readyState": "a|--c|get:N|set:-",
+        "seeking": "a|--c|get:N|set:-",
+        "src": "a|--c|get:N|set:N",
+        "videoHeight": "a|--c|get:N|set:-",
+        "videoWidth": "a|--c|get:N|set:-",
+        "volume": "a|--c|get:N|set:N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "HAVE_CURRENT_DATA": "v|---|number",
+        "HAVE_ENOUGH_DATA": "v|---|number",
+        "HAVE_FUTURE_DATA": "v|---|number",
+        "HAVE_METADATA": "v|---|number",
+        "HAVE_NOTHING": "v|---|number",
+        "NETWORK_EMPTY": "v|---|number",
+        "NETWORK_IDLE": "v|---|number",
+        "NETWORK_LOADING": "v|---|number",
+        "NETWORK_NO_SOURCE": "v|---|number",
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "HashChangeEvent": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function|HashChangeEvent|2|N",
+        "newURL": "a|--c|get:N|set:-",
+        "oldURL": "a|--c|get:N|set:-"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "Headers": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function|Headers|0|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "IDBCursor": {
+      "inherits": "",
+      "prototype": {
+        "advance": "v|w-c|function|advance|1|N",
+        "constructor": "v|w-c|function|IDBCursor|0|N",
+        "continue": "v|w-c|function|continue|0|N",
+        "continuePrimaryKey": "v|w-c|function|continuePrimaryKey|2|N",
+        "delete": "v|w-c|function|delete|0|N",
+        "direction": "a|--c|get:N|set:-",
+        "key": "a|--c|get:N|set:-",
+        "primaryKey": "a|--c|get:N|set:-",
+        "update": "v|w-c|function|update|1|N",
+        "value": "a|--c|get:N|set:-"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "IDBDatabase": {
+      "inherits": "",
+      "prototype": {
+        "close": "v|w-c|function|close|0|N",
+        "constructor": "v|w-c|function|IDBDatabase|0|N",
+        "createObjectStore": "v|w-c|function|createObjectStore|1|N",
+        "deleteObjectStore": "v|w-c|function|deleteObjectStore|1|N",
+        "name": "a|--c|get:N|set:-",
+        "objectStoreNames": "a|--c|get:N|set:-",
+        "onabort": "a|--c|get:-|set:N",
+        "onerror": "a|--c|get:-|set:N",
+        "onversionchange": "a|--c|get:-|set:N",
+        "transaction": "v|w-c|function|transaction|1|N",
+        "version": "a|--c|get:N|set:-"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "IDBFactory": {
+      "inherits": "",
+      "prototype": {
+        "cmp": "v|w-c|function|cmp|2|N",
+        "constructor": "v|w-c|function|IDBFactory|0|N",
+        "databases": "v|w-c|function|databases|0|N",
+        "deleteDatabase": "v|w-c|function|deleteDatabase|1|N",
+        "open": "v|w-c|function|open|1|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "IDBIndex": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function|IDBIndex|0|N",
+        "count": "v|w-c|function|count|0|N",
+        "get": "v|w-c|function|get|1|N",
+        "getAll": "v|w-c|function|getAll|0|N",
+        "getAllKeys": "v|w-c|function|getAllKeys|0|N",
+        "getKey": "v|w-c|function|getKey|1|N",
+        "keyPath": "a|--c|get:N|set:-",
+        "multiEntry": "a|--c|get:N|set:-",
+        "name": "a|--c|get:N|set:-",
+        "openCursor": "v|w-c|function|openCursor|0|N",
+        "openKeyCursor": "v|w-c|function|openKeyCursor|0|N",
+        "unique": "a|--c|get:N|set:-"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "IDBKeyRange": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function|IDBKeyRange|0|N",
+        "includes": "v|w-c|function|includes|1|N",
+        "lower": "a|--c|get:N|set:-",
+        "lowerOpen": "a|--c|get:N|set:-",
+        "upper": "a|--c|get:N|set:-",
+        "upperOpen": "a|--c|get:N|set:-"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "bound": "v|w-c|function|bound|2|N",
+        "length": "v|--c|number",
+        "lowerBound": "v|w-c|function|lowerBound|1|N",
+        "name": "v|--c|string",
+        "only": "v|w-c|function|only|1|N",
+        "prototype": "v|---|object|Object",
+        "upperBound": "v|w-c|function|upperBound|1|N"
+      }
+    },
+    "IDBObjectStore": {
+      "inherits": "",
+      "prototype": {
+        "add": "v|w-c|function|add|1|N",
+        "autoIncrement": "a|--c|get:N|set:-",
+        "clear": "v|w-c|function|clear|0|N",
+        "constructor": "v|w-c|function|IDBObjectStore|0|N",
+        "count": "v|w-c|function|count|0|N",
+        "delete": "v|w-c|function|delete|1|N",
+        "get": "v|w-c|function|get|1|N",
+        "getAll": "v|w-c|function|getAll|0|N",
+        "keyPath": "a|--c|get:N|set:-",
+        "name": "a|--c|get:N|set:-",
+        "openCursor": "v|w-c|function|openCursor|0|N",
+        "put": "v|w-c|function|put|1|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "IDBRequest": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function|IDBRequest|0|N",
+        "error": "a|--c|get:N|set:-",
+        "onerror": "a|--c|get:-|set:N",
+        "onsuccess": "a|--c|get:-|set:N",
+        "readyState": "a|--c|get:N|set:-",
+        "result": "a|--c|get:N|set:-",
+        "source": "a|--c|get:N|set:-",
+        "transaction": "a|--c|get:N|set:-"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "IDBTransaction": {
+      "inherits": "",
+      "prototype": {
+        "abort": "v|w-c|function|abort|0|N",
+        "commit": "v|w-c|function|commit|0|N",
+        "constructor": "v|w-c|function|IDBTransaction|0|N",
+        "error": "a|--c|get:N|set:-",
+        "mode": "a|--c|get:N|set:-",
+        "objectStore": "v|w-c|function|objectStore|1|N",
+        "objectStoreNames": "a|--c|get:N|set:-",
+        "onabort": "a|--c|get:-|set:N",
+        "oncomplete": "a|--c|get:-|set:N",
+        "onerror": "a|--c|get:-|set:N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "Image": {
+      "inherits": "",
+      "prototype": {
+        "alt": "a|--c|get:N|set:N",
+        "complete": "a|--c|get:N|set:-",
+        "constructor": "v|w-c|function|HTMLImageElement|0|N",
+        "crossOrigin": "a|--c|get:N|set:N",
+        "currentSrc": "a|--c|get:N|set:-",
+        "decode": "v|w-c|function|decode|0|N",
+        "decoding": "a|--c|get:N|set:N",
+        "height": "a|--c|get:N|set:N",
+        "isMap": "a|--c|get:N|set:N",
+        "loading": "a|--c|get:N|set:N",
+        "naturalHeight": "a|--c|get:N|set:-",
+        "naturalWidth": "a|--c|get:N|set:-",
+        "nodeName": "a|--c|get:N|set:-",
+        "src": "a|--c|get:N|set:N",
+        "tagName": "a|--c|get:N|set:-",
+        "width": "a|--c|get:N|set:N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "ImageBitmap": {
+      "inherits": "",
+      "prototype": {
+        "close": "v|w-c|function|close|0|N",
+        "constructor": "v|w-c|function|ImageBitmap|0|N",
+        "height": "a|--c|get:N|set:-",
+        "width": "a|--c|get:N|set:-"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "InputEvent": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function|InputEvent|1|N",
+        "data": "a|--c|get:N|set:-",
+        "dataTransfer": "a|--c|get:N|set:-",
+        "detail": "a|--c|get:N|set:-",
+        "getTargetRanges": "v|w-c|function|getTargetRanges|0|N",
+        "inputType": "a|--c|get:N|set:-",
+        "isComposing": "a|--c|get:N|set:-",
+        "view": "a|--c|get:N|set:-"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "Int16Array": {
+      "inherits": "TypedArray",
+      "prototype": {
+        "BYTES_PER_ELEMENT": "v|---|number",
+        "constructor": "v|w-c|function|Int16Array|3|N"
+      },
+      "prototypeChain": [
+        "TypedArray",
+        "Object"
+      ],
+      "static": {
+        "@@Symbol.species": "a|--c|get:N|set:-",
+        "BYTES_PER_ELEMENT": "v|---|number",
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|TypedArray>Object"
+      }
+    },
+    "Int32Array": {
+      "inherits": "TypedArray",
+      "prototype": {
+        "BYTES_PER_ELEMENT": "v|---|number",
+        "constructor": "v|w-c|function|Int32Array|3|N"
+      },
+      "prototypeChain": [
+        "TypedArray",
+        "Object"
+      ],
+      "static": {
+        "@@Symbol.species": "a|--c|get:N|set:-",
+        "BYTES_PER_ELEMENT": "v|---|number",
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|TypedArray>Object"
+      }
+    },
+    "Int8Array": {
+      "inherits": "TypedArray",
+      "prototype": {
+        "BYTES_PER_ELEMENT": "v|---|number",
+        "constructor": "v|w-c|function|Int8Array|3|N"
+      },
+      "prototypeChain": [
+        "TypedArray",
+        "Object"
+      ],
+      "static": {
+        "@@Symbol.species": "a|--c|get:N|set:-",
+        "BYTES_PER_ELEMENT": "v|---|number",
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|TypedArray>Object"
+      }
+    },
+    "IntersectionObserver": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function|IntersectionObserver|1|N",
+        "disconnect": "v|w-c|function|disconnect|0|N",
+        "observe": "v|w-c|function|observe|1|N",
+        "root": "a|--c|get:N|set:-",
+        "rootMargin": "a|--c|get:N|set:-",
+        "takeRecords": "v|w-c|function|takeRecords|0|N",
+        "thresholds": "a|--c|get:N|set:-",
+        "unobserve": "v|w-c|function|unobserve|1|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "IntersectionObserverEntry": {
+      "inherits": "",
+      "prototype": {
+        "boundingClientRect": "a|--c|get:N|set:-",
+        "constructor": "v|w-c|function|IntersectionObserverEntry|0|N",
+        "intersectionRatio": "a|--c|get:N|set:-",
+        "intersectionRect": "a|--c|get:N|set:-",
+        "isIntersecting": "a|--c|get:N|set:-",
+        "rootBounds": "a|--c|get:N|set:-",
+        "target": "a|--c|get:N|set:-",
+        "time": "a|--c|get:N|set:-"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "Iterator": {
+      "inherits": "",
+      "prototype": {
+        "@@Symbol.iterator": "v|w-c|function|[Symbol.iterator]|0|N",
+        "@@Symbol.toStringTag": "a|--c|get:N|set:N",
+        "constructor": "a|--c|get:N|set:N",
+        "drop": "v|w-c|function|drop|1|N",
+        "every": "v|w-c|function|every|1|N",
+        "filter": "v|w-c|function|filter|1|N",
+        "find": "v|w-c|function|find|1|N",
+        "flatMap": "v|w-c|function|flatMap|1|N",
+        "forEach": "v|w-c|function|forEach|1|N",
+        "map": "v|w-c|function|map|1|N",
+        "reduce": "v|w-c|function|reduce|1|N",
+        "some": "v|w-c|function|some|1|N",
+        "take": "v|w-c|function|take|1|N",
+        "toArray": "v|w-c|function|toArray|0|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "concat": "v|w-c|function|concat|0|N",
+        "from": "v|w-c|function|from|1|N",
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "KeyboardEvent": {
+      "inherits": "",
+      "prototype": {
+        "altKey": "a|--c|get:N|set:-",
+        "charCode": "a|--c|get:N|set:-",
+        "code": "a|--c|get:N|set:-",
+        "constructor": "v|w-c|function|KeyboardEvent|1|N",
+        "ctrlKey": "a|--c|get:N|set:-",
+        "detail": "a|--c|get:N|set:-",
+        "getModifierState": "v|w-c|function|getModifierState|1|N",
+        "isComposing": "a|--c|get:N|set:-",
+        "key": "a|--c|get:N|set:-",
+        "keyCode": "a|--c|get:N|set:-",
+        "location": "a|--c|get:N|set:-",
+        "metaKey": "a|--c|get:N|set:-",
+        "repeat": "a|--c|get:N|set:-",
+        "shiftKey": "a|--c|get:N|set:-",
+        "view": "a|--c|get:N|set:-",
+        "which": "a|--c|get:N|set:-"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "DOM_KEY_LOCATION_LEFT": "v|---|number",
+        "DOM_KEY_LOCATION_NUMPAD": "v|---|number",
+        "DOM_KEY_LOCATION_RIGHT": "v|---|number",
+        "DOM_KEY_LOCATION_STANDARD": "v|---|number",
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "LockManager": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function|LockManager|0|N",
+        "query": "v|w-c|function|query|0|N",
+        "request": "v|w-c|function|request|2|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "Map": {
+      "inherits": "",
+      "prototype": {
+        "@@Symbol.iterator": "v|w-c|function|entries|0|N",
+        "@@Symbol.toStringTag": "v|--c|string",
+        "clear": "v|w-c|function|clear|0|N",
+        "constructor": "v|w-c|function|Map|0|N",
+        "delete": "v|w-c|function|delete|1|N",
+        "entries": "v|w-c|function|entries|0|N",
+        "forEach": "v|w-c|function|forEach|1|N",
+        "get": "v|w-c|function|get|1|N",
+        "getOrInsert": "v|w-c|function|getOrInsert|2|N",
+        "getOrInsertComputed": "v|w-c|function|getOrInsertComputed|2|N",
+        "has": "v|w-c|function|has|1|N",
+        "keys": "v|w-c|function|keys|0|N",
+        "set": "v|w-c|function|set|2|N",
+        "size": "a|--c|get:N|set:-",
+        "values": "v|w-c|function|values|0|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "@@Symbol.species": "a|--c|get:N|set:-",
+        "groupBy": "v|w-c|function|groupBy|2|N",
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "MediaRecorder": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function|MediaRecorder|2|X",
+        "pause": "v|wec|function||0|X",
+        "resume": "v|wec|function||0|X",
+        "start": "v|wec|function||0|X",
+        "stop": "v|wec|function||0|X"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "isTypeSupported": "v|wec|function||1|X",
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|w--|object|Object"
+      }
+    },
+    "MessageChannel": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function|MessageChannel|0|N",
+        "port1": "a|--c|get:N|set:-",
+        "port2": "a|--c|get:N|set:-"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "MessageEvent": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function|MessageEvent|1|N",
+        "data": "v|--c|string",
+        "lastEventId": "v|--c|string",
+        "origin": "v|--c|string",
+        "ports": "v|--c|undefined",
+        "source": "v|--c|null"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "MessagePort": {
+      "inherits": "",
+      "prototype": {
+        "close": "v|w-c|function|close|0|N",
+        "constructor": "v|w-c|function|MessagePort|0|N",
+        "postMessage": "v|w-c|function|postMessage|1|N",
+        "start": "v|w-c|function|start|0|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "MouseEvent": {
+      "inherits": "",
+      "prototype": {
+        "altKey": "a|--c|get:N|set:-",
+        "button": "a|--c|get:N|set:-",
+        "buttons": "a|--c|get:N|set:-",
+        "clientX": "a|--c|get:N|set:-",
+        "clientY": "a|--c|get:N|set:-",
+        "constructor": "v|w-c|function|MouseEvent|1|N",
+        "ctrlKey": "a|--c|get:N|set:-",
+        "detail": "a|--c|get:N|set:-",
+        "getModifierState": "v|w-c|function|getModifierState|1|N",
+        "metaKey": "a|--c|get:N|set:-",
+        "movementX": "a|--c|get:N|set:-",
+        "movementY": "a|--c|get:N|set:-",
+        "offsetX": "a|--c|get:N|set:-",
+        "offsetY": "a|--c|get:N|set:-",
+        "pageX": "a|--c|get:N|set:-",
+        "pageY": "a|--c|get:N|set:-",
+        "relatedTarget": "a|--c|get:N|set:-",
+        "screenX": "a|--c|get:N|set:-",
+        "screenY": "a|--c|get:N|set:-",
+        "shiftKey": "a|--c|get:N|set:-",
+        "view": "a|--c|get:N|set:-",
+        "x": "a|--c|get:N|set:-",
+        "y": "a|--c|get:N|set:-"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "MutationObserver": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function|MutationObserver|1|N",
+        "disconnect": "v|w-c|function|disconnect|0|N",
+        "observe": "v|w-c|function|observe|2|N",
+        "takeRecords": "v|w-c|function|takeRecords|0|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "MutationRecord": {
+      "inherits": "",
+      "prototype": {
+        "addedNodes": "a|--c|get:N|set:-",
+        "attributeName": "a|--c|get:N|set:-",
+        "attributeNamespace": "a|--c|get:N|set:-",
+        "constructor": "v|w-c|function|MutationRecord|0|N",
+        "nextSibling": "a|--c|get:N|set:-",
+        "oldValue": "a|--c|get:N|set:-",
+        "previousSibling": "a|--c|get:N|set:-",
+        "removedNodes": "a|--c|get:N|set:-",
+        "target": "a|--c|get:N|set:-",
+        "type": "a|--c|get:N|set:-"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "NamedNodeMap": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function|NamedNodeMap|0|N",
+        "getNamedItem": "v|w-c|function|getNamedItem|1|N",
+        "item": "v|w-c|function|item|1|N",
+        "length": "a|-ec|get:N|set:-",
+        "removeNamedItem": "v|w-c|function|removeNamedItem|1|N",
+        "setNamedItem": "v|w-c|function|setNamedItem|1|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "Navigator": {
+      "inherits": "",
+      "prototype": {
+        "appCodeName": "v|---|string",
+        "appName": "v|---|string",
+        "appVersion": "v|---|string",
+        "clipboard": "a|-ec|get:N|set:-",
+        "constructor": "v|w-c|function|Navigator|0|N",
+        "cookieEnabled": "v|---|boolean",
+        "hardwareConcurrency": "v|---|number",
+        "javaEnabled": "v|w-c|function|javaEnabled|0|N",
+        "language": "v|---|string",
+        "languages": "a|-ec|get:N|set:-",
+        "mimeTypes": "a|-ec|get:N|set:-",
+        "onLine": "v|---|boolean",
+        "pdfViewerEnabled": "v|---|boolean",
+        "permissions": "a|-ec|get:N|set:-",
+        "platform": "v|---|string",
+        "plugins": "a|-ec|get:N|set:-",
+        "product": "v|---|string",
+        "productSub": "v|---|string",
+        "registerProtocolHandler": "v|w-c|function|registerProtocolHandler|2|N",
+        "serviceWorker": "a|-ec|get:N|set:-",
+        "unregisterProtocolHandler": "v|w-c|function|unregisterProtocolHandler|2|N",
+        "userAgent": "v|---|string",
+        "vendor": "v|---|string",
+        "vendorSub": "v|---|string",
+        "vibrate": "v|w-c|function|vibrate|1|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "Node": {
+      "inherits": "",
+      "prototype": {
+        "appendChild": "v|w-c|function|appendChild|1|N",
+        "childNodes": "v|w-c|function|childNodes|0|N",
+        "cloneNode": "v|w-c|function|cloneNode|0|N",
+        "compareDocumentPosition": "v|w-c|function|compareDocumentPosition|1|N",
+        "constructor": "v|w-c|function|Node|0|N",
+        "contains": "v|w-c|function|contains|1|N",
+        "firstChild": "v|w-c|function|firstChild|0|N",
+        "getRootNode": "v|w-c|function|getRootNode|0|N",
+        "hasChildNodes": "v|w-c|function|hasChildNodes|0|N",
+        "insertBefore": "v|w-c|function|insertBefore|2|N",
+        "isDefaultNamespace": "v|w-c|function|isDefaultNamespace|1|N",
+        "isEqualNode": "v|w-c|function|isEqualNode|1|N",
+        "isSameNode": "v|w-c|function|isSameNode|1|N",
+        "lastChild": "v|w-c|function|lastChild|0|N",
+        "lookupNamespaceURI": "v|w-c|function|lookupNamespaceURI|1|N",
+        "lookupPrefix": "v|w-c|function|lookupPrefix|1|N",
+        "nextSibling": "v|w-c|function|nextSibling|0|N",
+        "nodeName": "v|w-c|function|nodeName|0|N",
+        "nodeType": "v|w-c|function|nodeType|0|N",
+        "nodeValue": "v|w-c|function|nodeValue|0|N",
+        "normalize": "v|w-c|function|normalize|0|N",
+        "ownerDocument": "v|w-c|function|ownerDocument|0|N",
+        "parentNode": "v|w-c|function|parentNode|0|N",
+        "previousSibling": "v|w-c|function|previousSibling|0|N",
+        "removeChild": "v|w-c|function|removeChild|1|N",
+        "replaceChild": "v|w-c|function|replaceChild|2|N"
+      },
+      "prototypeChain": [
+        "EventTarget",
+        "Object"
+      ],
+      "static": {
+        "ATTRIBUTE_NODE": "v|---|number",
+        "CDATA_SECTION_NODE": "v|---|number",
+        "COMMENT_NODE": "v|---|number",
+        "DOCUMENT_FRAGMENT_NODE": "v|---|number",
+        "DOCUMENT_NODE": "v|---|number",
+        "DOCUMENT_TYPE_NODE": "v|---|number",
+        "ELEMENT_NODE": "v|---|number",
+        "ENTITY_NODE": "v|---|number",
+        "ENTITY_REFERENCE_NODE": "v|---|number",
+        "NOTATION_NODE": "v|---|number",
+        "PROCESSING_INSTRUCTION_NODE": "v|---|number",
+        "TEXT_NODE": "v|---|number",
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|EventTarget>Object"
+      }
+    },
+    "NodeIterator": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function|NodeIterator|0|N",
+        "detach": "v|w-c|function|detach|0|N",
+        "filter": "a|-ec|get:N|set:-",
+        "nextNode": "v|w-c|function|nextNode|0|N",
+        "pointerBeforeReferenceNode": "a|-ec|get:N|set:-",
+        "previousNode": "v|w-c|function|previousNode|0|N",
+        "referenceNode": "a|-ec|get:N|set:-",
+        "root": "a|-ec|get:N|set:-",
+        "whatToShow": "a|-ec|get:N|set:-"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "NodeList": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function|NodeList|0|N",
+        "entries": "v|w-c|function|entries|0|N",
+        "forEach": "v|w-c|function|forEach|1|N",
+        "item": "v|w-c|function|item|1|N",
+        "keys": "v|w-c|function|keys|0|N",
+        "length": "a|-ec|get:N|set:-",
+        "values": "v|w-c|function|values|0|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "Notification": {
+      "inherits": "",
+      "prototype": {
+        "close": "v|w-c|function|close|0|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "permission": "v|wec|string",
+        "prototype": "v|wec|object|Object",
+        "requestPermission": "v|wec|function||0|N"
+      }
+    },
+    "Number": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function|Number|1|N",
+        "toExponential": "v|w-c|function|toExponential|1|N",
+        "toFixed": "v|w-c|function|toFixed|1|N",
+        "toLocaleString": "v|w-c|function|toLocaleString|0|N",
+        "toPrecision": "v|w-c|function|toPrecision|1|N",
+        "toString": "v|w-c|function|toString|1|N",
+        "valueOf": "v|w-c|function|valueOf|0|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "EPSILON": "v|---|number",
+        "MAX_SAFE_INTEGER": "v|---|number",
+        "MAX_VALUE": "v|---|number",
+        "MIN_SAFE_INTEGER": "v|---|number",
+        "MIN_VALUE": "v|---|number",
+        "NEGATIVE_INFINITY": "v|---|number",
+        "NaN": "v|---|number",
+        "POSITIVE_INFINITY": "v|---|number",
+        "isFinite": "v|w-c|function|isFinite|1|N",
+        "isInteger": "v|w-c|function|isInteger|1|N",
+        "isNaN": "v|w-c|function|isNaN|1|N",
+        "isSafeInteger": "v|w-c|function|isSafeInteger|1|N",
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "parseFloat": "v|w-c|function|parseFloat|1|N",
+        "parseInt": "v|w-c|function|parseInt|2|N",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "Object": {
+      "inherits": "",
+      "prototype": {
+        "__defineGetter__": "v|w-c|function|__defineGetter__|2|N",
+        "__defineSetter__": "v|w-c|function|__defineSetter__|2|N",
+        "__lookupGetter__": "v|w-c|function|__lookupGetter__|1|N",
+        "__lookupSetter__": "v|w-c|function|__lookupSetter__|1|N",
+        "constructor": "v|w-c|function|Object|1|N",
+        "hasOwnProperty": "v|w-c|function|hasOwnProperty|1|N",
+        "isPrototypeOf": "v|w-c|function|isPrototypeOf|1|N",
+        "propertyIsEnumerable": "v|w-c|function|propertyIsEnumerable|1|N",
+        "toLocaleString": "v|w-c|function|toLocaleString|0|N",
+        "toString": "v|w-c|function|toString|0|N",
+        "valueOf": "v|w-c|function|valueOf|0|N"
+      },
+      "prototypeChain": [],
+      "static": {
+        "assign": "v|w-c|function|assign|2|N",
+        "create": "v|w-c|function|create|2|N",
+        "defineProperties": "v|w-c|function|defineProperties|2|N",
+        "defineProperty": "v|w-c|function|defineProperty|3|N",
+        "entries": "v|w-c|function|entries|1|N",
+        "freeze": "v|w-c|function|freeze|1|N",
+        "fromEntries": "v|w-c|function|fromEntries|1|N",
+        "getOwnPropertyDescriptor": "v|w-c|function|getOwnPropertyDescriptor|2|N",
+        "getOwnPropertyDescriptors": "v|w-c|function|getOwnPropertyDescriptors|1|N",
+        "getOwnPropertyNames": "v|w-c|function|getOwnPropertyNames|1|N",
+        "getOwnPropertySymbols": "v|w-c|function|getOwnPropertySymbols|1|N",
+        "getPrototypeOf": "v|w-c|function|getPrototypeOf|1|N",
+        "groupBy": "v|w-c|function|groupBy|2|N",
+        "hasOwn": "v|w-c|function|hasOwn|2|N",
+        "is": "v|w-c|function|is|2|N",
+        "isExtensible": "v|w-c|function|isExtensible|1|N",
+        "isFrozen": "v|w-c|function|isFrozen|1|N",
+        "isSealed": "v|w-c|function|isSealed|1|N",
+        "keys": "v|w-c|function|keys|1|N",
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "preventExtensions": "v|w-c|function|preventExtensions|1|N",
+        "prototype": "v|---|object|",
+        "seal": "v|w-c|function|seal|1|N",
+        "setPrototypeOf": "v|w-c|function|setPrototypeOf|2|N",
+        "values": "v|w-c|function|values|1|N"
+      }
+    },
+    "Observable": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function|Observable|1|X",
+        "subscribe": "v|wec|function||1|X"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "of": "v|wec|function||0|X",
+        "prototype": "v|w--|object|Object"
+      }
+    },
+    "OffscreenCanvas": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function|OffscreenCanvas|2|N",
+        "convertToBlob": "v|w-c|function|convertToBlob|0|N",
+        "getContext": "v|w-c|function|getContext|1|N",
+        "height": "a|--c|get:N|set:N",
+        "transferToImageBitmap": "v|w-c|function|transferToImageBitmap|0|N",
+        "width": "a|--c|get:N|set:N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "Path2D": {
+      "inherits": "",
+      "prototype": {
+        "addPath": "v|w-c|function|addPath|1|N",
+        "arc": "v|w-c|function|arc|5|N",
+        "arcTo": "v|w-c|function|arcTo|5|N",
+        "bezierCurveTo": "v|w-c|function|bezierCurveTo|6|N",
+        "closePath": "v|w-c|function|closePath|0|N",
+        "constructor": "v|w-c|function|Path2D|1|N",
+        "ellipse": "v|w-c|function|ellipse|7|N",
+        "lineTo": "v|w-c|function|lineTo|2|N",
+        "moveTo": "v|w-c|function|moveTo|2|N",
+        "quadraticCurveTo": "v|w-c|function|quadraticCurveTo|4|N",
+        "rect": "v|w-c|function|rect|4|N",
+        "roundRect": "v|w-c|function|roundRect|5|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "PerformanceObserver": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|wec|function|PerformanceObserver|1|N",
+        "disconnect": "v|w-c|function|disconnect|0|N",
+        "observe": "v|w-c|function|observe|1|N",
+        "takeRecords": "v|w-c|function|takeRecords|0|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|wec|object|Object",
+        "supportedEntryTypes": "v|--c|object|Array>Object"
+      }
+    },
+    "PermissionsPolicyViolationEvent": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function|PermissionsPolicyViolationEvent|2|X"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|w--|object|Object"
+      }
+    },
+    "PointerEvent": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function|PointerEvent|2|N",
+        "height": "a|--c|get:N|set:-",
+        "isPrimary": "a|--c|get:N|set:-",
+        "pointerId": "a|--c|get:N|set:-",
+        "pointerType": "a|--c|get:N|set:-",
+        "pressure": "a|--c|get:N|set:-",
+        "tangentialPressure": "a|--c|get:N|set:-",
+        "tiltX": "a|--c|get:N|set:-",
+        "tiltY": "a|--c|get:N|set:-",
+        "twist": "a|--c|get:N|set:-",
+        "width": "a|--c|get:N|set:-"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "PopStateEvent": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function|PopStateEvent|2|N",
+        "state": "a|--c|get:N|set:-"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "PressureObserver": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function|PressureObserver|2|X",
+        "disconnect": "v|wec|function||0|X",
+        "observe": "v|wec|function||2|X",
+        "unobserve": "v|wec|function||1|X"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "knownSources": "v|wec|object|Array>Object",
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|w--|object|Object"
+      }
+    },
+    "ProgressEvent": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function|ProgressEvent|2|N",
+        "lengthComputable": "a|--c|get:N|set:-",
+        "loaded": "a|--c|get:N|set:-",
+        "total": "a|--c|get:N|set:-"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "Promise": {
+      "inherits": "",
+      "prototype": {
+        "@@Symbol.toStringTag": "v|--c|string",
+        "catch": "v|w-c|function|catch|1|N",
+        "constructor": "v|w-c|function|Promise|1|N",
+        "finally": "v|w-c|function|finally|1|N",
+        "then": "v|w-c|function|then|2|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "@@Symbol.species": "a|--c|get:N|set:-",
+        "all": "v|w-c|function|all|1|N",
+        "allSettled": "v|w-c|function|allSettled|1|N",
+        "any": "v|w-c|function|any|1|N",
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object",
+        "race": "v|w-c|function|race|1|N",
+        "reject": "v|w-c|function|reject|1|N",
+        "resolve": "v|w-c|function|resolve|1|N",
+        "try": "v|w-c|function|try|1|N",
+        "withResolvers": "v|w-c|function|withResolvers|0|N"
+      }
+    },
+    "RTCPeerConnection": {
+      "inherits": "",
+      "prototype": {
+        "addIceCandidate": "v|w-c|function|addIceCandidate|1|N",
+        "close": "v|w-c|function|close|0|N",
+        "connectionState": "a|--c|get:N|set:-",
+        "constructor": "v|w-c|function|RTCPeerConnection|0|N",
+        "createAnswer": "v|w-c|function|createAnswer|0|N",
+        "createDataChannel": "v|w-c|function|createDataChannel|1|N",
+        "createOffer": "v|w-c|function|createOffer|0|N",
+        "iceConnectionState": "a|--c|get:N|set:-",
+        "iceGatheringState": "a|--c|get:N|set:-",
+        "onconnectionstatechange": "v|w--|null",
+        "ondatachannel": "v|w--|null",
+        "onicecandidate": "v|w--|null",
+        "oniceconnectionstatechange": "v|w--|null",
+        "onsignalingstatechange": "v|w--|null",
+        "setLocalDescription": "v|w-c|function|setLocalDescription|1|N",
+        "setRemoteDescription": "v|w-c|function|setRemoteDescription|1|N",
+        "signalingState": "a|--c|get:N|set:-"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "Range": {
+      "inherits": "",
+      "prototype": {
+        "cloneContents": "v|w-c|function|cloneContents|0|N",
+        "cloneRange": "v|w-c|function|cloneRange|0|N",
+        "collapse": "v|w-c|function|collapse|1|N",
+        "collapsed": "a|--c|get:N|set:-",
+        "commonAncestorContainer": "a|--c|get:N|set:-",
+        "compareBoundaryPoints": "v|w-c|function|compareBoundaryPoints|2|N",
+        "comparePoint": "v|w-c|function|comparePoint|2|N",
+        "constructor": "v|w-c|function|Range|0|N",
+        "createContextualFragment": "v|w-c|function|createContextualFragment|1|N",
+        "deleteContents": "v|w-c|function|deleteContents|0|N",
+        "detach": "v|w-c|function|detach|0|N",
+        "endContainer": "a|--c|get:N|set:-",
+        "endOffset": "a|--c|get:N|set:-",
+        "extractContents": "v|w-c|function|extractContents|0|N",
+        "getBoundingClientRect": "v|w-c|function|getBoundingClientRect|0|N",
+        "getClientRects": "v|w-c|function|getClientRects|0|N",
+        "insertNode": "v|w-c|function|insertNode|1|N",
+        "intersectsNode": "v|w-c|function|intersectsNode|1|N",
+        "isPointInRange": "v|w-c|function|isPointInRange|2|N",
+        "selectNode": "v|w-c|function|selectNode|1|N",
+        "selectNodeContents": "v|w-c|function|selectNodeContents|1|N",
+        "setEnd": "v|w-c|function|setEnd|2|N",
+        "setEndAfter": "v|w-c|function|setEndAfter|1|N",
+        "setEndBefore": "v|w-c|function|setEndBefore|1|N",
+        "setStart": "v|w-c|function|setStart|2|N",
+        "setStartAfter": "v|w-c|function|setStartAfter|1|N",
+        "setStartBefore": "v|w-c|function|setStartBefore|1|N",
+        "startContainer": "a|--c|get:N|set:-",
+        "startOffset": "a|--c|get:N|set:-",
+        "surroundContents": "v|w-c|function|surroundContents|1|N",
+        "toString": "v|w-c|function|toString|0|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "END_TO_END": "v|---|number",
+        "END_TO_START": "v|---|number",
+        "START_TO_END": "v|---|number",
+        "START_TO_START": "v|---|number",
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "RangeError": {
+      "inherits": "Error",
+      "prototype": {
+        "constructor": "v|w-c|function|RangeError|1|N",
+        "message": "v|w-c|string",
+        "name": "v|w-c|string"
+      },
+      "prototypeChain": [
+        "Error",
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Error>Object"
+      }
+    },
+    "ReadableStream": {
+      "inherits": "",
+      "prototype": {
+        "@@Symbol.asyncIterator": "v|w-c|function|[Symbol.asyncIterator]|0|N",
+        "cancel": "v|w-c|function|cancel|1|N",
+        "constructor": "v|w-c|function|ReadableStream|0|N",
+        "getReader": "v|w-c|function|getReader|0|N",
+        "locked": "a|--c|get:N|set:-",
+        "pipeThrough": "v|w-c|function|pipeThrough|2|N",
+        "pipeTo": "v|w-c|function|pipeTo|1|N",
+        "tee": "v|w-c|function|tee|0|N",
+        "values": "v|w-c|function|values|0|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "from": "v|w-c|function|from|1|N",
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "Record": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|wec|function|Record|1|X",
+        "toString": "v|wec|function||0|X"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|w--|object|Object"
+      }
+    },
+    "ReferenceError": {
+      "inherits": "Error",
+      "prototype": {
+        "constructor": "v|w-c|function|ReferenceError|1|N",
+        "message": "v|w-c|string",
+        "name": "v|w-c|string"
+      },
+      "prototypeChain": [
+        "Error",
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Error>Object"
+      }
+    },
+    "RegExp": {
+      "inherits": "",
+      "prototype": {
+        "@@Symbol.match": "v|w-c|function|[Symbol.match]|1|N",
+        "@@Symbol.matchAll": "v|w-c|function|[Symbol.matchAll]|1|N",
+        "@@Symbol.replace": "v|w-c|function|[Symbol.replace]|2|N",
+        "@@Symbol.search": "v|w-c|function|[Symbol.search]|1|N",
+        "@@Symbol.split": "v|w-c|function|[Symbol.split]|2|N",
+        "constructor": "v|w-c|function|RegExp|2|N",
+        "dotAll": "a|--c|get:N|set:-",
+        "exec": "v|w-c|function|exec|1|N",
+        "flags": "a|--c|get:N|set:-",
+        "global": "a|--c|get:N|set:-",
+        "hasIndices": "a|--c|get:N|set:-",
+        "ignoreCase": "a|--c|get:N|set:-",
+        "lastIndex": "v|wec|number",
+        "multiline": "a|--c|get:N|set:-",
+        "source": "a|--c|get:N|set:-",
+        "sticky": "a|--c|get:N|set:-",
+        "test": "v|w-c|function|test|1|N",
+        "toString": "v|w-c|function|toString|0|N",
+        "unicode": "a|--c|get:N|set:-",
+        "unicodeSets": "a|--c|get:X|set:-"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|w--|object|Object"
+      }
+    },
+    "Request": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function|Request|1|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "ResizeObserver": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function|ResizeObserver|1|N",
+        "deliverEntries": "v|w-c|function|deliverEntries|0|N",
+        "disconnect": "v|w-c|function|disconnect|0|N",
+        "observe": "v|w-c|function|observe|1|N",
+        "triggerResize": "v|w-c|function|triggerResize|2|N",
+        "unobserve": "v|w-c|function|unobserve|1|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "Response": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function|Response|0|N",
+        "json": "v|w-c|function|json|0|N",
+        "ok": "a|--c|get:N|set:-",
+        "status": "a|--c|get:N|set:-",
+        "statusText": "a|--c|get:N|set:-",
+        "text": "v|w-c|function|text|0|N",
+        "url": "a|--c|get:N|set:-"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "SecurityPolicyViolationEvent": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function|SecurityPolicyViolationEvent|2|X"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|w--|object|Object"
+      }
+    },
+    "Selection": {
+      "inherits": "",
+      "prototype": {
+        "addRange": "v|w-c|function|addRange|1|N",
+        "anchorNode": "a|--c|get:N|set:-",
+        "anchorOffset": "a|--c|get:N|set:-",
+        "collapse": "v|w-c|function|collapse|2|N",
+        "collapseToEnd": "v|w-c|function|collapseToEnd|0|N",
+        "collapseToStart": "v|w-c|function|collapseToStart|0|N",
+        "constructor": "v|w-c|function|Selection|0|N",
+        "containsNode": "v|w-c|function|containsNode|2|N",
+        "deleteFromDocument": "v|w-c|function|deleteFromDocument|0|N",
+        "empty": "v|w-c|function|empty|0|N",
+        "extend": "v|w-c|function|extend|2|N",
+        "focusNode": "a|--c|get:N|set:-",
+        "focusOffset": "a|--c|get:N|set:-",
+        "getComposedRanges": "v|wec|function||0|X",
+        "getRangeAt": "v|w-c|function|getRangeAt|1|N",
+        "isCollapsed": "a|--c|get:N|set:-",
+        "modify": "v|w-c|function|modify|3|N",
+        "rangeCount": "a|--c|get:N|set:-",
+        "removeAllRanges": "v|w-c|function|removeAllRanges|0|N",
+        "removeRange": "v|w-c|function|removeRange|1|N",
+        "selectAllChildren": "v|w-c|function|selectAllChildren|1|N",
+        "setBaseAndExtent": "v|w-c|function|setBaseAndExtent|4|N",
+        "toString": "v|w-c|function|toString|0|N",
+        "type": "a|--c|get:N|set:-"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "ServiceWorker": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function|ServiceWorker|1|N",
+        "postMessage": "v|w-c|function|postMessage|1|N",
+        "scriptURL": "a|--c|get:N|set:-",
+        "state": "a|--c|get:N|set:-"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "Set": {
+      "inherits": "",
+      "prototype": {
+        "@@Symbol.iterator": "v|w-c|function|values|0|N",
+        "@@Symbol.toStringTag": "v|--c|string",
+        "add": "v|w-c|function|add|1|N",
+        "clear": "v|w-c|function|clear|0|N",
+        "constructor": "v|w-c|function|Set|0|N",
+        "delete": "v|w-c|function|delete|1|N",
+        "difference": "v|w-c|function|difference|1|N",
+        "entries": "v|w-c|function|entries|0|N",
+        "forEach": "v|w-c|function|forEach|1|N",
+        "has": "v|w-c|function|has|1|N",
+        "intersection": "v|w-c|function|intersection|1|N",
+        "isDisjointFrom": "v|w-c|function|isDisjointFrom|1|N",
+        "isSubsetOf": "v|w-c|function|isSubsetOf|1|N",
+        "isSupersetOf": "v|w-c|function|isSupersetOf|1|N",
+        "keys": "v|w-c|function|values|0|N",
+        "size": "a|--c|get:N|set:-",
+        "symmetricDifference": "v|w-c|function|symmetricDifference|1|N",
+        "union": "v|w-c|function|union|1|N",
+        "values": "v|w-c|function|values|0|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "@@Symbol.species": "a|--c|get:N|set:-",
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "SharedArrayBuffer": {
+      "inherits": "",
+      "prototype": {
+        "@@Symbol.toStringTag": "v|--c|string",
+        "byteLength": "a|--c|get:N|set:-",
+        "constructor": "v|w-c|function|SharedArrayBuffer|1|N",
+        "grow": "v|w-c|function|grow|1|N",
+        "growable": "a|--c|get:N|set:-",
+        "maxByteLength": "a|--c|get:N|set:-",
+        "slice": "v|w-c|function|slice|2|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "@@Symbol.species": "a|--c|get:N|set:-",
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "SpeechRecognition": {
+      "inherits": "",
+      "prototype": {
+        "abort": "v|wec|function||0|X",
+        "constructor": "v|w-c|function|SpeechRecognition|0|X",
+        "start": "v|wec|function||0|X",
+        "stop": "v|wec|function||0|X"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|w--|object|Object"
+      }
+    },
+    "Storage": {
+      "inherits": "",
+      "prototype": {
+        "clear": "v|w-c|function|clear|0|N",
+        "constructor": "v|w-c|function|Storage|0|N",
+        "getItem": "v|w-c|function|getItem|1|N",
+        "key": "v|w-c|function|key|1|N",
+        "length": "a|--c|get:N|set:-",
+        "removeItem": "v|w-c|function|removeItem|1|N",
+        "setItem": "v|w-c|function|setItem|2|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "StorageEvent": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function|StorageEvent|1|N",
+        "initStorageEvent": "v|w-c|function|initStorageEvent|5|N",
+        "key": "a|--c|get:N|set:-",
+        "newValue": "a|--c|get:N|set:-",
+        "oldValue": "a|--c|get:N|set:-",
+        "storageArea": "a|--c|get:N|set:-",
+        "url": "a|--c|get:N|set:-"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "StorageManager": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function|StorageManager|0|N",
+        "estimate": "v|w-c|function|estimate|0|N",
+        "getDirectory": "v|w-c|function|getDirectory|0|N",
+        "persist": "v|w-c|function|persist|0|N",
+        "persisted": "v|w-c|function|persisted|0|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "String": {
+      "inherits": "",
+      "prototype": {
+        "@@Symbol.iterator": "v|w-c|function|[Symbol.iterator]|0|N",
+        "at": "v|w-c|function|at|1|N",
+        "charAt": "v|w-c|function|charAt|1|N",
+        "charCodeAt": "v|w-c|function|charCodeAt|1|N",
+        "codePointAt": "v|w-c|function|codePointAt|1|N",
+        "concat": "v|w-c|function|concat|1|N",
+        "constructor": "v|w-c|function|String|1|N",
+        "dedent": "v|wec|function||0|X",
+        "endsWith": "v|w-c|function|endsWith|1|N",
+        "includes": "v|w-c|function|includes|1|N",
+        "indexOf": "v|w-c|function|indexOf|1|N",
+        "isWellFormed": "v|w-c|function|isWellFormed|0|N",
+        "lastIndexOf": "v|w-c|function|lastIndexOf|1|N",
+        "length": "v|---|number",
+        "localeCompare": "v|w-c|function|localeCompare|1|N",
+        "match": "v|w-c|function|match|1|N",
+        "matchAll": "v|w-c|function|matchAll|1|N",
+        "normalize": "v|w-c|function|normalize|0|N",
+        "padEnd": "v|w-c|function|padEnd|1|N",
+        "padStart": "v|w-c|function|padStart|1|N",
+        "repeat": "v|w-c|function|repeat|1|N",
+        "replace": "v|w-c|function|replace|2|N",
+        "replaceAll": "v|w-c|function|replaceAll|2|N",
+        "search": "v|w-c|function|search|1|N",
+        "slice": "v|w-c|function|slice|2|N",
+        "split": "v|w-c|function|split|2|N",
+        "startsWith": "v|w-c|function|startsWith|1|N",
+        "substring": "v|w-c|function|substring|2|N",
+        "toLocaleLowerCase": "v|w-c|function|toLocaleLowerCase|0|N",
+        "toLocaleUpperCase": "v|w-c|function|toLocaleUpperCase|0|N",
+        "toLowerCase": "v|w-c|function|toLowerCase|0|N",
+        "toString": "v|w-c|function|toString|0|N",
+        "toUpperCase": "v|w-c|function|toUpperCase|0|N",
+        "toWellFormed": "v|w-c|function|toWellFormed|0|N",
+        "trim": "v|w-c|function|trim|0|N",
+        "trimEnd": "v|w-c|function|trimEnd|0|N",
+        "trimStart": "v|w-c|function|trimStart|0|N",
+        "valueOf": "v|w-c|function|valueOf|0|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "fromCharCode": "v|w-c|function|fromCharCode|1|N",
+        "fromCodePoint": "v|w-c|function|fromCodePoint|1|N",
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object",
+        "raw": "v|w-c|function|raw|1|N"
+      }
+    },
+    "Symbol": {
+      "inherits": "",
+      "prototype": {
+        "@@Symbol.toPrimitive": "v|--c|function|[Symbol.toPrimitive]|1|N",
+        "@@Symbol.toStringTag": "v|--c|string",
+        "constructor": "v|w-c|function|Symbol|0|N",
+        "description": "a|--c|get:N|set:-",
+        "toString": "v|w-c|function|toString|0|N",
+        "valueOf": "v|w-c|function|valueOf|0|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "asyncDispose": "v|---|symbol",
+        "asyncIterator": "v|---|symbol",
+        "dispose": "v|---|symbol",
+        "for": "v|w-c|function|for|1|N",
+        "hasInstance": "v|---|symbol",
+        "isConcatSpreadable": "v|---|symbol",
+        "iterator": "v|---|symbol",
+        "keyFor": "v|w-c|function|keyFor|1|N",
+        "length": "v|--c|number",
+        "match": "v|---|symbol",
+        "matchAll": "v|---|symbol",
+        "metadata": "v|wec|symbol",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object",
+        "replace": "v|---|symbol",
+        "search": "v|---|symbol",
+        "species": "v|---|symbol",
+        "split": "v|---|symbol",
+        "toPrimitive": "v|---|symbol",
+        "toStringTag": "v|---|symbol",
+        "unscopables": "v|---|symbol"
+      }
+    },
+    "SyntaxError": {
+      "inherits": "Error",
+      "prototype": {
+        "constructor": "v|w-c|function|SyntaxError|1|N",
+        "message": "v|w-c|string",
+        "name": "v|w-c|string"
+      },
+      "prototypeChain": [
+        "Error",
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Error>Object"
+      }
+    },
+    "Text": {
+      "inherits": "",
+      "prototype": {
+        "appendData": "v|w-c|function|appendData|1|N",
+        "assignedSlot": "a|-ec|get:N|set:-",
+        "constructor": "v|w-c|function|Text|0|N",
+        "data": "a|-ec|get:N|set:N",
+        "deleteData": "v|w-c|function|deleteData|2|N",
+        "insertData": "v|w-c|function|insertData|2|N",
+        "length": "a|-ec|get:N|set:-",
+        "replaceData": "v|w-c|function|replaceData|3|N",
+        "replaceWholeText": "v|w-c|function|replaceWholeText|1|N",
+        "splitText": "v|w-c|function|splitText|1|N",
+        "substringData": "v|w-c|function|substringData|2|N",
+        "wholeText": "a|-ec|get:N|set:-"
+      },
+      "prototypeChain": [
+        "CharacterData",
+        "Node",
+        "EventTarget",
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|CharacterData>Node>EventTarget>Object"
+      }
+    },
+    "TextDecoder": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function|TextDecoder|2|N",
+        "decode": "v|w-c|function|decode|1|N",
+        "encoding": "a|--c|get:N|set:-",
+        "fatal": "a|--c|get:N|set:-",
+        "ignoreBOM": "a|--c|get:N|set:-"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "TextEncoder": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function|TextEncoder|0|N",
+        "encode": "v|w-c|function|encode|1|N",
+        "encodeInto": "v|w-c|function|encodeInto|2|N",
+        "encoding": "a|--c|get:N|set:-"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "TouchEvent": {
+      "inherits": "",
+      "prototype": {
+        "altKey": "a|--c|get:N|set:-",
+        "changedTouches": "a|--c|get:N|set:-",
+        "constructor": "v|w-c|function|TouchEvent|2|N",
+        "ctrlKey": "a|--c|get:N|set:-",
+        "metaKey": "a|--c|get:N|set:-",
+        "shiftKey": "a|--c|get:N|set:-",
+        "targetTouches": "a|--c|get:N|set:-",
+        "touches": "a|--c|get:N|set:-"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "TransformStream": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function|TransformStream|0|N",
+        "readable": "a|--c|get:N|set:-",
+        "writable": "a|--c|get:N|set:-"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "TreeWalker": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function|TreeWalker|0|N",
+        "currentNode": "a|-ec|get:N|set:N",
+        "filter": "a|-ec|get:N|set:-",
+        "firstChild": "v|w-c|function|firstChild|0|N",
+        "lastChild": "v|w-c|function|lastChild|0|N",
+        "nextNode": "v|w-c|function|nextNode|0|N",
+        "nextSibling": "v|w-c|function|nextSibling|0|N",
+        "parentNode": "v|w-c|function|parentNode|0|N",
+        "previousNode": "v|w-c|function|previousNode|0|N",
+        "previousSibling": "v|w-c|function|previousSibling|0|N",
+        "root": "a|-ec|get:N|set:-",
+        "whatToShow": "a|-ec|get:N|set:-"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "Tuple": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|wec|function|Tuple|0|X",
+        "toString": "v|wec|function||0|X"
+      },
+      "prototypeChain": [
+        "Array",
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|w--|object|Array>Object"
+      }
+    },
+    "TypeError": {
+      "inherits": "Error",
+      "prototype": {
+        "constructor": "v|w-c|function|TypeError|1|N",
+        "message": "v|w-c|string",
+        "name": "v|w-c|string"
+      },
+      "prototypeChain": [
+        "Error",
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Error>Object"
+      }
+    },
+    "TypedArray": {
+      "inherits": "",
+      "prototype": {
+        "@@Symbol.iterator": "v|w-c|function|values|0|N",
+        "@@Symbol.toStringTag": "a|--c|get:N|set:-",
+        "at": "v|w-c|function|at|1|N",
+        "buffer": "a|--c|get:N|set:-",
+        "byteLength": "a|--c|get:N|set:-",
+        "byteOffset": "a|--c|get:N|set:-",
+        "constructor": "v|w-c|function|TypedArray|0|N",
+        "copyWithin": "v|w-c|function|copyWithin|2|N",
+        "entries": "v|w-c|function|entries|0|N",
+        "every": "v|w-c|function|every|1|N",
+        "fill": "v|w-c|function|fill|1|N",
+        "filter": "v|w-c|function|filter|1|N",
+        "find": "v|w-c|function|find|1|N",
+        "findIndex": "v|w-c|function|findIndex|1|N",
+        "findLast": "v|w-c|function|findLast|1|N",
+        "findLastIndex": "v|w-c|function|findLastIndex|1|N",
+        "forEach": "v|w-c|function|forEach|1|N",
+        "includes": "v|w-c|function|includes|1|N",
+        "indexOf": "v|w-c|function|indexOf|1|N",
+        "join": "v|w-c|function|join|1|N",
+        "keys": "v|w-c|function|keys|0|N",
+        "lastIndexOf": "v|w-c|function|lastIndexOf|1|N",
+        "length": "a|--c|get:N|set:-",
+        "map": "v|w-c|function|map|1|N",
+        "reduce": "v|w-c|function|reduce|1|N",
+        "reduceRight": "v|w-c|function|reduceRight|1|N",
+        "reverse": "v|w-c|function|reverse|0|N",
+        "set": "v|w-c|function|set|1|N",
+        "slice": "v|w-c|function|slice|2|N",
+        "some": "v|w-c|function|some|1|N",
+        "sort": "v|w-c|function|sort|1|N",
+        "subarray": "v|w-c|function|subarray|2|N",
+        "toLocaleString": "v|w-c|function|toLocaleString|0|N",
+        "toReversed": "v|w-c|function|toReversed|0|N",
+        "toSorted": "v|w-c|function|toSorted|1|N",
+        "toString": "v|w-c|function|toString|0|N",
+        "values": "v|w-c|function|values|0|N",
+        "with": "v|w-c|function|with|2|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "@@Symbol.species": "a|--c|get:N|set:-",
+        "from": "v|w-c|function|from|1|N",
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "of": "v|w-c|function|of|0|N",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "UIEvent": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function|UIEvent|1|N",
+        "detail": "a|--c|get:N|set:-",
+        "view": "a|--c|get:N|set:-"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "URIError": {
+      "inherits": "Error",
+      "prototype": {
+        "constructor": "v|w-c|function|URIError|1|N",
+        "message": "v|w-c|string",
+        "name": "v|w-c|string"
+      },
+      "prototypeChain": [
+        "Error",
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Error>Object"
+      }
+    },
+    "URL": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function|URL|2|N",
+        "hash": "a|--c|get:N|set:N",
+        "host": "a|--c|get:N|set:N",
+        "hostname": "a|--c|get:N|set:N",
+        "href": "a|--c|get:N|set:N",
+        "origin": "a|--c|get:N|set:-",
+        "password": "a|--c|get:N|set:-",
+        "pathname": "a|--c|get:N|set:N",
+        "port": "a|--c|get:N|set:N",
+        "protocol": "a|--c|get:N|set:N",
+        "search": "a|--c|get:N|set:N",
+        "searchParams": "a|--c|get:N|set:-",
+        "toJSON": "v|w-c|function|toJSON|0|N",
+        "toString": "v|w-c|function|toString|0|N",
+        "username": "a|--c|get:N|set:-"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "URLSearchParams": {
+      "inherits": "",
+      "prototype": {
+        "append": "v|w-c|function|append|2|N",
+        "constructor": "v|w-c|function|URLSearchParams|1|N",
+        "delete": "v|w-c|function|delete|1|N",
+        "entries": "v|w-c|function|entries|0|N",
+        "forEach": "v|w-c|function|forEach|1|N",
+        "get": "v|w-c|function|get|1|N",
+        "getAll": "v|w-c|function|getAll|1|N",
+        "has": "v|w-c|function|has|1|N",
+        "keys": "v|w-c|function|keys|0|N",
+        "set": "v|w-c|function|set|2|N",
+        "sort": "v|w-c|function|sort|0|N",
+        "toString": "v|w-c|function|toString|0|N",
+        "values": "v|w-c|function|values|0|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "Uint16Array": {
+      "inherits": "TypedArray",
+      "prototype": {
+        "BYTES_PER_ELEMENT": "v|---|number",
+        "constructor": "v|w-c|function|Uint16Array|3|N"
+      },
+      "prototypeChain": [
+        "TypedArray",
+        "Object"
+      ],
+      "static": {
+        "@@Symbol.species": "a|--c|get:N|set:-",
+        "BYTES_PER_ELEMENT": "v|---|number",
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|TypedArray>Object"
+      }
+    },
+    "Uint32Array": {
+      "inherits": "TypedArray",
+      "prototype": {
+        "BYTES_PER_ELEMENT": "v|---|number",
+        "constructor": "v|w-c|function|Uint32Array|3|N"
+      },
+      "prototypeChain": [
+        "TypedArray",
+        "Object"
+      ],
+      "static": {
+        "@@Symbol.species": "a|--c|get:N|set:-",
+        "BYTES_PER_ELEMENT": "v|---|number",
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|TypedArray>Object"
+      }
+    },
+    "Uint8Array": {
+      "inherits": "TypedArray",
+      "prototype": {
+        "BYTES_PER_ELEMENT": "v|---|number",
+        "constructor": "v|w-c|function|Uint8Array|3|N"
+      },
+      "prototypeChain": [
+        "TypedArray",
+        "Object"
+      ],
+      "static": {
+        "@@Symbol.species": "a|--c|get:N|set:-",
+        "BYTES_PER_ELEMENT": "v|---|number",
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|TypedArray>Object"
+      }
+    },
+    "Uint8ClampedArray": {
+      "inherits": "TypedArray",
+      "prototype": {
+        "BYTES_PER_ELEMENT": "v|---|number",
+        "constructor": "v|w-c|function|Uint8ClampedArray|3|N"
+      },
+      "prototypeChain": [
+        "TypedArray",
+        "Object"
+      ],
+      "static": {
+        "@@Symbol.species": "a|--c|get:N|set:-",
+        "BYTES_PER_ELEMENT": "v|---|number",
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|TypedArray>Object"
+      }
+    },
+    "VideoFrame": {
+      "inherits": "",
+      "prototype": {
+        "clone": "v|wec|function||0|X",
+        "close": "v|wec|function||0|X",
+        "constructor": "v|w-c|function|VideoFrame|2|X",
+        "copyTo": "v|wec|function||2|X",
+        "metadata": "a|-e-|get:X|set:-"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|w--|object|Object"
+      }
+    },
+    "WeakMap": {
+      "inherits": "",
+      "prototype": {
+        "@@Symbol.toStringTag": "v|--c|string",
+        "constructor": "v|w-c|function|WeakMap|0|N",
+        "delete": "v|w-c|function|delete|1|N",
+        "get": "v|w-c|function|get|1|N",
+        "getOrInsert": "v|w-c|function|getOrInsert|2|N",
+        "getOrInsertComputed": "v|w-c|function|getOrInsertComputed|2|N",
+        "has": "v|w-c|function|has|1|N",
+        "set": "v|w-c|function|set|2|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "WeakRef": {
+      "inherits": "",
+      "prototype": {
+        "@@Symbol.toStringTag": "v|--c|string",
+        "constructor": "v|w-c|function|WeakRef|1|N",
+        "deref": "v|w-c|function|deref|0|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "WeakSet": {
+      "inherits": "",
+      "prototype": {
+        "@@Symbol.toStringTag": "v|--c|string",
+        "add": "v|w-c|function|add|1|N",
+        "constructor": "v|w-c|function|WeakSet|0|N",
+        "delete": "v|w-c|function|delete|1|N",
+        "has": "v|w-c|function|has|1|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "WebGL2RenderingContext": {
+      "inherits": "",
+      "prototype": {
+        "beginQuery": "v|wec|function||0|N",
+        "beginTransformFeedback": "v|wec|function||0|N",
+        "bindBufferBase": "v|wec|function||0|N",
+        "bindBufferRange": "v|wec|function||0|N",
+        "bindSampler": "v|wec|function||0|N",
+        "bindTransformFeedback": "v|wec|function||0|N",
+        "bindVertexArray": "v|wec|function||0|N",
+        "clientWaitSync": "v|wec|function||0|N",
+        "compressedTexImage3D": "v|wec|function||0|N",
+        "copyBufferSubData": "v|wec|function||0|N",
+        "createQuery": "v|wec|function||0|N",
+        "createSampler": "v|wec|function||0|N",
+        "createTransformFeedback": "v|wec|function||0|N",
+        "createVertexArray": "v|wec|function||0|N",
+        "deleteQuery": "v|wec|function||0|N",
+        "deleteSampler": "v|wec|function||0|N",
+        "deleteSync": "v|wec|function||0|N",
+        "deleteTransformFeedback": "v|wec|function||0|N",
+        "deleteVertexArray": "v|wec|function||0|N",
+        "endQuery": "v|wec|function||0|N",
+        "endTransformFeedback": "v|wec|function||0|N",
+        "fenceSync": "v|wec|function||0|N",
+        "getBufferSubData": "v|wec|function||0|N",
+        "getQueryParameter": "v|wec|function||0|N",
+        "getSyncParameter": "v|wec|function||0|N",
+        "getUniformBlockIndex": "v|wec|function||0|N",
+        "isVertexArray": "v|wec|function||0|N",
+        "pauseTransformFeedback": "v|wec|function||0|N",
+        "resumeTransformFeedback": "v|wec|function||0|N",
+        "samplerParameteri": "v|wec|function||0|N",
+        "texImage3D": "v|wec|function||0|N",
+        "texStorage2D": "v|wec|function||0|N",
+        "texStorage3D": "v|wec|function||0|N",
+        "texSubImage3D": "v|wec|function||0|N",
+        "uniformBlockBinding": "v|wec|function||0|N",
+        "waitSync": "v|wec|function||0|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "ALREADY_SIGNALED": "v|-e-|number",
+        "CONDITION_SATISFIED": "v|-e-|number",
+        "COPY_READ_BUFFER": "v|-e-|number",
+        "COPY_WRITE_BUFFER": "v|-e-|number",
+        "DEPTH24_STENCIL8": "v|-e-|number",
+        "DEPTH32F_STENCIL8": "v|-e-|number",
+        "DEPTH_COMPONENT24": "v|-e-|number",
+        "DEPTH_COMPONENT32F": "v|-e-|number",
+        "DRAW_BUFFER0": "v|-e-|number",
+        "DRAW_BUFFER1": "v|-e-|number",
+        "DRAW_BUFFER2": "v|-e-|number",
+        "DRAW_BUFFER3": "v|-e-|number",
+        "DYNAMIC_COPY": "v|-e-|number",
+        "DYNAMIC_READ": "v|-e-|number",
+        "INT_SAMPLER_2D": "v|-e-|number",
+        "INT_SAMPLER_2D_ARRAY": "v|-e-|number",
+        "INT_SAMPLER_3D": "v|-e-|number",
+        "INT_SAMPLER_CUBE": "v|-e-|number",
+        "MAX_COLOR_ATTACHMENTS": "v|-e-|number",
+        "MAX_DRAW_BUFFERS": "v|-e-|number",
+        "PIXEL_PACK_BUFFER": "v|-e-|number",
+        "PIXEL_UNPACK_BUFFER": "v|-e-|number",
+        "R16F": "v|-e-|number",
+        "R32F": "v|-e-|number",
+        "R8": "v|-e-|number",
+        "RED": "v|-e-|number",
+        "RED_INTEGER": "v|-e-|number",
+        "RG": "v|-e-|number",
+        "RG16F": "v|-e-|number",
+        "RG32F": "v|-e-|number",
+        "RG8": "v|-e-|number",
+        "RGB16F": "v|-e-|number",
+        "RGB32F": "v|-e-|number",
+        "RGBA16F": "v|-e-|number",
+        "RGBA32F": "v|-e-|number",
+        "RGBA_INTEGER": "v|-e-|number",
+        "RGB_INTEGER": "v|-e-|number",
+        "RG_INTEGER": "v|-e-|number",
+        "SAMPLER_2D_ARRAY": "v|-e-|number",
+        "SAMPLER_2D_ARRAY_SHADOW": "v|-e-|number",
+        "SAMPLER_2D_SHADOW": "v|-e-|number",
+        "SAMPLER_3D": "v|-e-|number",
+        "SAMPLER_CUBE_SHADOW": "v|-e-|number",
+        "STATIC_COPY": "v|-e-|number",
+        "STATIC_READ": "v|-e-|number",
+        "STREAM_COPY": "v|-e-|number",
+        "STREAM_READ": "v|-e-|number",
+        "SYNC_FLUSH_COMMANDS_BIT": "v|-e-|number",
+        "SYNC_GPU_COMMANDS_COMPLETE": "v|-e-|number",
+        "TEXTURE_2D_ARRAY": "v|-e-|number",
+        "TEXTURE_3D": "v|-e-|number",
+        "TEXTURE_WRAP_R": "v|-e-|number",
+        "TIMEOUT_EXPIRED": "v|-e-|number",
+        "TRANSFORM_FEEDBACK": "v|-e-|number",
+        "TRANSFORM_FEEDBACK_ACTIVE": "v|-e-|number",
+        "TRANSFORM_FEEDBACK_BINDING": "v|-e-|number",
+        "TRANSFORM_FEEDBACK_BUFFER": "v|-e-|number",
+        "TRANSFORM_FEEDBACK_PAUSED": "v|-e-|number",
+        "UNIFORM_BUFFER": "v|-e-|number",
+        "UNSIGNED_INT_SAMPLER_2D": "v|-e-|number",
+        "UNSIGNED_INT_SAMPLER_2D_ARRAY": "v|-e-|number",
+        "UNSIGNED_INT_SAMPLER_3D": "v|-e-|number",
+        "UNSIGNED_INT_SAMPLER_CUBE": "v|-e-|number",
+        "WAIT_FAILED": "v|-e-|number",
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|wec|object|Object"
+      }
+    },
+    "WebGLRenderingContext": {
+      "inherits": "",
+      "prototype": {
+        "activeTexture": "v|wec|function||0|N",
+        "attachShader": "v|wec|function||0|N",
+        "bindBuffer": "v|wec|function||0|N",
+        "bindFramebuffer": "v|wec|function||0|N",
+        "bindRenderbuffer": "v|wec|function||0|N",
+        "bindTexture": "v|wec|function||0|N",
+        "blendEquation": "v|wec|function||0|N",
+        "blendFunc": "v|wec|function||0|N",
+        "blendFuncSeparate": "v|wec|function||0|N",
+        "bufferData": "v|wec|function||0|N",
+        "bufferSubData": "v|wec|function||0|N",
+        "checkFramebufferStatus": "v|wec|function||0|N",
+        "clear": "v|wec|function||0|N",
+        "clearColor": "v|wec|function||0|N",
+        "clearDepth": "v|wec|function||0|N",
+        "clearStencil": "v|wec|function||0|N",
+        "colorMask": "v|wec|function||0|N",
+        "compileShader": "v|wec|function||0|N",
+        "createBuffer": "v|wec|function||0|N",
+        "createFramebuffer": "v|wec|function||0|N",
+        "createProgram": "v|wec|function||0|N",
+        "createRenderbuffer": "v|wec|function||0|N",
+        "createShader": "v|wec|function||0|N",
+        "createTexture": "v|wec|function||0|N",
+        "cullFace": "v|wec|function||0|N",
+        "deleteBuffer": "v|wec|function||0|N",
+        "deleteProgram": "v|wec|function||0|N",
+        "deleteShader": "v|wec|function||0|N",
+        "deleteTexture": "v|wec|function||0|N",
+        "depthFunc": "v|wec|function||0|N",
+        "depthMask": "v|wec|function||0|N",
+        "detachShader": "v|wec|function||0|N",
+        "disable": "v|wec|function||0|N",
+        "disableVertexAttribArray": "v|wec|function||0|N",
+        "drawArrays": "v|wec|function||0|N",
+        "drawElements": "v|wec|function||0|N",
+        "enable": "v|wec|function||0|N",
+        "enableVertexAttribArray": "v|wec|function||0|N",
+        "finish": "v|wec|function||0|N",
+        "flush": "v|wec|function||0|N",
+        "framebufferRenderbuffer": "v|wec|function||0|N",
+        "framebufferTexture2D": "v|wec|function||0|N",
+        "frontFace": "v|wec|function||0|N",
+        "generateMipmap": "v|wec|function||0|N",
+        "getAttribLocation": "v|wec|function||0|N",
+        "getContextAttributes": "v|wec|function||0|N",
+        "getError": "v|wec|function||0|N",
+        "getExtension": "v|wec|function||0|N",
+        "getParameter": "v|wec|function||0|N",
+        "getProgramInfoLog": "v|wec|function||0|N",
+        "getProgramParameter": "v|wec|function||0|N",
+        "getShaderInfoLog": "v|wec|function||0|N",
+        "getShaderParameter": "v|wec|function||0|N",
+        "getShaderSource": "v|wec|function||0|N",
+        "getSupportedExtensions": "v|wec|function||0|N",
+        "getUniformLocation": "v|wec|function||0|N",
+        "isBuffer": "v|wec|function||0|N",
+        "isContextLost": "v|wec|function||0|N",
+        "isEnabled": "v|wec|function||0|N",
+        "lineWidth": "v|wec|function||0|N",
+        "linkProgram": "v|wec|function||0|N",
+        "pixelStorei": "v|wec|function||0|N",
+        "readPixels": "v|wec|function||0|N",
+        "renderbufferStorage": "v|wec|function||0|N",
+        "scissor": "v|wec|function||0|N",
+        "shaderSource": "v|wec|function||0|N",
+        "texImage2D": "v|wec|function||0|N",
+        "texParameteri": "v|wec|function||0|N",
+        "uniform1f": "v|wec|function||0|N",
+        "uniform1i": "v|wec|function||0|N",
+        "uniform2f": "v|wec|function||0|N",
+        "uniform3f": "v|wec|function||0|N",
+        "uniform4f": "v|wec|function||0|N",
+        "uniformMatrix4fv": "v|wec|function||0|N",
+        "useProgram": "v|wec|function||0|N",
+        "validateProgram": "v|wec|function||0|N",
+        "vertexAttribPointer": "v|wec|function||0|N",
+        "viewport": "v|wec|function||0|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "ACTIVE_ATTRIBUTES": "v|-e-|number",
+        "ACTIVE_UNIFORMS": "v|-e-|number",
+        "ALPHA": "v|-e-|number",
+        "ALWAYS": "v|-e-|number",
+        "ARRAY_BUFFER": "v|-e-|number",
+        "ATTACHED_SHADERS": "v|-e-|number",
+        "BACK": "v|-e-|number",
+        "BLEND": "v|-e-|number",
+        "BUFFER_SIZE": "v|-e-|number",
+        "BUFFER_USAGE": "v|-e-|number",
+        "BYTE": "v|-e-|number",
+        "CCW": "v|-e-|number",
+        "CLAMP_TO_EDGE": "v|-e-|number",
+        "COLOR_ATTACHMENT0": "v|-e-|number",
+        "COLOR_BUFFER_BIT": "v|-e-|number",
+        "COMPILE_STATUS": "v|-e-|number",
+        "CONTEXT_LOST_WEBGL": "v|-e-|number",
+        "CULL_FACE": "v|-e-|number",
+        "CW": "v|-e-|number",
+        "DECR": "v|-e-|number",
+        "DECR_WRAP": "v|-e-|number",
+        "DELETE_STATUS": "v|-e-|number",
+        "DEPTH_ATTACHMENT": "v|-e-|number",
+        "DEPTH_BUFFER_BIT": "v|-e-|number",
+        "DEPTH_COMPONENT": "v|-e-|number",
+        "DEPTH_STENCIL_ATTACHMENT": "v|-e-|number",
+        "DEPTH_TEST": "v|-e-|number",
+        "DITHER": "v|-e-|number",
+        "DST_ALPHA": "v|-e-|number",
+        "DST_COLOR": "v|-e-|number",
+        "DYNAMIC_DRAW": "v|-e-|number",
+        "ELEMENT_ARRAY_BUFFER": "v|-e-|number",
+        "EQUAL": "v|-e-|number",
+        "FLOAT": "v|-e-|number",
+        "FRAGMENT_SHADER": "v|-e-|number",
+        "FRAMEBUFFER": "v|-e-|number",
+        "FRAMEBUFFER_COMPLETE": "v|-e-|number",
+        "FRONT": "v|-e-|number",
+        "FRONT_AND_BACK": "v|-e-|number",
+        "FUNC_ADD": "v|-e-|number",
+        "FUNC_REVERSE_SUBTRACT": "v|-e-|number",
+        "FUNC_SUBTRACT": "v|-e-|number",
+        "GEQUAL": "v|-e-|number",
+        "GREATER": "v|-e-|number",
+        "INCR": "v|-e-|number",
+        "INCR_WRAP": "v|-e-|number",
+        "INT": "v|-e-|number",
+        "INVALID_ENUM": "v|-e-|number",
+        "INVALID_FRAMEBUFFER_OPERATION": "v|-e-|number",
+        "INVALID_OPERATION": "v|-e-|number",
+        "INVALID_VALUE": "v|-e-|number",
+        "INVERT": "v|-e-|number",
+        "KEEP": "v|-e-|number",
+        "LEQUAL": "v|-e-|number",
+        "LESS": "v|-e-|number",
+        "LINEAR": "v|-e-|number",
+        "LINEAR_MIPMAP_LINEAR": "v|-e-|number",
+        "LINEAR_MIPMAP_NEAREST": "v|-e-|number",
+        "LINES": "v|-e-|number",
+        "LINE_LOOP": "v|-e-|number",
+        "LINE_STRIP": "v|-e-|number",
+        "LINK_STATUS": "v|-e-|number",
+        "LUMINANCE": "v|-e-|number",
+        "LUMINANCE_ALPHA": "v|-e-|number",
+        "MIRRORED_REPEAT": "v|-e-|number",
+        "NEAREST": "v|-e-|number",
+        "NEAREST_MIPMAP_LINEAR": "v|-e-|number",
+        "NEAREST_MIPMAP_NEAREST": "v|-e-|number",
+        "NEVER": "v|-e-|number",
+        "NOTEQUAL": "v|-e-|number",
+        "NO_ERROR": "v|-e-|number",
+        "ONE": "v|-e-|number",
+        "ONE_MINUS_DST_ALPHA": "v|-e-|number",
+        "ONE_MINUS_DST_COLOR": "v|-e-|number",
+        "ONE_MINUS_SRC_ALPHA": "v|-e-|number",
+        "ONE_MINUS_SRC_COLOR": "v|-e-|number",
+        "OUT_OF_MEMORY": "v|-e-|number",
+        "PACK_ALIGNMENT": "v|-e-|number",
+        "POINTS": "v|-e-|number",
+        "POLYGON_OFFSET_FILL": "v|-e-|number",
+        "RENDERBUFFER": "v|-e-|number",
+        "RENDERER": "v|-e-|number",
+        "REPEAT": "v|-e-|number",
+        "REPLACE": "v|-e-|number",
+        "RGB": "v|-e-|number",
+        "RGBA": "v|-e-|number",
+        "SCISSOR_TEST": "v|-e-|number",
+        "SHADER_TYPE": "v|-e-|number",
+        "SHADING_LANGUAGE_VERSION": "v|-e-|number",
+        "SHORT": "v|-e-|number",
+        "SRC_ALPHA": "v|-e-|number",
+        "SRC_ALPHA_SATURATE": "v|-e-|number",
+        "SRC_COLOR": "v|-e-|number",
+        "STATIC_DRAW": "v|-e-|number",
+        "STENCIL_ATTACHMENT": "v|-e-|number",
+        "STENCIL_BUFFER_BIT": "v|-e-|number",
+        "STENCIL_TEST": "v|-e-|number",
+        "STREAM_DRAW": "v|-e-|number",
+        "TEXTURE0": "v|-e-|number",
+        "TEXTURE1": "v|-e-|number",
+        "TEXTURE2": "v|-e-|number",
+        "TEXTURE3": "v|-e-|number",
+        "TEXTURE4": "v|-e-|number",
+        "TEXTURE5": "v|-e-|number",
+        "TEXTURE6": "v|-e-|number",
+        "TEXTURE7": "v|-e-|number",
+        "TEXTURE_2D": "v|-e-|number",
+        "TEXTURE_CUBE_MAP": "v|-e-|number",
+        "TEXTURE_MAG_FILTER": "v|-e-|number",
+        "TEXTURE_MIN_FILTER": "v|-e-|number",
+        "TEXTURE_WRAP_S": "v|-e-|number",
+        "TEXTURE_WRAP_T": "v|-e-|number",
+        "TRIANGLES": "v|-e-|number",
+        "TRIANGLE_FAN": "v|-e-|number",
+        "TRIANGLE_STRIP": "v|-e-|number",
+        "UNPACK_ALIGNMENT": "v|-e-|number",
+        "UNPACK_COLORSPACE_CONVERSION_WEBGL": "v|-e-|number",
+        "UNPACK_FLIP_Y_WEBGL": "v|-e-|number",
+        "UNPACK_PREMULTIPLY_ALPHA_WEBGL": "v|-e-|number",
+        "UNSIGNED_BYTE": "v|-e-|number",
+        "UNSIGNED_INT": "v|-e-|number",
+        "UNSIGNED_SHORT": "v|-e-|number",
+        "VALIDATE_STATUS": "v|-e-|number",
+        "VENDOR": "v|-e-|number",
+        "VERSION": "v|-e-|number",
+        "VERTEX_SHADER": "v|-e-|number",
+        "ZERO": "v|-e-|number",
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|wec|object|Object"
+      }
+    },
+    "WebSocket": {
+      "inherits": "",
+      "prototype": {
+        "binaryType": "a|--c|get:N|set:-",
+        "bufferedAmount": "a|--c|get:N|set:-",
+        "close": "v|w-c|function|close|0|N",
+        "constructor": "v|w-c|function|WebSocket|1|N",
+        "dispatchEvents": "v|w-c|function|dispatchEvents|0|N",
+        "extensions": "a|--c|get:N|set:-",
+        "onclose": "v|w-c|null",
+        "onerror": "v|w-c|null",
+        "onmessage": "v|w-c|null",
+        "onopen": "v|w-c|null",
+        "protocol": "a|--c|get:N|set:-",
+        "readyState": "a|--c|get:N|set:-",
+        "send": "v|w-c|function|send|1|N",
+        "url": "a|--c|get:N|set:-"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "CLOSED": "a|---|get:N|set:-",
+        "CLOSING": "a|---|get:N|set:-",
+        "CONNECTING": "a|---|get:N|set:-",
+        "OPEN": "a|---|get:N|set:-",
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "WebSocketStream": {
+      "inherits": "",
+      "prototype": {
+        "addEventListener": "v|wec|function||2|X",
+        "close": "v|wec|function||0|X",
+        "constructor": "v|w-c|function|WebSocketStream|1|X",
+        "removeEventListener": "v|wec|function||2|X",
+        "send": "v|wec|function||1|X"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|w--|object|Object"
+      }
+    },
+    "Worker": {
+      "inherits": "",
+      "prototype": {
+        "constructor": "v|w-c|function|Worker|1|N",
+        "onerror": "a|-ec|get:N|set:N",
+        "onmessage": "a|-ec|get:N|set:N",
+        "postMessage": "v|w-c|function|postMessage|1|N",
+        "terminate": "v|w-c|function|terminate|0|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "WritableStream": {
+      "inherits": "",
+      "prototype": {
+        "abort": "v|w-c|function|abort|1|N",
+        "close": "v|w-c|function|close|0|N",
+        "constructor": "v|w-c|function|WritableStream|0|N",
+        "getWriter": "v|w-c|function|getWriter|0|N",
+        "locked": "a|--c|get:N|set:-"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    },
+    "XMLHttpRequest": {
+      "inherits": "",
+      "prototype": {
+        "abort": "v|w-c|function|abort|0|N",
+        "constructor": "v|w-c|function|XMLHttpRequest|0|N",
+        "getAllResponseHeaders": "v|w-c|function|getAllResponseHeaders|0|N",
+        "getResponseHeader": "v|w-c|function|getResponseHeader|1|N",
+        "open": "v|w-c|function|open|2|N",
+        "send": "v|w-c|function|send|0|N",
+        "setRequestHeader": "v|w-c|function|setRequestHeader|2|N"
+      },
+      "prototypeChain": [
+        "Object"
+      ],
+      "static": {
+        "DONE": "v|wec|number",
+        "HEADERS_RECEIVED": "v|wec|number",
+        "LOADING": "v|wec|number",
+        "OPENED": "v|wec|number",
+        "UNSENT": "v|wec|number",
+        "length": "v|--c|number",
+        "name": "v|--c|string",
+        "prototype": "v|---|object|Object"
+      }
+    }
+  },
+  "namespaces": {
+    "Atomics": {
+      "@@Symbol.toStringTag": "v|--c|string",
+      "add": "v|w-c|function|add|3|N",
+      "and": "v|w-c|function|and|3|N",
+      "compareExchange": "v|w-c|function|compareExchange|4|N",
+      "exchange": "v|w-c|function|exchange|3|N",
+      "isLockFree": "v|w-c|function|isLockFree|1|N",
+      "load": "v|w-c|function|load|2|N",
+      "notify": "v|w-c|function|notify|3|N",
+      "or": "v|w-c|function|or|3|N",
+      "store": "v|w-c|function|store|3|N",
+      "sub": "v|w-c|function|sub|3|N",
+      "wait": "v|w-c|function|wait|4|N",
+      "waitAsync": "v|w-c|function|waitAsync|4|N",
+      "xor": "v|w-c|function|xor|3|N"
+    },
+    "CSS": {
+      "em": "v|w-c|function|em|1|N",
+      "escape": "v|w-c|function|escape|1|N",
+      "number": "v|w-c|function|number|1|N",
+      "percent": "v|w-c|function|percent|1|N",
+      "px": "v|w-c|function|px|1|N",
+      "registerProperty": "v|w-c|function|registerProperty|1|N",
+      "rem": "v|w-c|function|rem|1|N",
+      "supports": "v|w-c|function|supports|1|N",
+      "vh": "v|w-c|function|vh|1|N",
+      "vw": "v|w-c|function|vw|1|N"
+    },
+    "Intl": {
+      "@@Symbol.toStringTag": "v|--c|string",
+      "Collator": "v|w-c|function|Collator|0|N",
+      "DateTimeFormat": "v|w-c|function|DateTimeFormat|0|N",
+      "DisplayNames": "v|w-c|function|DisplayNames|2|N",
+      "ListFormat": "v|w-c|function|ListFormat|0|N",
+      "Locale": "v|w-c|function|Locale|1|N",
+      "NumberFormat": "v|w-c|function|NumberFormat|0|N",
+      "PluralRules": "v|w-c|function|PluralRules|0|N",
+      "RelativeTimeFormat": "v|w-c|function|RelativeTimeFormat|0|N",
+      "Segmenter": "v|w-c|function|Segmenter|0|N",
+      "getCanonicalLocales": "v|w-c|function|getCanonicalLocales|1|N"
+    },
+    "JSON": {
+      "@@Symbol.toStringTag": "v|--c|string",
+      "isRawJSON": "v|w-c|function|isRawJSON|1|N",
+      "parse": "v|w-c|function|parse|2|N",
+      "rawJSON": "v|w-c|function|rawJSON|1|N",
+      "stringify": "v|w-c|function|stringify|3|N"
+    },
+    "Math": {
+      "@@Symbol.toStringTag": "v|--c|string",
+      "E": "v|---|number",
+      "LN10": "v|---|number",
+      "LN2": "v|---|number",
+      "LOG10E": "v|---|number",
+      "LOG2E": "v|---|number",
+      "PI": "v|---|number",
+      "SQRT1_2": "v|---|number",
+      "SQRT2": "v|---|number",
+      "abs": "v|w-c|function|abs|1|N",
+      "acos": "v|w-c|function|acos|1|N",
+      "acosh": "v|w-c|function|acosh|1|N",
+      "asin": "v|w-c|function|asin|1|N",
+      "asinh": "v|w-c|function|asinh|1|N",
+      "atan": "v|w-c|function|atan|1|N",
+      "atan2": "v|w-c|function|atan2|2|N",
+      "atanh": "v|w-c|function|atanh|1|N",
+      "cbrt": "v|w-c|function|cbrt|1|N",
+      "ceil": "v|w-c|function|ceil|1|N",
+      "clz32": "v|w-c|function|clz32|1|N",
+      "cos": "v|w-c|function|cos|1|N",
+      "cosh": "v|w-c|function|cosh|1|N",
+      "exp": "v|w-c|function|exp|1|N",
+      "expm1": "v|w-c|function|expm1|1|N",
+      "floor": "v|w-c|function|floor|1|N",
+      "fround": "v|w-c|function|fround|1|N",
+      "hypot": "v|w-c|function|hypot|2|N",
+      "imul": "v|w-c|function|imul|2|N",
+      "log": "v|w-c|function|log|1|N",
+      "log10": "v|w-c|function|log10|1|N",
+      "log1p": "v|w-c|function|log1p|1|N",
+      "log2": "v|w-c|function|log2|1|N",
+      "max": "v|w-c|function|max|2|N",
+      "min": "v|w-c|function|min|2|N",
+      "pow": "v|w-c|function|pow|2|N",
+      "random": "v|w-c|function|random|0|N",
+      "round": "v|w-c|function|round|1|N",
+      "sign": "v|w-c|function|sign|1|N",
+      "sin": "v|w-c|function|sin|1|N",
+      "sinh": "v|w-c|function|sinh|1|N",
+      "sqrt": "v|w-c|function|sqrt|1|N",
+      "sumPrecise": "v|wec|function||1|X",
+      "tan": "v|w-c|function|tan|1|N",
+      "tanh": "v|w-c|function|tanh|1|N",
+      "trunc": "v|w-c|function|trunc|1|N"
+    },
+    "Reflect": {
+      "@@Symbol.toStringTag": "v|--c|string",
+      "apply": "v|w-c|function|apply|3|N",
+      "construct": "v|w-c|function|construct|2|N",
+      "defineProperty": "v|w-c|function|defineProperty|3|N",
+      "deleteProperty": "v|w-c|function|deleteProperty|2|N",
+      "get": "v|w-c|function|get|2|N",
+      "getOwnPropertyDescriptor": "v|w-c|function|getOwnPropertyDescriptor|2|N",
+      "getPrototypeOf": "v|w-c|function|getPrototypeOf|1|N",
+      "has": "v|w-c|function|has|2|N",
+      "isExtensible": "v|w-c|function|isExtensible|1|N",
+      "ownKeys": "v|w-c|function|ownKeys|1|N",
+      "preventExtensions": "v|w-c|function|preventExtensions|1|N",
+      "set": "v|w-c|function|set|3|N",
+      "setPrototypeOf": "v|w-c|function|setPrototypeOf|2|N"
+    },
+    "WebAssembly": {
+      "CompileError": "v|wec|function|CompileError|1|X",
+      "Instance": "v|wec|function|Instance|0|X",
+      "LinkError": "v|wec|function|LinkError|1|X",
+      "Memory": "v|wec|function|Memory|0|X",
+      "Module": "v|wec|function|Module|0|X",
+      "RuntimeError": "v|wec|function|RuntimeError|1|X",
+      "Table": "v|wec|function|Table|0|X",
+      "compile": "v|wec|function|compile|1|X",
+      "instantiate": "v|wec|function|instantiate|2|X",
+      "validate": "v|wec|function|validate|1|X"
+    },
+    "__globalEventTarget__": {},
+    "ai": {
+      "languageModel": "v|wec|object|Object",
+      "summarizer": "v|wec|object|Object",
+      "translator": "v|wec|object|Object"
+    },
+    "caches": {
+      "open": "v|wec|function||0|N"
+    },
+    "console": {
+      "assert": "v|w-c|function|assert|0|N",
+      "clear": "v|w-c|function|clear|0|N",
+      "count": "v|w-c|function|count|0|N",
+      "countReset": "v|w-c|function|countReset|0|N",
+      "debug": "v|w-c|function|debug|0|N",
+      "dir": "v|w-c|function|dir|0|N",
+      "dirxml": "v|w-c|function|dirxml|0|N",
+      "error": "v|w-c|function|error|0|N",
+      "group": "v|w-c|function|group|0|N",
+      "groupCollapsed": "v|w-c|function|groupCollapsed|0|N",
+      "groupEnd": "v|w-c|function|groupEnd|0|N",
+      "info": "v|w-c|function|info|0|N",
+      "log": "v|w-c|function|log|0|N",
+      "table": "v|w-c|function|table|0|N",
+      "time": "v|w-c|function|time|0|N",
+      "timeEnd": "v|w-c|function|timeEnd|0|N",
+      "timeLog": "v|w-c|function|timeLog|0|N",
+      "trace": "v|w-c|function|trace|0|N",
+      "warn": "v|w-c|function|warn|0|N"
+    },
+    "crypto": {
+      "getRandomValues": "v|w-c|function|getRandomValues|1|N",
+      "randomUUID": "v|w-c|function|randomUUID|0|N",
+      "subtle": "v|---|object|Object"
+    },
+    "customElements": {
+      "define": "v|w-c|function|define|3|N",
+      "get": "v|w-c|function|get|1|N",
+      "getName": "v|w-c|function|getName|1|N",
+      "upgrade": "v|w-c|function|upgrade|1|N",
+      "whenDefined": "v|w-c|function|whenDefined|1|N"
+    },
+    "document": {
+      "readyState": "v|w-c|string"
+    },
+    "documentPictureInPicture": {
+      "requestWindow": "v|wec|function|requestWindow|1|X",
+      "window": "v|wec|null"
+    },
+    "history": {},
+    "indexedDB": {},
+    "localStorage": {},
+    "location": {},
+    "navigator": {
+      "credentials": "v|wec|object|Object",
+      "geolocation": "v|wec|object|Object",
+      "locks": "v|-ec|object|LockManager>Object",
+      "pushManager": "v|wec|object|Object",
+      "requestMIDIAccess": "v|wec|function||1|X",
+      "sendBeacon": "v|wec|function||2|X",
+      "storage": "v|wec|object|StorageManager>Object",
+      "userAgentData": "v|wec|object|Object"
+    },
+    "performance": {
+      "clearMarks": "v|wec|function|clearMarks|0|N",
+      "clearMeasures": "v|wec|function|clearMeasures|0|N",
+      "getEntries": "v|wec|function|getEntries|0|N",
+      "getEntriesByName": "v|wec|function|getEntriesByName|2|N",
+      "getEntriesByType": "v|wec|function|getEntriesByType|1|N",
+      "mark": "v|wec|function|mark|1|N",
+      "measure": "v|wec|function|measure|3|N",
+      "now": "v|wec|function|now|0|N",
+      "timeOrigin": "v|---|number",
+      "timing": "v|---|object|Object"
+    },
+    "sessionStorage": {},
+    "speechSynthesis": {
+      "cancel": "v|wec|function|cancel|0|X",
+      "getVoices": "v|wec|function|getVoices|0|X",
+      "onvoiceschanged": "v|wec|null",
+      "pause": "v|wec|function|pause|0|X",
+      "paused": "v|wec|boolean",
+      "pending": "v|wec|boolean",
+      "resume": "v|wec|function|resume|0|X",
+      "speak": "v|wec|function|speak|1|X",
+      "speaking": "v|wec|boolean"
+    },
+    "translation": {
+      "canDetect": "v|wec|function|canDetect|0|X",
+      "canTranslate": "v|wec|function|canTranslate|1|X",
+      "createDetector": "v|wec|function|createDetector|1|X",
+      "createTranslator": "v|wec|function|createTranslator|1|X"
+    }
+  },
+  "toStringSamples": {
+    "boundFunction": "function () { [native code] }",
+    "fnToString": "function toString() { [native code] }",
+    "fnToStringOfToString": "function toString() { [native code] }",
+    "navigatorUserAgentGetter": "<none>",
+    "objectToStringWindow": "[object Object]"
+  },
+  "values": {
+    "environment": {
+      "dateString": "Wed Dec 31 1969 18:00:00 GMT-0600",
+      "devicePixelRatio": "<undefined>",
+      "innerHeight": "<undefined>",
+      "innerWidth": "<undefined>",
+      "locale": "en-US",
+      "outerHeight": "<undefined>",
+      "outerWidth": "<undefined>",
+      "timeZone": "utc",
+      "timezoneOffset": 360
+    },
+    "navigator": {
+      "appCodeName": "Mozilla",
+      "appName": "Netscape",
+      "appVersion": "5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "cookieEnabled": true,
+      "hardwareConcurrency": 8,
+      "language": "en-US",
+      "languages": [
+        "en-US",
+        "en"
+      ],
+      "mimeTypes": [],
+      "onLine": true,
+      "pdfViewerEnabled": true,
+      "platform": "MacIntel",
+      "plugins": [],
+      "product": "Gecko",
+      "productSub": "20030107",
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "vendor": "Google Inc.",
+      "vendorSub": ""
+    },
+    "screen": {}
+  },
+  "window": {
+    "isGlobalThis": false,
+    "ownPropertyCount": 5,
+    "ownPropertyNames": [
+      "indexedDB",
+      "requestAnimationFrame",
+      "cancelAnimationFrame",
+      "requestIdleCallback",
+      "cancelIdleCallback"
+    ]
+  }
+}

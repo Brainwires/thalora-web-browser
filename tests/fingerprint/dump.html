@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Fingerprint surface dump</title></head>
+<body>
+<pre id="out">pending</pre>
+<script src="dump.js"></script>
+<script>
+  // Prints the canonical JSON dump so a real browser's DOM dump captures it,
+  // e.g. chrome --headless=new --dump-dom file:///.../dump.html
+  (function () {
+    var out = document.getElementById('out');
+    try {
+      out.textContent = __fingerprintDump();
+    } catch (e) {
+      out.textContent = JSON.stringify({ error: String(e), stack: String(e && e.stack) });
+    }
+  })();
+</script>
+</body>
+</html>

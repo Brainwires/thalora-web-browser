@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Ports</title></head>
+<body>
+  <h1>Ports of call</h1>
+  <label for="q">Filter ports</label>
+  <input id="q" type="search" autocomplete="off">
+  <ul id="ports">
+    <li>Lisbon</li><li>Porto</li><li>Ponta Delgada</li><li>Funchal</li><li>Cadiz</li><li>Tangier</li>
+  </ul>
+  <p id="count">6 of 6 ports shown</p>
+  <script>
+    // Live client-side filter: hides non-matching items on every input event
+    const input = document.getElementById('q');
+    const items = Array.from(document.querySelectorAll('#ports li'));
+    input.addEventListener('input', () => {
+      const q = input.value.trim().toLowerCase();
+      let shown = 0;
+      for (const li of items) {
+        const match = li.textContent.toLowerCase().includes(q);
+        li.hidden = !match;
+        if (match) shown += 1;
+      }
+      document.getElementById('count').textContent = shown + ' of ' + items.length + ' ports shown';
+    });
+  </script>
+</body>
+</html>

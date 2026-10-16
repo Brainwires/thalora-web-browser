@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Logbook</title></head>
+<body>
+  <h1>Ship's logbook</h1>
+  <ul id="entries"></ul>
+  <button id="more" type="button">Load more entries</button>
+  <p id="status">Loading</p>
+  <script>
+    // Paged feed: each click fetches the next JSON page and appends its items
+    let next = 'data/feed-1.json';
+    const list = document.getElementById('entries');
+    const button = document.getElementById('more');
+    const status = document.getElementById('status');
+    async function load() {
+      const page = await (await fetch(next)).json();
+      for (const entry of page.entries) {
+        const li = document.createElement('li');
+        li.textContent = entry;
+        list.appendChild(li);
+      }
+      next = page.next;
+      status.textContent = list.children.length + ' entries shown';
+      if (!next) {
+        button.remove();
+        status.textContent += '. End of log.';
+      }
+    }
+    button.addEventListener('click', load);
+    load();
+  </script>
+</body>
+</html>

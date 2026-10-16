@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Cart</title></head>
+<body>
+  <h1>Storm Lantern</h1>
+  <div class="qty">
+    <button id="dec" aria-label="Decrease quantity">-</button>
+    <button id="inc" aria-label="Increase quantity">+</button>
+  </div>
+  <p id="qty">Quantity: 1</p>
+  <p id="total">Total: 58 EUR</p>
+  <script>
+    // Quantity stepper: click handlers re-render the derived text
+    let qty = 1;
+    function render() {
+      document.getElementById('qty').textContent = 'Quantity: ' + qty;
+      document.getElementById('total').textContent = 'Total: ' + qty * 58 + ' EUR';
+    }
+    document.getElementById('inc').addEventListener('click', () => { qty += 1; render(); });
+    document.getElementById('dec').addEventListener('click', () => { qty = Math.max(1, qty - 1); render(); });
+  </script>
+</body>
+</html>

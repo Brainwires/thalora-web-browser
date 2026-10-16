@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>FAQ</title></head>
+<body>
+  <h1>Frequently asked questions</h1>
+  <section class="accordion">
+    <h2><button id="ship-toggle" aria-expanded="false" aria-controls="ship-panel">Show shipping details</button></h2>
+    <div id="ship-panel" hidden><p>Orders ship within 3 business days from Lisbon.</p></div>
+    <h2><button id="return-toggle" aria-expanded="false" aria-controls="return-panel">Show return policy</button></h2>
+    <div id="return-panel" hidden><p>Returns are free for 30 days after delivery.</p></div>
+  </section>
+  <script>
+    // Accordion: each header button toggles its own panel and relabels itself
+    document.querySelectorAll('.accordion button').forEach(button => {
+      button.addEventListener('click', () => {
+        const panel = document.getElementById(button.getAttribute('aria-controls'));
+        const open = button.getAttribute('aria-expanded') !== 'true';
+        button.setAttribute('aria-expanded', String(open));
+        panel.hidden = !open;
+        button.textContent = button.textContent.replace(open ? 'Show' : 'Hide', open ? 'Hide' : 'Show');
+      });
+    });
+  </script>
+</body>
+</html>

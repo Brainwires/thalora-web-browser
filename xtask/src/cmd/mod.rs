@@ -2,12 +2,14 @@ pub mod bump_version;
 pub mod check_stubs;
 pub mod ci;
 pub mod demo_form;
+pub mod fingerprint;
 pub mod gui_compare;
 pub mod gui_screenshot;
 pub mod test_events;
 pub mod test_mcp;
 pub mod test_mcp_clean;
 pub mod test_windows;
+pub mod wpt;
 
 use std::process::{Command, Stdio};
 
