@@ -2060,10 +2060,9 @@ fn get_indexed_db(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> 
     Ok(factory_obj.into())
 }
 
-/// `window.indexedDB` getter (WASM version - stub)
+/// `window.indexedDB` getter (non-native builds have no IndexedDB)
 #[cfg(not(feature = "native"))]
 fn get_indexed_db(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    // In WASM, we use the browser's native IndexedDB
     Ok(JsValue::undefined())
 }
 

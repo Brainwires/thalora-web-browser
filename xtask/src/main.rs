@@ -18,7 +18,6 @@ fn main() -> ExitCode {
         "gui-compare" => exit_from_result(cmd::gui_compare::run(&args[1..])),
 
         // Existing build/test tasks
-        "build-wasm" => exit_from_result(cmd::build_wasm::run()),
         "test-mcp" => exit_from_result(cmd::test_mcp::run(
             args.get(1).map(String::as_str).unwrap_or(""),
         )),
@@ -64,7 +63,6 @@ fn print_help() {
     );
     println!();
     println!("BUILD & TEST TASKS:");
-    println!("  build-wasm       Build WASM targets (bundler, nodejs, web) via wasm-pack");
     println!("  test-mcp         Run MCP test suite [--quick | --perf | --verbose]");
     println!("  test-mcp-clean   Run quick smoke tests with clean JSON output");
     println!("  demo-form        Run full form automation demo");

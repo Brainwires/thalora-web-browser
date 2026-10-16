@@ -18,12 +18,6 @@ pub mod html_script_element;
 #[cfg(feature = "native")]
 pub mod html_image_element;
 
-// WASM stubs - browser's native APIs are used directly
-#[cfg(feature = "wasm")]
-pub mod html_image_element_wasm;
-#[cfg(feature = "wasm")]
-pub use html_image_element_wasm as html_image_element;
-
 pub mod htmlcollection;
 pub mod image_bitmap;
 pub mod mutation_bridge;

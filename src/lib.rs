@@ -7,13 +7,6 @@
 #![allow(unused_must_use)]
 #![allow(let_underscore_drop)]
 
-// WASM bindings module (only for wasm builds)
-#[cfg(feature = "wasm")]
-pub mod wasm_bindings;
-
-// Platform abstraction layer
-pub mod platform;
-
 // Core browser engine
 pub mod engine;
 
@@ -39,7 +32,7 @@ pub mod protocols;
 pub mod debug_utils;
 
 // Re-export main components for clean public API
-#[cfg(any(feature = "core", feature = "wasm"))]
+#[cfg(feature = "core")]
 pub use engine::JavaScriptEngine;
 #[cfg(feature = "core")]
 pub use engine::{

@@ -2,7 +2,6 @@
 //!
 //! Provides an abstraction layer for IndexedDB storage backends.
 //! - Native: Supports in-memory (testing) and persistent (Sled) backends.
-//! - WASM: In-memory only (browser's native IndexedDB is used via JavaScript)
 
 use super::key::IDBKey;
 use super::key_range::IDBKeyRange;

@@ -1,4 +1,3 @@
-pub mod build_wasm;
 pub mod bump_version;
 pub mod check_stubs;
 pub mod ci;

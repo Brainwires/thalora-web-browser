@@ -3,10 +3,6 @@
 // Native-only: fingerprinting uses reqwest
 #[cfg(feature = "core")]
 pub mod fingerprinting;
-#[cfg(feature = "wasm")]
-pub mod fingerprinting_wasm;
-#[cfg(feature = "wasm")]
-pub use fingerprinting_wasm as fingerprinting;
 
 pub mod webgl;
 

@@ -4,24 +4,12 @@
 #[cfg(feature = "core")]
 pub mod browser;
 
-// WASM browser stub - placeholder types for API compatibility
-#[cfg(feature = "wasm")]
-pub mod browser_wasm;
-#[cfg(feature = "wasm")]
-pub use browser_wasm as browser;
-
 pub mod renderer;
 
 // Engine module - requires core (uses tokio::sync::Mutex)
 #[cfg(feature = "core")]
 #[allow(clippy::module_inception)]
 pub mod engine;
-
-// WASM engine stub
-#[cfg(feature = "wasm")]
-pub mod engine_wasm;
-#[cfg(feature = "wasm")]
-pub use engine_wasm as engine;
 
 pub mod engine_trait;
 pub mod security;
@@ -34,7 +22,7 @@ pub use browser::{
     AuthContext, BrowserStorage, Form, FormField, HeadlessWebBrowser, Image, InteractionResponse,
     Link, ScrapedData,
 };
-#[cfg(any(feature = "core", feature = "wasm"))]
+#[cfg(feature = "core")]
 pub use engine::JavaScriptEngine;
 pub use engine_trait::{
     BoaEngineWrapper, EngineConfig, EngineFactory, EngineType, ThaloraBrowserEngine,

@@ -24,11 +24,6 @@ categories = ["web-programming", "parsing"]
 [lib]
 crate-type = ["cdylib", "rlib"]
 
-# Configure getrandom for WASM builds - need both 0.2.x and 0.3.x versions
-[target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
-getrandom_02 = { package = "getrandom", version = "0.2", features = ["js"] }
-getrandom = { version = "0.3", features = ["wasm_js"] }
-
 [dependencies]
 # Shared constants
 thalora-constants = { path = "shared/thalora-constants" }
@@ -62,7 +57,7 @@ boa_engine = { path = "engines/boa/core/engine", default-features = false }
 # Async trait support for engine abstraction
 async-trait = "0.1"
 
-# WebAssembly runtime - Full V8-compatible stack (native only - can't run wasmtime inside WASM)
+# WebAssembly runtime for page-loaded wasm modules
 wasmtime = { version = "21.0", features = ["component-model", "async", "runtime", "cranelift", "cache", "pooling-allocator"], optional = true }
 wasmtime-wasi = { version = "21.0", optional = true }
 wasmtime-wast = { version = "21.0", optional = true }
@@ -175,28 +170,6 @@ chrono = { version = "0.4", features = ["serde"] }
 dirs = { version = "5.0", optional = true }
 vfs = { path = "vfs", default-features = false }
 
-# ============ WASM-only dependencies ============
-wasm-bindgen = { version = "0.2", features = ["serde-serialize"], optional = true }
-wasm-bindgen-futures = { version = "0.4", optional = true }
-js-sys = { version = "0.3", optional = true }
-serde-wasm-bindgen = { version = "0.6", optional = true }
-console_error_panic_hook = { version = "0.1", optional = true }
-
-web-sys = { version = "0.3", features = [
-    "console",
-    "Window", "Document", "Element", "Event", "EventTarget",
-    "Request", "RequestInit", "RequestMode", "Response", "Headers", "Blob",
-    "WebSocket", "MessageEvent", "CloseEvent",
-    "Storage",
-    "IdbFactory", "IdbDatabase", "IdbTransaction", "IdbObjectStore", "IdbRequest",
-    "AudioContext", "GainNode", "AudioBufferSourceNode",
-    "HtmlVideoElement", "HtmlAudioElement", "MediaStream",
-    "RtcPeerConnection", "RtcDataChannel", "RtcSessionDescription",
-    "Navigator", "Geolocation", "Clipboard",
-    "HtmlCanvasElement", "CanvasRenderingContext2d",
-    "Performance", "Crypto", "SubtleCrypto",
-], optional = true }
-
 [[bin]]
 name = "thalora"
 path = "src/main.rs"
@@ -249,19 +222,6 @@ native = [
     "dep:wasm-encoder",
 ]
 
-# WASM build - uses web-sys for browser API delegation
-wasm = [
-    "dep:wasm-bindgen",
-    "dep:wasm-bindgen-futures",
-    "dep:js-sys",
-    "dep:web-sys",
-    "dep:serde-wasm-bindgen",
-    "dep:console_error_panic_hook",
-    # Enable wasm features in sub-crates
-    "thalora-browser-apis/wasm",
-    "boa_engine/wasm",
-]
-
 # WASM debugging MCP tools (extends desktop — no ffmpeg needed)
 wasm-debug = ["desktop", "dep:wasmprinter"]
 
@@ -296,9 +256,6 @@ debug-assertions = false
 opt-level = 3
 lto = true
 codegen-units = 1
-
-[package.metadata.wasm-pack.profile.release]
-wasm-opt = ["-O3", "--enable-bulk-memory"]
 
 # Resolver to handle dependency conflicts
 [package.metadata.docs.rs]

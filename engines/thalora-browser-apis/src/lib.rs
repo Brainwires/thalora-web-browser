@@ -4,7 +4,6 @@
 
 // Many functions in this crate are used as callbacks for Boa engine's builtin system
 // (passed to BuiltInBuilder::callable()) but the compiler doesn't detect them as "used".
-// Additionally, some stub implementations for WASM exist for API compatibility.
 #![allow(dead_code)]
 #![allow(unreachable_pub)]
 #![allow(unused_qualifications)]
