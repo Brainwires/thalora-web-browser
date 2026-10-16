@@ -43,10 +43,7 @@ impl Default for McpServer {
 
 impl McpServer {
     pub fn new() -> Self {
-        // Default to Boa engine for backward compatibility
-        Self::new_with_engine(EngineConfig::new(false).unwrap_or(EngineConfig {
-            engine_type: crate::engine::EngineType::Boa,
-        }))
+        Self::new_with_engine(EngineConfig::default())
     }
 
     pub fn new_with_engine(engine_config: EngineConfig) -> Self {

@@ -28,7 +28,6 @@ pub use engine_trait::{
     BoaEngineWrapper, EngineConfig, EngineFactory, EngineType, ThaloraBrowserEngine,
 };
 pub use renderer::{CssProcessor, LayoutEngine, LayoutResult, RustRenderer};
-// V8EngineWrapper removed - V8 engine was removed
-pub use test_helpers::{create_test_engine, get_test_engine_type, is_using_boa, is_using_v8};
+pub use test_helpers::{create_test_engine, get_test_engine_type, is_using_boa};
 // DOM is now natively implemented in Boa engine
 // EventListener is now natively implemented in Boa engine
