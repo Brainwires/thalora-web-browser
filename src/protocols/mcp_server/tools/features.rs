@@ -19,9 +19,19 @@ pub(super) fn is_sessions_enabled() -> bool {
         || env::var("THALORA_ENABLE_CDP").unwrap_or_else(|_| "false".to_string()) == "true"
 }
 
-/// Check if AI memory tools are enabled
-pub(super) fn is_ai_memory_enabled() -> bool {
-    env::var("THALORA_ENABLE_AI_MEMORY").unwrap_or_else(|_| "false".to_string()) == "true"
+/// Check if the credential vault tools are enabled (`THALORA_ENABLE_VAULT`;
+/// the retired `THALORA_ENABLE_AI_MEMORY` is still honoured).
+pub(crate) fn is_vault_enabled() -> bool {
+    ["THALORA_ENABLE_VAULT", "THALORA_ENABLE_AI_MEMORY"]
+        .iter()
+        .any(|name| {
+            env::var(name).is_ok_and(|v| {
+                matches!(
+                    v.trim().to_ascii_lowercase().as_str(),
+                    "1" | "true" | "yes" | "on"
+                )
+            })
+        })
 }
 
 /// Check if CDP tools are enabled

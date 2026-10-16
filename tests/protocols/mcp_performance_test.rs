@@ -168,139 +168,6 @@ fn test_tools_list_performance() {
 }
 
 #[test]
-fn test_ai_memory_performance() {
-    let mut harness = create_initialized_harness().expect("Failed to create harness");
-    let iterations = 30;
-
-    // Test store performance
-    let store_metrics = {
-        let mut metrics = PerformanceMetrics::new("AI Memory Store".to_string());
-        let total_start = Instant::now();
-
-        for i in 0..iterations {
-            let key = format!(
-                "perf_test_{}",
-                chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
-            );
-            let _data = json!({
-                "test_data": "performance test data",
-                "timestamp": chrono::Utc::now().to_rfc3339(),
-                "iteration": rand::random::<u32>()
-            });
-
-            let start = Instant::now();
-            let result = harness.call_tool(
-                "ai_memory_store_research",
-                json!({
-                    "key": key,
-                    "topic": "performance testing",
-                    "summary": "Performance test data for AI memory benchmarking",
-                    "tags": ["performance", "test"]
-                }),
-            );
-
-            match result {
-                Ok(response) => {
-                    if response.is_error {
-                        metrics.add_measurement(
-                            Duration::ZERO,
-                            false,
-                            Some("Store operation returned error".to_string()),
-                        );
-                    } else {
-                        metrics.add_measurement(start.elapsed(), true, None);
-                    }
-                }
-                Err(e) => {
-                    metrics.add_measurement(Duration::ZERO, false, Some(e.to_string()));
-                }
-            }
-
-            if i % (iterations / 10).max(1) == 0 {
-                print!(".");
-                std::io::Write::flush(&mut std::io::stdout()).unwrap();
-            }
-        }
-
-        let total_duration = total_start.elapsed();
-        metrics.finalize(total_duration);
-        println!();
-        metrics
-    };
-
-    store_metrics.print_summary();
-
-    // Test retrieval performance
-    let retrieve_metrics = {
-        let mut metrics = PerformanceMetrics::new("AI Memory Retrieve".to_string());
-        let total_start = Instant::now();
-
-        for i in 0..iterations {
-            let start = Instant::now();
-            let result = harness.call_tool(
-                "ai_memory_search_research",
-                json!({
-                    "tags": ["performance"],
-                    "limit": 1
-                }),
-            );
-
-            match result {
-                Ok(response) => {
-                    if response.is_error {
-                        metrics.add_measurement(
-                            Duration::ZERO,
-                            false,
-                            Some("Search operation returned error".to_string()),
-                        );
-                    } else {
-                        metrics.add_measurement(start.elapsed(), true, None);
-                    }
-                }
-                Err(e) => {
-                    metrics.add_measurement(Duration::ZERO, false, Some(e.to_string()));
-                }
-            }
-
-            if i % (iterations / 10).max(1) == 0 {
-                print!(".");
-                std::io::Write::flush(&mut std::io::stdout()).unwrap();
-            }
-        }
-
-        let total_duration = total_start.elapsed();
-        metrics.finalize(total_duration);
-        println!();
-        metrics
-    };
-
-    retrieve_metrics.print_summary();
-
-    // Performance assertions — skip if environment doesn't fully support AI memory
-    // (requires writable cache directory and master password; partial failures
-    // are expected in CI where the cache directory may not persist between calls)
-    if store_metrics.success_rate < 0.5 {
-        eprintln!(
-            "Skipping AI memory performance assertions: low success rate ({:.0}%) — likely missing cache directory or env setup",
-            store_metrics.success_rate * 100.0
-        );
-        return;
-    }
-    assert!(
-        retrieve_metrics.success_rate >= 0.5,
-        "Retrieve operations should have reasonable success rate"
-    );
-    assert!(
-        store_metrics.avg_duration < Duration::from_secs(2),
-        "Store should be fast"
-    );
-    assert!(
-        retrieve_metrics.avg_duration < Duration::from_secs(2),
-        "Retrieve should be fast"
-    );
-}
-
-#[test]
 fn test_javascript_evaluation_performance() {
     let mut harness = create_initialized_harness().expect("Failed to create harness");
     let iterations = 20;
@@ -517,31 +384,17 @@ fn test_mixed_workload_performance() {
     let mut total_duration = Duration::ZERO;
 
     for i in 0..iterations {
-        let op_type = match i % 4 {
+        let op_type = match i % 2 {
             0 => "list_tools",
-            1 => "js_eval",
-            2 => "memory_search",
-            _ => "memory_store",
+            _ => "js_eval",
         };
 
         let start = Instant::now();
         let result = match op_type {
             "list_tools" => harness.list_tools().map(|_| ()),
-            "js_eval" => {
-                harness.call_tool("cdp_runtime_evaluate", json!({"expression": "Math.PI * 2"}))
-                    .map(|_| ())
-            }
-            "memory_search" => {
-                harness.call_tool("ai_memory_search_research", json!({"query": "test", "limit": 1}))
-                    .map(|_| ())
-            }
-            "memory_store" => {
-                harness.call_tool("ai_memory_store_research", json!({
-                    "key": format!("mixed_{}", chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()),
-                    "data": {"mixed": "workload test"},
-                    "tags": ["mixed", "performance"]
-                })).map(|_| ())
-            }
+            "js_eval" => harness
+                .call_tool("cdp_runtime_evaluate", json!({"expression": "Math.PI * 2"}))
+                .map(|_| ()),
             _ => unreachable!(),
         };
 
@@ -603,18 +456,9 @@ fn test_stress_test_rapid_requests() {
         let op_start = Instant::now();
 
         // Alternate between different operations
-        let result = match i % 4 {
+        let result = match i % 3 {
             0 => harness.list_tools().map(|_| ()),
             1 => harness
-                .call_tool(
-                    "ai_memory_search_research",
-                    json!({
-                        "query": "stress",
-                        "limit": 1
-                    }),
-                )
-                .map(|_| ()),
-            2 => harness
                 .call_tool(
                     "cdp_runtime_evaluate",
                     json!({
@@ -624,11 +468,9 @@ fn test_stress_test_rapid_requests() {
                 .map(|_| ()),
             _ => harness
                 .call_tool(
-                    "ai_memory_store_research",
+                    "cdp_runtime_evaluate",
                     json!({
-                        "key": format!("stress_{}", i),
-                        "data": {"stress_test": i},
-                        "tags": ["stress"]
+                        "expression": "Math.random()"
                     }),
                 )
                 .map(|_| ()),
@@ -707,74 +549,6 @@ fn test_stress_test_rapid_requests() {
     );
 }
 
-#[test]
-fn test_memory_usage_pattern() {
-    let mut harness = create_initialized_harness().expect("Failed to create harness");
-
-    println!("Testing memory usage patterns...");
-
-    // Store increasingly large data to test memory handling
-    let data_sizes = vec![
-        ("small", json!({"data": "x".repeat(100)})),
-        ("medium", json!({"data": "x".repeat(1000)})),
-        ("large", json!({"data": "x".repeat(10000)})),
-        ("xlarge", json!({"data": "x".repeat(50000)})),
-    ];
-
-    for (size_name, data) in data_sizes {
-        let start = Instant::now();
-
-        let result = harness.call_tool(
-            "ai_memory_store_research",
-            json!({
-                "key": format!("memory_test_{}", size_name),
-                "data": data,
-                "tags": ["memory_test", size_name]
-            }),
-        );
-
-        let duration = start.elapsed();
-
-        match result {
-            Ok(response) => {
-                if response.is_error {
-                    println!("Error storing {} data: {:?}", size_name, response.content);
-                } else {
-                    println!("Successfully stored {} data in {:?}", size_name, duration);
-                }
-            }
-            Err(e) => {
-                println!("Failed to store {} data: {}", size_name, e);
-            }
-        }
-
-        // Verify server is still responsive
-        assert!(
-            harness.is_running(),
-            "Server should still be running after storing {} data",
-            size_name
-        );
-
-        std::thread::sleep(Duration::from_millis(100));
-    }
-
-    // Test retrieval of large data
-    let retrieve_result = harness.call_tool(
-        "ai_memory_get_research",
-        json!({
-            "key": "memory_test_large"
-        }),
-    );
-
-    if let Ok(response) = retrieve_result {
-        if !response.is_error {
-            println!("Successfully retrieved large data");
-        }
-    }
-
-    println!("Memory usage pattern test completed");
-}
-
 // Helper to add random dependency to prevent optimization
 use std::sync::atomic::{AtomicU64, Ordering};
 static RANDOM_COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -784,7 +558,7 @@ fn test_performance_baseline() {
     let mut harness = create_initialized_harness().expect("Failed to create harness");
 
     // Establish baseline performance for each operation type
-    let baseline_tests = vec![("list_tools", 10), ("simple_js", 10), ("memory_search", 10)];
+    let baseline_tests = vec![("list_tools", 10), ("simple_js", 10)];
 
     println!("\n=== Performance Baseline ===");
 
@@ -805,15 +579,6 @@ fn test_performance_baseline() {
                         }),
                     )
                     .map(|_| ()),
-                "memory_search" => harness
-                    .call_tool(
-                        "ai_memory_search_research",
-                        json!({
-                            "query": "baseline",
-                            "limit": 1
-                        }),
-                    )
-                    .map(|_| ()),
                 _ => Ok(()),
             };
 
@@ -830,22 +595,6 @@ fn test_performance_baseline() {
             test_name,
             success_rate * 100.0,
             avg_duration
-        );
-
-        // Store baseline in AI memory for reference
-        let _ = harness.call_tool(
-            "ai_memory_store_research",
-            json!({
-                "key": format!("baseline_{}", test_name),
-                "data": {
-                    "test_name": test_name,
-                    "iterations": iterations,
-                    "success_rate": success_rate,
-                    "avg_duration_ms": avg_duration.as_millis(),
-                    "timestamp": chrono::Utc::now().to_rfc3339()
-                },
-                "tags": ["baseline", "performance"]
-            }),
         );
     }
 

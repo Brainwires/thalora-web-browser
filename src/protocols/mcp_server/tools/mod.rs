@@ -33,7 +33,7 @@ use features::*;
         - Session Management Tools: Create, manage, and clean up browser sessions for persistent AI interactions.
 
     Each category needs a corresponding environment variable to be enabled, e.g.:
-        - THALORA_ENABLE_AI_MEMORY
+        - THALORA_ENABLE_VAULT
         - THALORA_ENABLE_CDP (also enables SESSIONS automatically)
         - THALORA_ENABLE_SCRAPING (enabled by default - minimal toolset)
         - THALORA_ENABLE_SEARCH

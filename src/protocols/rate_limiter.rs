@@ -315,7 +315,7 @@ mod tests {
             "navigation"
         );
         assert_eq!(
-            RateLimiter::tool_to_category("ai_memory_store_research"),
+            RateLimiter::tool_to_category("vault_store_credential"),
             "memory"
         );
         assert_eq!(RateLimiter::tool_to_category("unknown_tool"), "default");

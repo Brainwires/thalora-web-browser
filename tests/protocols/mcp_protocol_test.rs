@@ -119,18 +119,18 @@ fn test_expected_tools_present() {
         .map(|t| t.get("name").unwrap().as_str().unwrap().to_string())
         .collect();
 
-    // Core AI Memory tools
+    // Credential vault tools
     assert!(
-        tool_names.contains(&"ai_memory_store_research".to_string()),
-        "Should have ai_memory_store_research tool"
+        tool_names.contains(&"vault_store_credential".to_string()),
+        "Should have vault_store_credential tool"
     );
     assert!(
-        tool_names.contains(&"ai_memory_get_research".to_string()),
-        "Should have ai_memory_get_research tool"
+        tool_names.contains(&"vault_list_credentials".to_string()),
+        "Should have vault_list_credentials tool"
     );
     assert!(
-        tool_names.contains(&"ai_memory_search_research".to_string()),
-        "Should have ai_memory_search_research tool"
+        tool_names.contains(&"vault_delete_credential".to_string()),
+        "Should have vault_delete_credential tool"
     );
 
     // Web snapshot tools

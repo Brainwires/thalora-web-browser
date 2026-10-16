@@ -40,7 +40,7 @@ tests/
 - **Edge Cases**: Unicode data, large payloads, error conditions
 
 #### 3. Integration Tests (`mcp_integration_test.rs`)
-- **Research Workflow**: Search → Scrape → Store → Retrieve
+- **Research Workflow**: Search → Scrape
 - **Browser Automation**: JavaScript → DOM → Interaction → Storage
 - **Data Persistence**: Multi-tool data flow validation
 - **Error Recovery**: Graceful handling of tool failures
@@ -94,7 +94,7 @@ cargo test --release --test mcp_tests performance
 
 ```bash
 # Test specific functionality
-cargo test test_ai_memory_store_and_retrieve -- --nocapture
+cargo test test_vault_store_list_delete_roundtrip -- --nocapture
 cargo test test_research_workflow -- --nocapture
 cargo test test_javascript_evaluation_performance -- --nocapture
 
@@ -166,10 +166,9 @@ let harness = McpTestHarness::with_config(config)?;
 
 The test suite validates all 17+ MCP tools:
 
-### AI Memory Tools
-- `ai_memory_store_research` - Store research data with tags
-- `ai_memory_get_research` - Retrieve stored research by key
-- `ai_memory_search_research` - Search research by query and tags
+### Credential Vault Tools
+- `vault_store_credential` / `vault_list_credentials` / `vault_delete_credential`
+- `browser_fill_credential` - Fill a stored credential into the page without returning it
 
 ### Web Scraping Tools
 - `snapshot_url` - Capture point-in-time page snapshot
@@ -251,7 +250,7 @@ cargo build --release
 echo '{"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}' | ./target/release/thalora
 
 # Test a simple tool call
-echo '{"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "ai_memory_search_research", "arguments": {"query": "test", "limit": 1}}}' | ./target/release/thalora
+echo '{"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "snapshot_url", "arguments": {"url": "https://example.com"}}}' | ./target/release/thalora
 ```
 
 ## Continuous Integration
@@ -330,7 +329,7 @@ let test_key = format!("test_{}", chrono::Utc::now().timestamp_nanos_opt().unwra
 
 ### Test Data Cleanup
 - Tests use timestamped keys to avoid conflicts
-- AI memory searches are scoped to test-specific tags
+- Vault tests use a unique `THALORA_VAULT_PATH` per harness
 - No persistent state between test runs
 
 ### Mock Data Patterns

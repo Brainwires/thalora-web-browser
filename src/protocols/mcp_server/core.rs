@@ -58,33 +58,13 @@ impl McpServer {
     }
 
     pub fn new_with_engine(engine_config: EngineConfig) -> Self {
-        // Only enable AI memory if THALORA_ENABLE_AI_MEMORY is set to a truthy value
-        // Accepts: "1", "true", "yes", "on" (case-insensitive)
-        // Rejects: "0", "false", "no", "off", "" (empty), or unset
-        let ai_memory_enabled = std::env::var("THALORA_ENABLE_AI_MEMORY")
-            .map(|v| {
-                let val = v.trim().to_lowercase();
-                !val.is_empty() && val != "0" && val != "false" && val != "no" && val != "off"
-            })
-            .unwrap_or(false);
-
-        let ai_memory = if ai_memory_enabled {
-            tracing::info!("AI memory enabled via THALORA_ENABLE_AI_MEMORY");
-            AiMemoryHeap::new_default().unwrap_or_else(|e| {
-                tracing::warn!("Failed to load AI memory heap: {}, creating new one", e);
-                AiMemoryHeap::new("/tmp/thalora_ai_memory.json")
-                    .expect("Failed to create AI memory heap")
+        let vault = if crate::protocols::mcp_server::tools::features::is_vault_enabled() {
+            CredentialVault::open_default().unwrap_or_else(|e| {
+                tracing::warn!("Failed to open credential vault: {e}; using an in-memory vault");
+                CredentialVault::in_memory()
             })
         } else {
-            // Create disabled AI memory (in-memory only, no persistence)
-            tracing::info!(
-                "AI memory disabled. Set THALORA_ENABLE_AI_MEMORY=1 to enable persistent storage"
-            );
-            AiMemoryHeap::new("/dev/null").unwrap_or_else(|_| {
-                // Fallback to temp file if /dev/null fails (Windows)
-                AiMemoryHeap::new(std::env::temp_dir().join("thalora_disabled.json"))
-                    .expect("Failed to create disabled AI memory")
-            })
+            CredentialVault::in_memory()
         };
 
         let session_manager = SessionManager::new().unwrap_or_else(|e| {

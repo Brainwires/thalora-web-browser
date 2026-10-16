@@ -48,12 +48,9 @@ pub use engine::{EngineConfig, EngineFactory, EngineType, ThaloraBrowserEngine};
 // events API is now natively implemented in Boa engine
 
 #[cfg(feature = "core")]
-pub use features::{
-    AiMemoryHeap, BookmarkEntry, CredentialEntry, MemoryData, MemorySearchCriteria, MemorySortBy,
-    MemoryStatistics, NoteEntry, NotePriority, ResearchEntry, SessionData, SessionStatus,
-};
-#[cfg(feature = "core")]
 pub use features::{BrowserFingerprint, BrowserType, FingerprintManager};
+#[cfg(feature = "core")]
+pub use features::{CredentialEntry, CredentialVault};
 
 // Web search re-exports for convenient access
 #[cfg(feature = "core")]
