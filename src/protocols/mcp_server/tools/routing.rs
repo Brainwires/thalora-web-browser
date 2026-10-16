@@ -6,120 +6,29 @@ impl McpServer {
     /// Route tool calls to appropriate handlers
     pub(super) async fn route_tool_call(&mut self, name: &str, arguments: Value) -> McpResponse {
         match name {
-            // AI Memory tools
-            "ai_memory_store_research" => {
-                self.memory_tools
-                    .store_research(arguments, &mut self.ai_memory)
-                    .await
+            // Credential vault tools
+            "vault_store_credential" => {
+                crate::protocols::credential_tools::handle_store_credential(
+                    &arguments,
+                    &mut self.vault,
+                )
             }
-            "ai_memory_get_research" => {
-                // Validate required "key" parameter
-                let key = match arguments.get("key").and_then(|v| v.as_str()) {
-                    Some(key) => key,
-                    None => {
-                        return McpResponse::error(
-                            -1,
-                            "Missing required parameter: key".to_string(),
-                        );
-                    }
-                };
-
-                // Convert key to query for search
-                let search_args = serde_json::json!({
-                    "query": key,
-                    "category": "research",
-                    "limit": 1
-                });
-                self.memory_tools
-                    .search(search_args, &mut self.ai_memory)
-                    .await
+            "vault_list_credentials" => {
+                crate::protocols::credential_tools::handle_list_credentials(&arguments, &self.vault)
             }
-            "ai_memory_search_research" => {
-                self.memory_tools
-                    .search(arguments, &mut self.ai_memory)
-                    .await
-            }
-            "ai_memory_store_credentials" => {
-                self.memory_tools
-                    .store_credentials(arguments, &mut self.ai_memory)
-                    .await
-            }
-            "ai_memory_get_credentials" => {
-                self.memory_tools
-                    .get_credentials(arguments, &mut self.ai_memory)
-                    .await
+            "vault_delete_credential" => {
+                crate::protocols::credential_tools::handle_delete_credential(
+                    &arguments,
+                    &mut self.vault,
+                )
             }
             "browser_fill_credential" => self.handle_fill_credential(arguments).await,
-            "ai_memory_store_bookmark" => {
-                self.memory_tools
-                    .store_bookmark(arguments, &mut self.ai_memory)
-                    .await
-            }
-            "ai_memory_get_bookmarks" => {
-                self.memory_tools
-                    .search(arguments, &mut self.ai_memory)
-                    .await
-            }
-            "ai_memory_store_note" => {
-                self.memory_tools
-                    .store_note(arguments, &mut self.ai_memory)
-                    .await
-            }
-            "ai_memory_get_notes" => {
-                self.memory_tools
-                    .search(arguments, &mut self.ai_memory)
-                    .await
-            }
 
-            // Chrome DevTools Protocol tools - comprehensive debugging toolkit
+            // JavaScript evaluation (the tool name predates the removal of the
+            // mock CDP layer; a real CDP endpoint is planned)
             "cdp_runtime_evaluate" => {
-                self.cdp_tools
-                    .evaluate_javascript(arguments, &mut self.cdp_server)
-                    .await
-            }
-            "cdp_dom_get_document" => {
-                self.cdp_tools
-                    .get_document(arguments, &mut self.cdp_server)
-                    .await
-            }
-            "cdp_dom_query_selector" => {
-                self.cdp_tools
-                    .query_selector(arguments, &mut self.cdp_server)
-                    .await
-            }
-            "cdp_dom_get_attributes" => {
-                self.cdp_tools
-                    .get_attributes(arguments, &mut self.cdp_server)
-                    .await
-            }
-            "cdp_dom_get_computed_style" => {
-                self.cdp_tools
-                    .get_computed_style(arguments, &mut self.cdp_server)
-                    .await
-            }
-            "cdp_network_get_cookies" => {
-                self.cdp_tools
-                    .get_cookies(arguments, &mut self.cdp_server)
-                    .await
-            }
-            "cdp_network_set_cookie" => {
-                self.cdp_tools
-                    .set_cookie(arguments, &mut self.cdp_server)
-                    .await
-            }
-            "cdp_console_get_messages" => {
-                self.cdp_tools
-                    .get_console_messages(arguments, &mut self.cdp_server)
-                    .await
-            }
-            "cdp_page_screenshot" => {
-                self.cdp_tools
-                    .take_screenshot(arguments, &mut self.cdp_server)
-                    .await
-            }
-            "cdp_page_reload" => {
-                self.cdp_tools
-                    .reload_page(arguments, &mut self.cdp_server)
+                self.browser_tools
+                    .handle_evaluate_javascript(arguments)
                     .await
             }
 
@@ -187,10 +96,9 @@ impl McpServer {
             // Interaction
             "browser_click" => self.browser_tools.handle_click_element(arguments).await,
             "browser_fill" => self.browser_tools.handle_fill_field(arguments).await,
-            // CDP
             "browser_eval" => {
-                self.cdp_tools
-                    .evaluate_javascript(arguments, &mut self.cdp_server)
+                self.browser_tools
+                    .handle_evaluate_javascript(arguments)
                     .await
             }
             "browser_screenshot" => self.browser_tools.handle_screenshot(arguments).await,

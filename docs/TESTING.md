@@ -32,10 +32,10 @@ tests/
 - **Server Stability**: Continuous operation under various conditions
 
 #### 2. Tool Functionality Tests (`mcp_tools_test.rs`)
-- **AI Memory Tools**: Store, retrieve, and search research data
+- **Credential Vault Tools**: Store, list and delete credentials; secrets never returned
 - **Web Scraping**: URL content extraction and Google search
 - **Browser Automation**: Element interaction and form handling
-- **CDP Tools**: JavaScript evaluation and DOM inspection
+- **JavaScript**: `cdp_runtime_evaluate` in a session's page
 - **Parameter Validation**: Required fields and type checking
 - **Edge Cases**: Unicode data, large payloads, error conditions
 
@@ -178,10 +178,8 @@ The test suite validates all 17+ MCP tools:
 - `browser_click_element` - Click on page elements
 - Additional automation tools as implemented
 
-### Chrome DevTools Protocol Tools
-- `cdp_runtime_evaluate` - Execute JavaScript in browser context
-- `cdp_dom_get_document` - Retrieve DOM document structure
-- Additional CDP tools as implemented
+### JavaScript
+- `cdp_runtime_evaluate` - Execute JavaScript in a session's page
 
 ## Performance Expectations
 

@@ -59,11 +59,7 @@ pub use web_search::{SearchResult, SearchResults, perform_search};
 // Protocol exports (requires core networking)
 #[cfg(feature = "core")]
 pub use protocols::McpResponse;
+#[cfg(feature = "core")]
+pub use protocols::McpServer;
 #[cfg(feature = "wasm-debug")]
 pub use protocols::wasm_debug_tools::WasmDebugTools;
-#[cfg(feature = "core")]
-pub use protocols::{
-    CdpCommand, CdpDomain, CdpError, CdpEvent, CdpMessage, CdpResponse, CdpServer,
-};
-#[cfg(feature = "core")]
-pub use protocols::{McpServer, MemoryTools};

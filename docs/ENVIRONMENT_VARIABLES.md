@@ -62,9 +62,6 @@ Where the vault is stored, on the real filesystem with owner-only permissions
 | `THALORA_ENABLE_SEARCH` | `false` | `web_search`, `image_search` |
 | `THALORA_ENABLE_SESSIONS` | `false` | Browser session, navigation and form automation tools |
 | `THALORA_ENABLE_CDP` | `false` | `cdp_runtime_evaluate` (also enables sessions) |
-| `THALORA_ENABLE_CDP_EXPERIMENTAL` | `false` | Also list the mock-backed CDP tools (`cdp_dom_*`, `cdp_network_*`, `cdp_console_get_messages`, `cdp_page_*`) |
-| `THALORA_ENABLE_ADVANCED` | `false` | List the not-yet-implemented advanced tools (`extract_pdf`, `download_file`, …); calls fail with "Tool not found" |
-| `THALORA_EXPOSE_PASSWORDS` | `false` | **Unsafe.** Make `ai_memory_get_credentials` return stored secrets to the model |
 | `THALORA_STEALTH_DELAYS` | `false` | Add 1.5–5 s of random "human-like" delay to every navigation (anti-bot evasion) |
 | `THALORA_PAGE_SCRIPT_TIMEOUT_MS` | `3000` | Synchronous execution limit per page `<script>` |
 | `THALORA_EVENT_LOOP` | unset | `legacy` disables the event loop (timers never fire, promises only settle during module loading) — temporary escape hatch |

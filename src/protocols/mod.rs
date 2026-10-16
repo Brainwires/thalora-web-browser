@@ -1,7 +1,6 @@
 // Protocol implementations
 pub mod browser_tools;
-pub mod cdp;
-pub mod cdp_tools;
+pub mod credential_tools;
 pub mod display_server;
 pub mod mcp;
 pub mod mcp_server;
@@ -13,7 +12,6 @@ pub mod wasm_debug_tools;
 
 // Re-exports for clean API
 pub use browser_tools::BrowserTools;
-pub use cdp::{CdpCommand, CdpDomain, CdpError, CdpEvent, CdpMessage, CdpResponse, CdpServer};
 pub use display_server::{DisplayCommand, DisplayMessage, DisplayServer};
 pub use mcp::McpResponse;
 pub use mcp_server::McpServer;

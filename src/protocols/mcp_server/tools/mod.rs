@@ -20,13 +20,13 @@ pub(crate) use features::is_brainclaw_preset;
 use features::*;
 
 /*
-    Define the available tools for the MCP server, including AI memory management,
-    Chrome DevTools Protocol interactions, web scraping, browser automation, and session management.
+    Define the available tools for the MCP server, including the credential vault,
+    JavaScript evaluation, web scraping, browser automation, and session management.
     Each tool includes a name, description, and input schema for validation.
 
     Tools are grouped into categories:
-        - AI Memory Tools: Store and retrieve research data, credentials, bookmarks, and notes.
-        - Chrome DevTools Protocol (CDP) Tools: Execute JavaScript, inspect DOM, manage cookies, capture screenshots, and retrieve console messages.
+        - Credential Vault Tools: Store credentials and fill them into pages without revealing them.
+        - JavaScript Tools: Evaluate JavaScript in a session's page (`cdp_runtime_evaluate`).
         - Web Scraping Tools: Scrape web pages and extract content.
         - Web Search Tools: Perform web searches using various search engines.
         - Browser Automation Tools: Interact with web pages by clicking elements and filling forms.
@@ -56,18 +56,14 @@ impl McpServer {
 
         // Full mode continues below with all tools...
 
-        // AI Memory Tools - Store and retrieve research data, credentials, bookmarks, and notes
-        if is_ai_memory_enabled() {
-            tools.extend(get_memory_tool_definitions());
+        // Credential vault tools - store credentials and fill them without revealing them
+        if is_vault_enabled() {
+            tools.extend(get_vault_tool_definitions());
         }
 
-        // Chrome DevTools Protocol (CDP) Tools - Execute JavaScript, inspect DOM, manage cookies, capture screenshots, and retrieve console messages
+        // JavaScript evaluation (`cdp_runtime_evaluate`)
         if is_cdp_enabled() {
-            tools.extend(
-                get_cdp_tool_definitions()
-                    .into_iter()
-                    .filter(|t| is_cdp_experimental_enabled() || !is_experimental_cdp_tool(t)),
-            );
+            tools.extend(get_cdp_tool_definitions());
         }
 
         // Web Scraping Tools - Unified scraping tool that combines all capabilities (enabled by default)
@@ -90,12 +86,6 @@ impl McpServer {
             tools.extend(get_session_tool_definitions());
         }
 
-        // Advanced Tools - PDF extraction, downloads, network interception.
-        // Not implemented yet (no handlers in routing.rs), so opt-in only.
-        if is_advanced_enabled() {
-            tools.extend(get_advanced_tool_definitions());
-        }
-
         // WASM Debug Tools - Load, inspect, disassemble, execute, and profile WASM modules
         #[cfg(feature = "wasm-debug")]
         if is_wasm_debug_enabled() {
@@ -107,11 +97,7 @@ impl McpServer {
 
         // BrainClaw preset — add agent-friendly alias tools on top of the full toolset
         if is_brainclaw_preset() {
-            tools.extend(
-                get_brainclaw_alias_tool_definitions()
-                    .into_iter()
-                    .filter(|t| is_cdp_experimental_enabled() || !is_experimental_cdp_tool(t)),
-            );
+            tools.extend(get_brainclaw_alias_tool_definitions());
         }
 
         tools
@@ -250,24 +236,4 @@ impl McpServer {
 
         tools
     }
-}
-
-/// Tools served by the in-process CDP server's mock domains (canned data,
-/// no real browser behind them). Hidden unless THALORA_ENABLE_CDP_EXPERIMENTAL=true.
-const EXPERIMENTAL_CDP_TOOLS: &[&str] = &[
-    "cdp_dom_get_document",
-    "cdp_dom_query_selector",
-    "cdp_dom_get_attributes",
-    "cdp_dom_get_computed_style",
-    "cdp_network_get_cookies",
-    "cdp_network_set_cookie",
-    "cdp_console_get_messages",
-    "cdp_page_screenshot",
-    "cdp_page_reload",
-];
-
-fn is_experimental_cdp_tool(tool: &Value) -> bool {
-    tool.get("name")
-        .and_then(|n| n.as_str())
-        .is_some_and(|n| EXPERIMENTAL_CDP_TOOLS.contains(&n))
 }

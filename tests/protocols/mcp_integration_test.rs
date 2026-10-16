@@ -85,21 +85,7 @@ fn test_browser_automation_workflow() {
     assert!(!js_response.is_error, "JavaScript should not error");
     assert_tool_success(&js_response, Duration::from_secs(10)).expect("JavaScript should be fast");
 
-    // Step 2: Get DOM document
-    let dom_response = harness
-        .call_tool(
-            "cdp_dom_get_document",
-            json!({
-                "depth": 3
-            }),
-        )
-        .expect("DOM retrieval should succeed");
-
-    assert!(!dom_response.is_error, "DOM retrieval should not error");
-    assert_tool_success(&dom_response, Duration::from_secs(10))
-        .expect("DOM retrieval should be fast");
-
-    // Step 3: Try to click the element we created
+    // Step 2: Try to click the element we created
     let click_response = harness.call_tool(
         "browser_click_element",
         json!({

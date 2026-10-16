@@ -132,15 +132,6 @@ impl RateLimiter {
             },
         );
 
-        // CDP tools - moderate usage
-        configs.insert(
-            "cdp".to_string(),
-            RateLimitConfig {
-                requests_per_minute: 30,
-                burst_size: 5,
-            },
-        );
-
         // WASM debug tools - moderate usage
         configs.insert(
             "wasm_debug".to_string(),
@@ -195,18 +186,13 @@ impl RateLimiter {
             | "duckduckgo_search" | "startpage_search" => "search",
 
             // JavaScript execution
-            "cdp_runtime_evaluate" => "javascript",
+            "cdp_runtime_evaluate" | "browser_eval" => "javascript",
 
-            // Memory tools
-            "ai_memory_store_research"
-            | "ai_memory_get_research"
-            | "ai_memory_search_research"
-            | "ai_memory_store_credentials"
-            | "ai_memory_get_credentials"
-            | "ai_memory_store_bookmark"
-            | "ai_memory_get_bookmarks"
-            | "ai_memory_store_note"
-            | "ai_memory_get_notes" => "memory",
+            // Credential vault tools
+            "vault_store_credential"
+            | "vault_list_credentials"
+            | "vault_delete_credential"
+            | "browser_fill_credential" => "memory",
 
             // Snapshot/scraping tools
             "snapshot_url" | "browse_readable_content" | "browser_get_page_content" => {
@@ -215,17 +201,6 @@ impl RateLimiter {
 
             // Session management
             "browser_session_management" | "browser_validate_session" => "session",
-
-            // CDP tools
-            "cdp_dom_get_document"
-            | "cdp_dom_query_selector"
-            | "cdp_dom_get_attributes"
-            | "cdp_dom_get_computed_style"
-            | "cdp_network_get_cookies"
-            | "cdp_network_set_cookie"
-            | "cdp_console_get_messages"
-            | "cdp_page_screenshot"
-            | "cdp_page_reload" => "cdp",
 
             // Browser automation - treated as navigation (HTTP requests)
             "browser_click_element"

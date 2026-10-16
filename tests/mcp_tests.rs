@@ -88,15 +88,6 @@ mod tests {
             }
         }
 
-        // DOM tools
-        let dom_result = harness.call_tool(
-            "cdp_dom_get_document",
-            serde_json::json!({
-                "depth": 1
-            }),
-        );
-        assert!(dom_result.is_ok(), "DOM tools should be functional");
-
         eprintln!("All major tool categories passed smoke test");
     }
 }

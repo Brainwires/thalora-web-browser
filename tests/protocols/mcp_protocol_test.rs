@@ -149,14 +149,10 @@ fn test_expected_tools_present() {
         "Should have browser_click_element tool"
     );
 
-    // CDP tools
+    // JavaScript evaluation
     assert!(
         tool_names.contains(&"cdp_runtime_evaluate".to_string()),
         "Should have cdp_runtime_evaluate tool"
-    );
-    assert!(
-        tool_names.contains(&"cdp_dom_get_document".to_string()),
-        "Should have cdp_dom_get_document tool"
     );
 
     println!("Found {} tools: {:?}", tool_names.len(), tool_names);

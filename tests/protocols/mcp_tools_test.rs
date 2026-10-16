@@ -312,41 +312,16 @@ fn test_cdp_runtime_evaluate_with_error() {
     }
 }
 
-#[test]
-fn test_cdp_dom_get_document() {
-    let mut harness = create_initialized_harness().expect("Failed to create harness");
-
-    let response = harness
-        .call_tool(
-            "cdp_dom_get_document",
-            json!({
-                "depth": 2
-            }),
-        )
-        .expect("DOM document retrieval should succeed");
-
-    assert_tool_success(&response, Duration::from_secs(10)).expect("DOM retrieval should be fast");
-    validate_tool_response(&response, "text").expect("DOM should return valid response");
-
-    let response_text = response.content[0].get("text").unwrap().as_str().unwrap();
-    assert!(
-        response_text.contains("document")
-            || response_text.contains("DOM")
-            || response_text.contains("html"),
-        "Should contain DOM information"
-    );
-}
-
 // Parameter Validation Tests
 #[test]
 fn test_tools_handle_missing_required_params() {
     let mut harness = create_initialized_harness().expect("Failed to create harness");
 
     let test_cases = vec![
-        ("snapshot_url", json!({})),           // Missing required 'url'
-        ("ai_memory_get_research", json!({})), // Missing required 'key'
-        ("cdp_runtime_evaluate", json!({})),   // Missing required 'expression'
-        ("web_search", json!({})),             // Missing required 'query'
+        ("snapshot_url", json!({})),            // Missing required 'url'
+        ("vault_delete_credential", json!({})), // Missing required 'service'
+        ("cdp_runtime_evaluate", json!({})),    // Missing required 'expression'
+        ("web_search", json!({})),              // Missing required 'query'
     ];
 
     for (tool_name, args) in test_cases {

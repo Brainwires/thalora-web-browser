@@ -2,7 +2,6 @@ use anyhow::Result;
 use futures::FutureExt;
 use std::collections::HashMap;
 use std::panic::AssertUnwindSafe;
-use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use tracing::{error, info};
 use vfs::VfsInstance;
@@ -11,11 +10,8 @@ use crate::engine::browser::HeadlessWebBrowser;
 // websocket API is now natively implemented in Boa engine
 // DOM is now natively handled by Boa engine
 use crate::engine::EngineConfig;
-use crate::features::ai_memory::AiMemoryHeap;
+use crate::features::credential_vault::CredentialVault;
 use crate::protocols::browser_tools::BrowserTools;
-use crate::protocols::cdp::CdpServer;
-use crate::protocols::cdp_tools::CdpTools;
-use crate::protocols::memory_tools::MemoryTools;
 use crate::protocols::rate_limiter::RateLimiter;
 use crate::protocols::security::sanitize_session_id;
 use crate::protocols::session_manager::SessionManager;
@@ -25,12 +21,8 @@ use crate::protocols::wasm_debug_tools::WasmDebugTools;
 #[allow(dead_code)]
 pub struct McpServer {
     // websocket API is now natively implemented in Boa engine
-    pub(super) ai_memory: AiMemoryHeap,
-    pub(super) cdp_server: CdpServer,
-    pub(super) memory_tools: MemoryTools,
-    pub(super) cdp_tools: CdpTools,
-    /// Shared browser tools - wrapped in Rc to share with CdpTools
-    pub(super) browser_tools: Rc<BrowserTools>,
+    pub(super) vault: CredentialVault,
+    pub(super) browser_tools: BrowserTools,
     pub(super) session_manager: SessionManager,
     /// Optional session-scoped persistent VFS instances. Keyed by session_id.
     pub(super) session_vfs: Arc<Mutex<HashMap<String, Arc<VfsInstance>>>>,
@@ -72,8 +64,7 @@ impl McpServer {
             panic!("Could not initialize session manager: {}", e);
         });
 
-        // Create shared BrowserTools instance
-        let browser_tools = Rc::new(BrowserTools::new());
+        let browser_tools = BrowserTools::new();
 
         #[cfg(feature = "wasm-debug")]
         let wasm_debug_tools = {
@@ -96,11 +87,7 @@ impl McpServer {
 
         Self {
             // websocket API is now natively implemented in Boa engine
-            ai_memory,
-            cdp_server: CdpServer::new(),
-            memory_tools: MemoryTools::new(),
-            // Share BrowserTools instance with CdpTools to avoid duplicate Drop calls
-            cdp_tools: CdpTools::with_browser_tools(browser_tools.clone()),
+            vault,
             browser_tools,
             session_manager,
             session_vfs: Arc::new(Mutex::new(HashMap::new())),
