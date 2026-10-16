@@ -13,12 +13,18 @@ fn main() -> ExitCode {
         "check-stubs" => cmd::check_stubs::run(&args[1..]),
         "bump-version" => cmd::bump_version::run(&args[1..]),
 
+        // Fingerprint surface tasks
+        "fingerprint-dump" => exit_from_result(cmd::fingerprint::run_dump(&args[1..])),
+        "fingerprint-diff" => cmd::fingerprint::run_diff(&args[1..]),
+
+        // Conformance
+        "wpt" => exit_from_result(cmd::wpt::run(&args[1..])),
+
         // GUI visual testing tasks
         "gui-screenshot" => exit_from_result(cmd::gui_screenshot::run(&args[1..])),
         "gui-compare" => exit_from_result(cmd::gui_compare::run(&args[1..])),
 
         // Existing build/test tasks
-        "build-wasm" => exit_from_result(cmd::build_wasm::run()),
         "test-mcp" => exit_from_result(cmd::test_mcp::run(
             args.get(1).map(String::as_str).unwrap_or(""),
         )),
@@ -50,6 +56,41 @@ fn print_help() {
     println!("  check-stubs [--strict]       Scan for unfinished code (todo!(), FIXME, etc.)");
     println!("  bump-version <VER> [--dry-run]  Bump version across workspace");
     println!();
+    println!("FINGERPRINT SURFACE:");
+    println!(
+        "  fingerprint-dump             Dump the JS fingerprint surface (tests/fingerprint/dump.js)"
+    );
+    println!("    --out PATH                 Output file (default: stdout)");
+    println!(
+        "    --bin PATH                 thalora binary (default: newest target/{{debug,release}}/thalora)"
+    );
+    println!("    --chrome[=BIN]             Dump headless Google Chrome instead (reference)");
+    println!("  fingerprint-diff A.json B.json  Categorized diff (A = reference, B = subject)");
+    println!("    --strict                   Exit non-zero when anything differs");
+    println!("    --limit N                  Items printed per category (default 40)");
+    println!();
+    println!("CONFORMANCE:");
+    println!(
+        "  wpt [OPTIONS]                Run Web Platform Tests against thalora over MCP stdio"
+    );
+    println!(
+        "    --dirs a,b,...             WPT dirs/files (default: dom,html/webappapis,fetch/api/basic,"
+    );
+    println!("                               url,encoding,webidl)");
+    println!("    --filter SUBSTR            Only tests whose path contains SUBSTR");
+    println!(
+        "    --timeout-ms N             Per-test timeout (default: 10000; x6 for timeout=long)"
+    );
+    println!("    --jobs N                   Parallel thalora processes (default: cores/2, max 4)");
+    println!("    --write                    Write tests/wpt/results.json");
+    println!("    --compare                  Diff against existing tests/wpt/results.json");
+    println!("    --wpt-dir PATH             Use an existing WPT checkout (default: target/wpt)");
+    println!("    --release                  Use a release build (with test-hooks)");
+    println!("    --no-build                 Skip cargo build of thalora");
+    println!("    --verbose                  Print every test result");
+    println!("    --log-dir PATH             Write each thalora process's stderr to PATH");
+    println!("    --no-shims                 Disable the window.parent harness shim");
+    println!();
     println!("GUI VISUAL TESTING:");
     println!("  gui-screenshot [URL]         Build + launch browser, capture PNG screenshot");
     println!("    --out PATH                 Output file (default: /tmp/thalora-screenshot.png)");
@@ -64,7 +105,6 @@ fn print_help() {
     );
     println!();
     println!("BUILD & TEST TASKS:");
-    println!("  build-wasm       Build WASM targets (bundler, nodejs, web) via wasm-pack");
     println!("  test-mcp         Run MCP test suite [--quick | --perf | --verbose]");
     println!("  test-mcp-clean   Run quick smoke tests with clean JSON output");
     println!("  demo-form        Run full form automation demo");

@@ -5,6 +5,27 @@ use std::io::{BufRead, BufReader, Write};
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
+/// Return a unique temp file path for a test's credential vault, so tests never
+/// touch the real ~/.thalora vault.
+pub fn unique_vault_path() -> String {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+    let n = COUNTER.fetch_add(1, Ordering::SeqCst);
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    std::env::temp_dir()
+        .join(format!(
+            "thalora-test-vault-{}-{}-{}.json",
+            std::process::id(),
+            nanos,
+            n
+        ))
+        .to_string_lossy()
+        .into_owned()
+}
+
 /// Test harness for the MCP server subprocess
 pub struct McpTestHarness {
     pub process: Child,
@@ -26,17 +47,13 @@ impl Default for McpTestConfig {
         // Use full mode for testing (default is minimal which only exposes 2 tools)
         env_vars.insert("THALORA_MCP_MODE".to_string(), "full".to_string());
         // Enable all tool categories by default for testing (since they default to disabled in production)
-        env_vars.insert("THALORA_ENABLE_AI_MEMORY".to_string(), "true".to_string());
+        env_vars.insert("THALORA_ENABLE_VAULT".to_string(), "true".to_string());
+        env_vars.insert("THALORA_VAULT_PATH".to_string(), unique_vault_path());
         env_vars.insert("THALORA_ENABLE_CDP".to_string(), "true".to_string());
         env_vars.insert("THALORA_ENABLE_SCRAPING".to_string(), "true".to_string());
         env_vars.insert("THALORA_ENABLE_SEARCH".to_string(), "true".to_string());
         env_vars.insert("THALORA_ENABLE_SESSIONS".to_string(), "true".to_string());
-        // Mock-backed CDP tools are hidden by default; existing CDP tests exercise them
-        env_vars.insert(
-            "THALORA_ENABLE_CDP_EXPERIMENTAL".to_string(),
-            "true".to_string(),
-        );
-        // AI memory tools require a master password for encryption
+        // Vault tools require a master password for encryption
         env_vars.insert(
             "THALORA_MASTER_PASSWORD".to_string(),
             "test_master_password_min_32chars_secure".to_string(),
@@ -418,7 +435,7 @@ pub fn create_harness_with_disabled_categories(
 
     // All actual server environment variables for tool categories
     let all_categories = [
-        "THALORA_ENABLE_AI_MEMORY",
+        "THALORA_ENABLE_VAULT",
         "THALORA_ENABLE_CDP",
         "THALORA_ENABLE_SCRAPING",
         "THALORA_ENABLE_SEARCH",
@@ -433,6 +450,7 @@ pub fn create_harness_with_disabled_categories(
         }
     }
 
+    env_vars.insert("THALORA_VAULT_PATH".to_string(), unique_vault_path());
     create_harness_with_raw_env(env_vars)
 }
 
@@ -445,7 +463,7 @@ pub fn create_harness_with_only_categories(enabled_categories: &[&str]) -> Resul
 
     // All actual server environment variables for tool categories
     let all_categories = [
-        "THALORA_ENABLE_AI_MEMORY",
+        "THALORA_ENABLE_VAULT",
         "THALORA_ENABLE_CDP",
         "THALORA_ENABLE_SCRAPING",
         "THALORA_ENABLE_SEARCH",
@@ -460,6 +478,7 @@ pub fn create_harness_with_only_categories(enabled_categories: &[&str]) -> Resul
         }
     }
 
+    env_vars.insert("THALORA_VAULT_PATH".to_string(), unique_vault_path());
     create_harness_with_raw_env(env_vars)
 }
 

@@ -1,166 +1,90 @@
-# 🧠 Thalora - Full-Featured Pure Rust Web Browser
+# Thalora
 
 [![CI](https://github.com/Brainwires/thalora-web-browser/actions/workflows/ci.yml/badge.svg)](https://github.com/Brainwires/thalora-web-browser/actions/workflows/ci.yml)
-[![Crates.io](https://img.shields.io/crates/v/thalora.svg)](https://crates.io/crates/thalora)
-[![docs.rs](https://docs.rs/thalora/badge.svg)](https://docs.rs/thalora)
-[![LOC](https://img.shields.io/badge/lines%20of%20code-209K-blue)](#architecture)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Rust](https://img.shields.io/badge/rust-2024%20edition-orange)](https://www.rust-lang.org/)
 
-**🚀 The most advanced headless web browser designed for AI agents**
+A web browser written in Rust for AI agents and humans, exposed to agents as an
+MCP server. Thalora owns its engine end to end, so it decides what pages can
+observe about who is driving it. It does not use Chrome, Chromium or CEF.
 
-A cutting-edge **full-featured web browser** built entirely in Rust, designed specifically for AI model integration via the Model Context Protocol (MCP). Thalora provides complete Chrome 131 compatibility with real JavaScript execution, modern web APIs, and AI memory persistence - all without any Chrome or Chromium dependencies.
+## Status (October 2026)
 
-## 🌟 **What Makes Thalora Special?**
+Thalora works today for reading pages and for scripted interaction with
+server-rendered and lightly scripted sites. It is **mid re-architecture**; read
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) before contributing.
 
-### 🔥 **Production-Ready Full Browser**
-- **Real Chrome 131 Mimicking**: Perfect User-Agent, headers, and browser fingerprinting
-- **Advanced JavaScript Engine**: Boa engine with complete ES2017-2025 support
-- **Modern Web APIs**: WebRTC, WebAssembly, Service Workers, WebGL, Media APIs
-- **Honest about gaps**: APIs that are still stubbed or simulated are listed in [docs/MOCKED_APIS.md](docs/MOCKED_APIS.md)
-- **Google-Tested**: Successfully handles Google's anti-bot protection (proves authenticity)
+What works now:
 
-### 🧠 **AI-First Architecture**
-- **AI Memory Heap**: Persistent storage that survives context compression
-- **MCP Server**: Scraping, search, browser sessions, form automation, accessibility tree and AI memory tools over stdio or HTTP
-- **JavaScript evaluation**: Run JS in a session's page via `cdp_runtime_evaluate`
-- **Single Binary**: No dependencies, deploy anywhere
+- MCP server over stdio or streamable HTTP, with page reading (readable
+  markdown, links, metadata), web search, named browser sessions, agent
+  snapshots with element refs, clicks, typing, forms, waits, console capture
+  and an accessibility tree.
+- JavaScript on the [Boa](https://github.com/boa-dev/boa) engine (our fork),
+  with an event loop for timers, microtasks and fetch/XHR settlement.
+- An encrypted credential vault whose secrets are filled into pages without
+  ever being returned to the model.
+- SSRF protection, per-origin credential filling and a JS security policy for
+  agent-injected scripts.
 
-### 🌐 **Complete Browser Capabilities**
-- **Real HTTP/2 Client**: Authentic network requests with connection pooling
-- **JavaScript Execution**: Sandboxed Boa engine (an event loop for timers and async callbacks is in progress)
-- **Modern Web Standards**: Fetch, WebSocket, Storage, Crypto, Events, and more
-- **Device APIs**: WebHID, USB, Serial, Bluetooth (Chrome 131+ features)
-- **WebGL & Canvas**: Full graphics rendering with fingerprint compatibility
+Known gaps, which the re-architecture addresses:
 
-## ✨ **Feature Highlights**
+- **Stale reads after interaction.** Snapshots, page text and extraction read
+  the HTML captured at load time, not the live DOM, so changes made by page
+  JavaScript after a click usually do not appear. The interactive pages in
+  `tests/corpus` record this as `known_failing`.
+- **JavaScript performance and coverage.** Boa is an interpreter. Large SPA
+  bundles often hit the per-evaluation time budget, and many Web APIs are
+  partial or stubbed.
+- **Rendering.** CSS cascade and layout are hand-rolled and incomplete
+  (no `!important`, floats, inline formatting or tables), so screenshots are
+  approximate. `getComputedStyle` returns defaults.
+- **Input.** Clicks and key presses are dispatched as plain events, not
+  trusted pointer/keyboard sequences.
+- **Fingerprint.** Compared with Chrome, the global object is missing about a
+  thousand interfaces (`cargo xtask fingerprint-diff`).
+- **GUI.** The Avalonia desktop app in `gui/` runs its own engine instance and
+  its own layout; it cannot yet attach to an agent's session.
+- Session persistence (`save_session`) is not implemented.
 
-### 🎯 **Real Browser APIs (No Mocks!)**
-| Category | APIs Included |
-|----------|---------------|
-| **Core** | Navigator, Document, Window, Console, Timers |
-| **Network** | Fetch API, WebSocket, XMLHttpRequest, Server-Sent Events |
-| **Storage** | localStorage, sessionStorage, IndexedDB, Cache API |
-| **Media** | getUserMedia, WebRTC, Web Audio, Speech Recognition |
-| **Graphics** | WebGL, Canvas 2D, WebGPU (planned) |
-| **Modern** | WebAssembly, Service Workers, Web Workers |
-| **Device** | WebHID, USB, Serial, Bluetooth, Geolocation |
-| **Security** | Web Crypto API, Permissions API, CSP |
+The target is V8 (through deno_core, with bindings generated from WebIDL),
+Stylo + Taffy + Parley + Vello for style, layout and paint, one live DOM that
+every reader uses, and a GUI that shows frames painted by the same pipeline
+the agent sees. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-### 🧠 **AI Memory System**
-```text
-ai_memory_store_research   { key, topic, summary, tags, confidence_score }
-ai_memory_search_research  { query, tags }
-ai_memory_store_credentials { service, username, password }   # AES-256-GCM encrypted
-ai_memory_get_credentials  { service }                        # never returns the secret
-```
+## Build
 
-### 🔍 **JavaScript in the page**
-```text
-browser_navigate_to   { url, session_id: "work" }
-cdp_runtime_evaluate  { expression: "document.querySelector('h1').textContent", session_id: "work" }
-```
+Requires a recent stable Rust toolchain (edition 2024) and `pkg-config`.
+The optional `native` feature (media, WebRTC, page WebAssembly) also needs
+FFmpeg development libraries.
 
-## 🛠 **Installation & Quick Start**
-
-### System Requirements
-
-**Required for all builds:**
-- Rust 1.75+ (with cargo)
-- pkg-config
-
-**Required for Media & Graphics features (Phase 3):**
-
-Ubuntu/Debian:
 ```bash
-sudo apt-get update && sudo apt-get install -y \
-    libavutil-dev libavformat-dev libavcodec-dev \
-    libavdevice-dev libavfilter-dev libswscale-dev \
-    libswresample-dev pkg-config clang
+git clone --recursive https://github.com/Brainwires/thalora-web-browser.git
+cd thalora-web-browser
+cargo build --release          # MCP server binary + FFI library
+./target/release/thalora       # MCP over stdio
+./target/release/thalora server --transport http --port 8080
 ```
 
-Fedora/RHEL:
-```bash
-sudo dnf install ffmpeg-devel clang pkg-config
-```
-
-macOS:
-```bash
-brew install ffmpeg pkg-config
-```
-
-### Installation
-```bash
-git clone https://github.com/brainwires/thalora.git
-cd thalora
-cargo build --release
-
-# Single binary - no dependencies!
-./target/release/thalora
-```
-
-### Build Options
-
-Thalora supports two build targets via Cargo features:
-
-#### Native Build (Default)
-Full-featured build for desktop/server environments with all capabilities:
-```bash
-# Default build (native features enabled)
-cargo build --release
-
-# Explicit native build
-cargo build --release --features native --no-default-features
-
-# Run the MCP server
-./target/release/thalora
-```
-
-#### WebAssembly (WASM) Build
-Build for browser environments using wasm-pack:
-```bash
-# Install wasm-pack if not already installed
-cargo install wasm-pack
-
-# Build WASM package for web
-wasm-pack build --target web --features wasm --no-default-features
-
-# Output is in pkg/ directory:
-# - pkg/thalora.js       # JavaScript bindings
-# - pkg/thalora.d.ts     # TypeScript definitions
-# - pkg/thalora_bg.wasm  # WebAssembly binary
-# - pkg/package.json     # NPM package config
-```
-
-The WASM build provides browser API compatibility using web-sys for:
-- HTTP requests via browser's fetch API
-- Storage via localStorage/IndexedDB
-- Timers via browser's setTimeout/setInterval
-- Cryptography via Web Crypto API
-
-#### Feature Flags
 | Feature | Description |
 |---------|-------------|
-| `native` (default) | Full native build with tokio, reqwest, WebRTC, media APIs |
-| `wasm` | WebAssembly build using web-sys for browser API delegation |
-| `gui` | Native GUI mode with winit/wgpu (includes `native`) |
+| `desktop` (default) | MCP server binary, HTTP transport and the FFI library used by the GUI |
+| `native` | Adds audio/video, WebRTC and page WebAssembly (wasmtime); may need FFmpeg |
+| `wasm-debug` | MCP tools for inspecting and running WebAssembly modules |
 
-### Test All Features
-```bash
-# Test core functionality
-cargo test
+### Claude Desktop / MCP client configuration
 
-# Test Google search (proves real browser behavior)
-cargo test google_search_test -- --nocapture
-
-# Test MCP tools
-echo '{"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}' | ./target/release/thalora
-
-# Check WASM library compiles
-cargo check --lib --features wasm --no-default-features
+```json
+{
+  "mcpServers": {
+    "thalora": {
+      "command": "/usr/local/bin/thalora",
+      "env": { "THALORA_PRESET": "brainclaw" }
+    }
+  }
+}
 ```
 
-## 🚀 **MCP Tools**
+## MCP tools
 
 Which tools are listed depends on the configuration (see
 [docs/ENVIRONMENT_VARIABLES.md](docs/ENVIRONMENT_VARIABLES.md)):
@@ -171,8 +95,9 @@ Which tools are listed depends on the configuration (see
 | Full | `THALORA_MCP_MODE=full` + `THALORA_ENABLE_*` flags | categories below |
 | BrainClaw preset | `THALORA_PRESET=brainclaw` | sessions, automation, search, `cdp_runtime_evaluate`, accessibility, aliases |
 
-Every tool returns standard MCP content blocks. The tables below are checked
-against the server's tool registry by `tests/protocols/readme_tools_test.rs`.
+Every tool returns standard MCP content blocks. Page-derived text is marked as
+untrusted content. The tables below are checked against the server's tool
+registry by `tests/protocols/readme_tools_test.rs`.
 
 <!-- tools:start -->
 ### 🌐 Scraping & search (`THALORA_ENABLE_SCRAPING`, on by default; `THALORA_ENABLE_SEARCH`)
@@ -190,7 +115,7 @@ against the server's tool registry by `tests/protocols/readme_tools_test.rs`.
 | `browser_navigate_back` / `browser_navigate_forward` | Move through session history |
 | `browser_refresh_page` | Reload the current page |
 | `browser_snapshot` | Compact page outline for agents: interactive elements with refs (`[ref=e12]`), headings, landmarks and text, within a token budget |
-| `browser_screenshot` | PNG screenshot from Thalora's own layout engine (approximate; images as placeholders) |
+| `browser_screenshot` | PNG screenshot from Thalora's current layout code (approximate; images as placeholders) |
 | `browser_get_page_content` | Current URL and content of a session |
 | `browser_click_element` | Click an element by snapshot ref or CSS selector; submit buttons submit their form and links navigate unless `preventDefault()` is called |
 | `browser_type_text` | Type into an input (fires `input`/`change`) |
@@ -215,24 +140,23 @@ CSS selector. Refs stay valid until the page content changes.
 Tools that act on an existing page return an error for an unknown `session_id`
 instead of silently creating a blank session; `"default"` always exists.
 
-### 🔍 Chrome DevTools Protocol (`THALORA_ENABLE_CDP`)
+### JavaScript (`THALORA_ENABLE_CDP`)
 | Tool | Description |
 |------|-------------|
 | `cdp_runtime_evaluate` | Evaluate JavaScript in a session's page (default session `"default"`) |
 
-The other CDP tools (`cdp_dom_*`, `cdp_network_*`, `cdp_console_get_messages`,
-`cdp_page_screenshot`, `cdp_page_reload`) are currently backed by mock data and
-are only listed with `THALORA_ENABLE_CDP_EXPERIMENTAL=true`.
+The name is historical. The earlier mock CDP domains were removed; a real CDP
+endpoint over live engine state is planned (see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)).
 
-### 🧠 AI memory (`THALORA_ENABLE_AI_MEMORY`, requires `THALORA_MASTER_PASSWORD`)
+### Credential vault (`THALORA_ENABLE_VAULT`, requires `THALORA_MASTER_PASSWORD`)
 | Tool | Description |
 |------|-------------|
-| `ai_memory_store_research` / `ai_memory_get_research` / `ai_memory_search_research` | Persistent research notes with tags and confidence scores |
-| `ai_memory_store_credentials` | Store credentials, encrypted with AES-256-GCM (Argon2id-derived key); pass `origin` to allow filling them into that site |
-| `ai_memory_get_credentials` | Look up stored credentials; returns service, username and whether a password exists — never the secret (unless `THALORA_EXPOSE_PASSWORDS=true`) |
-| `browser_fill_credential` | Type a stored username/password into the page server-side, only on the credential's own origin; the secret is never returned |
-| `ai_memory_store_bookmark` / `ai_memory_get_bookmarks` | Bookmarks with metadata |
-| `ai_memory_store_note` / `ai_memory_get_notes` | Categorized notes |
+| `vault_store_credential` | Store a site credential, encrypted at rest with AES-256-GCM (Argon2id-derived key); pass `origin` to allow filling it into that site |
+| `vault_list_credentials` | List stored credentials (key, service, username, origin); secrets are never returned |
+| `vault_delete_credential` | Delete a stored credential |
+| `browser_fill_credential` | Type a stored username/password into the page server-side, only on the credential's own origin; the secret is never returned to the model |
+
+The vault file is `~/.thalora/credentials.json` (override with `THALORA_VAULT_PATH`), written with owner-only permissions.
 
 ### 🤖 BrainClaw aliases (`THALORA_PRESET=brainclaw`)
 | Tool | Description |
@@ -246,407 +170,54 @@ are only listed with `THALORA_ENABLE_CDP_EXPERIMENTAL=true`.
 | `browser_search` | `web_search` with sensible defaults |
 <!-- tools:end -->
 
-## 🧪 **Examples**
+### Examples
 
-### Read a page as markdown
 ```json
-{
-  "method": "tools/call",
-  "params": {
-    "name": "snapshot_url",
-    "arguments": {
-      "url": "https://news.ycombinator.com",
-      "wait_for_js": true,
-      "extract_readable": true,
-      "format": "markdown"
-    }
-  }
-}
-```
-
-### Drive a page in a session
-```json
+{"method": "tools/call", "params": {"name": "snapshot_url", "arguments": {"url": "https://news.ycombinator.com", "extract_readable": true, "format": "markdown"}}}
 {"method": "tools/call", "params": {"name": "browser_navigate_to", "arguments": {"url": "https://example.com/login", "session_id": "work"}}}
-{"method": "tools/call", "params": {"name": "browser_fill_form", "arguments": {"session_id": "work", "form_data": {"username": "me", "password": "…"}}}}
+{"method": "tools/call", "params": {"name": "browser_snapshot", "arguments": {"session_id": "work"}}}
+{"method": "tools/call", "params": {"name": "browser_fill_credential", "arguments": {"session_id": "work", "service": "example", "username_ref": "e3", "password_ref": "e4"}}}
 {"method": "tools/call", "params": {"name": "cdp_runtime_evaluate", "arguments": {"session_id": "work", "expression": "document.title"}}}
 ```
 
-### Store research
-```json
-{
-  "method": "tools/call",
-  "params": {
-    "name": "ai_memory_store_research",
-    "arguments": {
-      "key": "ai_trends",
-      "topic": "Emerging AI Architectures",
-      "summary": "Latest developments in transformer alternatives",
-      "tags": ["ai", "architecture"],
-      "confidence_score": 0.9
-    }
-  }
-}
-```
+## Repository layout
 
-## 🏗 **Architecture - Modular & Extensible**
+| Path | Contents |
+|------|----------|
+| `src/` | Browser core (navigation, renderer, snapshot, extraction), MCP server, FFI for the GUI |
+| `engines/boa` | Boa fork (git submodule). Frozen: build fixes only until V8 replaces it |
+| `engines/thalora-browser-apis` | Web APIs and the DOM arena, bound to Boa |
+| `vfs/` | Sandboxed in-memory filesystem used by page-facing storage |
+| `gui/` | Avalonia desktop browser (.NET); see [gui/README.md](gui/README.md) |
+| `tests/` | Unit, integration and MCP end-to-end tests; `tests/corpus` page corpus and scoreboard; `tests/fingerprint` global-object dumps |
+| `xtask/` | `cargo xtask` developer commands (CI, fingerprint dump/diff, GUI screenshots) |
+| `docs/archive/` | Old status reports, kept for history; not maintained |
 
-```
-thalora/
-├── src/
-│   ├── engine/              # 🚀 Core Browser Engine
-│   │   ├── browser.rs       # HTTP client, session management
-│   │   ├── renderer.rs      # JavaScript execution (Boa engine)
-│   │   ├── engine.rs        # Advanced JS runtime with async support
-│   │   └── dom.rs           # DOM tree management
-│   │
-│   ├── apis/                # 🌐 Modern Web APIs
-│   │   ├── fetch_api.rs     # Real Fetch implementation
-│   │   ├── websocket.rs     # WebSocket connections
-│   │   ├── storage.rs       # localStorage/sessionStorage
-│   │   ├── events.rs        # DOM event system
-│   │   ├── timers.rs        # Real setTimeout/setInterval
-│   │   ├── navigator.rs     # Complete Navigator API
-│   │   ├── webrtc.rs        # Real peer-to-peer networking
-│   │   ├── webassembly.rs   # WASM execution via wasmtime
-│   │   ├── media.rs         # Audio/video APIs
-│   │   ├── geolocation.rs   # Location services
-│   │   └── service_worker.rs # Service Worker implementation
-│   │
-│   ├── features/            # 🎯 Advanced Capabilities
-│   │   ├── ai_memory.rs     # Persistent AI memory heap
-│   │   ├── webgl.rs         # Graphics rendering
-│   │   └── fingerprinting.rs # Stealth & bot detection evasion
-│   │
-│   ├── protocols/           # 🔌 Communication Protocols
-│   │   ├── mcp_server.rs    # Model Context Protocol server
-│   │   ├── cdp.rs           # Chrome DevTools Protocol
-│   │   ├── cdp_tools.rs     # CDP tool implementations
-│   │   └── memory_tools.rs  # AI memory tool implementations
-│   │
-│   ├── main.rs             # MCP server entry point
-│   └── lib.rs              # Public API exports
-│
-└── tests/                  # 🧪 Comprehensive Test Suite
-    ├── engine/             # Core engine functionality
-    ├── apis/               # Web API compliance tests
-    ├── features/           # Advanced feature tests
-    ├── protocols/          # MCP/CDP protocol tests
-    └── google_search_test.rs # Real-world Google integration test
-```
-
-## ⚠️ **Known Limitations**
-
-### CSS Rendering
-
-Thalora's rendering pipeline resolves CSS in Rust and builds a native Avalonia control tree in C#. Some CSS features are parsed and computed but not yet rendered:
-
-| Category | Unsupported Properties |
-|----------|----------------------|
-| **Visual effects** | `transform`, `filter`, `backdrop-filter`, `box-shadow`, `text-shadow`, `clip-path`, `mask`, `mix-blend-mode` |
-| **Generated content** | `::before` / `::after` pseudo-elements, `content`, `counter-reset`, `counter-increment` |
-| **Animation** | `animation`, `transition`, `will-change` |
-| **Layout (partial)** | `float`, `clear`, `overflow-x/y`, `grid-auto-*`, `grid-column`, `grid-row` |
-| **Typography** | `vertical-align`, `text-overflow`, `word-break`, `writing-mode` |
-
-Pages that rely heavily on these features (e.g. CSS-based icons via `::before`/`::after`, CSS animations, or `transform`-based layouts) may render differently than in a full browser.
-
-### JavaScript
-
-- JavaScript execution uses the [Boa](https://github.com/boa-dev/boa) engine — ES2017–2025 compatible but not V8/SpiderMonkey
-- Complex SPA hydration (React, Vue, Astro) may partially execute; `outerHTML` capture falls back to server HTML when JS output is unavailable
-- `eval()`, `Function()`, `document.write()`, and WebAssembly are blocked by the JS security sandbox
-
-### Images
-
-- SVG images are rasterized via [Svg.Skia](https://github.com/wieslawsoltes/Svg.Skia) — complex SVGs with filters or animations may not render correctly
-- Some CDN/media hosts block image requests regardless of User-Agent
-
----
-
-## 🔒 **Security & Performance**
-
-### Security Features
-- **JavaScript Sandboxing**: 5-second timeouts, dangerous patterns blocked
-- **Encrypted Storage**: AI memory credentials encrypted with AES-256-GCM (Argon2id key derivation from `THALORA_MASTER_PASSWORD`)
-- **Network Security**: TLS-only requests, header validation
-- **Memory Protection**: Controlled resource allocation
-
-### Performance Metrics
-- **Memory Usage**: ~40MB runtime (full features), ~10MB minimal
-- **JavaScript Speed**: 100-500ms execution per context
-- **Network**: HTTP/2 with connection pooling and keep-alive
-- **Storage**: Efficient JSON with incremental updates
-
-### Browser Compatibility
-- **User Agent**: `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36`
-- **Headers**: Complete Chrome 131 header set with Sec-Ch-Ua
-- **APIs**: 50+ modern web APIs implemented
-- **Fingerprinting**: WebGL vendor/renderer, hardware info, screen metrics
-
-## 🎯 **Use Cases**
-
-### 🤖 **AI Agents & Research**
-- **Knowledge Persistence**: Store findings across context limits
-- **Credential Management**: Secure API key storage
-- **Multi-session Projects**: Long-term research continuity
-- **Real Web Interaction**: Handle modern JavaScript sites
-
-### 🔬 **Web Development & Testing**
-- **Browser Debugging**: Full CDP integration
-- **Performance Analysis**: Real timing metrics
-- **Cross-platform Testing**: Consistent Rust environment
-- **API Testing**: Real network requests and responses
-
-### 📊 **Data Collection & Automation**
-- **Dynamic Scraping**: JavaScript-rendered content
-- **Form Automation**: Real user simulation
-- **Multi-step Workflows**: Session persistence
-- **Stealth Collection**: Bot detection evasion
-
-## 🖥 **Desktop GUI**
-
-Thalora includes a native Avalonia desktop browser (`gui/`) for visual testing and development.
-See **[gui/README.md](gui/README.md)** for the full development workflow.
-
-### Quick Start
+## Testing
 
 ```bash
-# Start the controller (long-lived daemon, survives GUI crashes)
-dotnet run --project gui/BrowserController -- \
-  --port 9222 \
-  --gui-path gui/ThaloraBrowser \
-  --auto-launch
-
-# Navigate and capture a screenshot
-curl -X POST http://localhost:9222/navigate \
-     -H "Content-Type: application/json" \
-     -d '{"url":"https://www.google.com","timeout_ms":30000}'
-curl "http://localhost:9222/screenshot?delay=500" -o /tmp/capture.png
+cargo test --workspace                                  # everything
+cargo test --test mcp_tests                             # MCP end-to-end (spawns the binary)
+THALORA_CORPUS_WRITE=1 cargo test --test mcp_tests corpus   # page corpus + scoreboard
+cargo xtask fingerprint-dump && cargo xtask fingerprint-diff tests/fingerprint/chrome-155.json tests/fingerprint/thalora-boa.json
 ```
 
-### Development Loop
+See [docs/TESTING.md](docs/TESTING.md).
 
-```bash
-# After code changes — rebuild and restart in one call
-dotnet build gui/ThaloraBrowser
-curl http://localhost:9222/restart
-```
+## Security
 
-### Visual Regression Testing
+See [docs/SECURITY.md](docs/SECURITY.md). Navigation to private and loopback
+addresses is blocked by default. Scripts injected by agents run under a
+stricter policy than page scripts. Vault secrets never leave the process
+except as keystrokes into a page of the credential's own origin.
 
-```bash
-cargo xtask gui-compare https://www.google.com --ref /tmp/chrome-google.png
-cargo xtask gui-screenshot https://www.google.com --out /tmp/thalora.png
-```
+## License
 
----
+MIT; see [LICENSE](LICENSE).
 
-## 🚀 **Deployment Options**
-
-### Single Binary Deployment
-```bash
-# Build optimized release
-cargo build --release
-
-# Deploy anywhere - zero dependencies
-scp target/release/thalora user@server:/usr/local/bin/
-chmod +x /usr/local/bin/thalora
-
-# Run as MCP server
-thalora
-```
-
-### Docker Container
-```dockerfile
-FROM rust:1.75 as builder
-WORKDIR /app
-COPY . .
-RUN cargo build --release
-
-FROM debian:bookworm-slim
-RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
-COPY --from=builder /app/target/release/thalora /usr/local/bin/
-EXPOSE 3000
-CMD ["thalora"]
-```
-
-### WASM Package Usage
-After building with `wasm-pack`, use the package in your web application:
-
-```javascript
-// Import the WASM module
-import init, { ThaloraBrowser, WasmAIMemory, WasmFingerprint } from './pkg/thalora.js';
-
-async function main() {
-  // Initialize the WASM module
-  await init();
-
-  // Create a browser instance
-  const browser = new ThaloraBrowser();
-
-  // Configure the browser
-  browser.set_user_agent('Mozilla/5.0 (Custom Agent)');
-  browser.set_viewport(1920, 1080);
-  browser.set_stealth_mode(true);
-
-  // Get the AI memory manager
-  const memory = browser.ai_memory();
-
-  // Store research data
-  const id = memory.add_research(
-    'Web Scraping Techniques',
-    'Modern approaches to data extraction...',
-    ['scraping', 'automation', 'web']
-  );
-
-  // Search stored memories
-  const results = memory.search('scraping');
-  console.log('Search results:', results);
-
-  // Get fingerprint manager for stealth browsing
-  const fingerprint = browser.fingerprint();
-  fingerprint.randomize();
-  const config = fingerprint.get_config();
-  console.log('Browser fingerprint:', config);
-
-  // Export/import memory for persistence
-  const exportedData = memory.export_json();
-  localStorage.setItem('thalora_memory', exportedData);
-}
-
-main();
-```
-
-```html
-<!-- Include in HTML -->
-<script type="module">
-  import init, { ThaloraBrowser, get_version, is_wasm } from './pkg/thalora.js';
-
-  init().then(() => {
-    console.log('Thalora version:', get_version());
-    console.log('Running in WASM:', is_wasm());
-  });
-</script>
-```
-
-### Claude Desktop Integration
-```json
-{
-  "mcpServers": {
-    "thalora": {
-      "command": "/usr/local/bin/thalora",
-      "args": [],
-      "env": {
-        "RUST_LOG": "info"
-      }
-    }
-  }
-}
-```
-
-## 📈 **Benchmarks**
-
-### Real Browser Compatibility Test Results
-
-**🧪 JavaScript Feature Test: 25/25 (100%) ✅**
-- ES6: Arrow Functions, Template Literals, Destructuring, Default Parameters, Spread
-- ES2017+: Async/Await, Object.entries, Object.values
-- Math: Math.trunc, Math.sign
-- String: includes, startsWith, endsWith
-- Array: Array.from, find, includes
-- Promises: Promise.resolve, Promise.all
-- APIs: fetch, localStorage, sessionStorage, WebSocket, console, navigator
-
-**🌐 Web API Availability: 23/23 (100%) ✅**
-- Core: Window, Document, Navigator, Location, History
-- Storage: localStorage, sessionStorage
-- Network: fetch, XMLHttpRequest, WebSocket
-- Security: Crypto, Permissions
-- Device: Geolocation, WebHID, USB, Serial, Bluetooth
-- Graphics: Canvas
-- Media: getUserMedia
-- Workers: Worker, ServiceWorker
-- Modern: Clipboard API
-
-**🎯 Tested Against Real Compatibility Sites**
-Our compatibility tests run against:
-- Kangax ECMAScript compatibility table
-- HTML5Test.com feature scoring
-- Can I Use database
-- MDN browser compatibility data
-
-*Results verified through automated test suite in `/tests/browser_compatibility_test.rs`*
-
-### Performance vs Other Solutions
-| Metric | Thalora | Puppeteer | Playwright | Selenium |
-|--------|----------|-----------|------------|----------|
-| **Memory** | 40MB | 200MB+ | 180MB+ | 150MB+ |
-| **Binary Size** | 25MB | 300MB+ | 250MB+ | N/A |
-| **Cold Start** | 50ms | 2000ms | 1500ms | 3000ms |
-| **Dependencies** | 0 | Chrome | Chrome/Firefox | Browser drivers |
-| **JavaScript** | Sandboxed | Full V8 | Full V8/Gecko | Full engines |
-| **AI Integration** | Native MCP | Custom | Custom | Custom |
-
-## 🌟 **Why Choose Thalora?**
-
-### For AI Researchers
-- ✅ **Memory Persistence**: Never lose research across sessions
-- ✅ **Secure Credentials**: Encrypted storage for API keys
-- ✅ **Session Tracking**: Long-term project continuity
-- ✅ **Native MCP**: Purpose-built for AI integration
-
-### For Web Developers
-- ✅ **CDP Integration**: Full Chrome DevTools debugging
-- ✅ **Real APIs**: No mocks, authentic browser behavior
-- ✅ **Performance**: Rust speed with memory safety
-- ✅ **Single Binary**: Easy deployment, no dependencies
-
-### For Data Engineers
-- ✅ **Modern Sites**: Handle JavaScript, SPAs, dynamic content
-- ✅ **Stealth Features**: Evade sophisticated bot detection
-- ✅ **Persistent Sessions**: Multi-step workflows with state
-- ✅ **Real Protocols**: Authentic HTTP/2, WebSocket, WebRTC
-
-## 🔮 **Roadmap**
-
-### v0.2.0 (Released)
-- ✅ Core browser engine with JavaScript
-- ✅ Modern Web APIs implementation
-- ✅ AI memory system with AES-256-GCM encryption
-- ✅ MCP server (stdio + streamable HTTP)
-- ✅ JavaScript evaluation via CDP `Runtime.evaluate` (other CDP domains experimental)
-- ✅ Security hardening (SSRF prevention, origin isolation, JS sandboxing)
-
-### v0.3.0
-- 🔄 Real event loop: timers, microtasks, fetch/XHR settlement
-- 🔄 Agent-grade page snapshots with stable element refs, wait conditions and screenshots
-- 🔄 WebGPU implementation
-- 🔄 Advanced fingerprinting evasion
-- 🔄 Browser extensions support
-- 🔄 Performance optimizations
-
-### v0.4.0
-- 📋 Multi-tab/window support
-- 📋 WebCodecs API
-- 📋 Advanced authentication flows
-- 📋 Real-time collaboration features
-
-## 📄 **License**
-
-MIT License - see [LICENSE](LICENSE) for details.
-
-## 🙏 **Acknowledgments**
-
-Built with excellent open-source projects:
-- [Boa](https://github.com/boa-dev/boa) - Pure Rust JavaScript engine
-- [Tokio](https://tokio.rs) - Async runtime
-- [reqwest](https://github.com/seanmonstar/reqwest) - HTTP client
-- [scraper](https://github.com/causal-agent/scraper) - HTML parsing
-- [wasmtime](https://github.com/bytecodealliance/wasmtime) - WebAssembly runtime
-- [webrtc-rs](https://github.com/webrtc-rs/webrtc) - WebRTC implementation
-
----
-
-**Thalora v0.2.0** - The most advanced headless browser for AI agents, built entirely in Rust 🦀
-
-*Where artificial intelligence meets authentic web browsing* 🧠🌐
+Built on [Boa](https://github.com/boa-dev/boa), [Tokio](https://tokio.rs),
+[reqwest](https://github.com/seanmonstar/reqwest),
+[html5ever](https://github.com/servo/html5ever),
+[Taffy](https://github.com/DioxusLabs/taffy),
+[wasmtime](https://github.com/bytecodealliance/wasmtime) and
+[webrtc-rs](https://github.com/webrtc-rs/webrtc).

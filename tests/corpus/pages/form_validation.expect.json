@@ -1,0 +1,18 @@
+{
+  "known_failing": "Stale extraction after actions: the live DOM updates (checked with browser_eval) but browser_get_page_content and browser_snapshot both still read the HTML captured at page load",
+  "text": ["Join the newsletter", "Selected plan: Free"],
+  "absent": ["Email is required.", "Thanks!"],
+  "min_refs": 3,
+  "steps": [
+    {"action": "click", "target": {"role": "button", "text": "Sign up"}},
+    {"expect": {"text": ["Email is required."], "absent": ["Thanks!"]}},
+    {"action": "type", "target": {"label": "Email"}, "value": "not-an-email"},
+    {"action": "click", "target": {"role": "button", "text": "Sign up"}},
+    {"expect": {"text": ["Enter a valid email address."], "absent": ["Email is required.", "Thanks!"]}},
+    {"action": "select", "target": {"label": "Plan"}, "value": "Pro"},
+    {"expect": {"text": ["Selected plan: Pro"], "absent": ["Selected plan: Free"]}},
+    {"action": "type", "target": {"label": "Email"}, "value": "a@b.co"},
+    {"action": "click", "target": {"role": "button", "text": "Sign up"}},
+    {"expect": {"text": ["Thanks! a@b.co is subscribed to pro."], "absent": ["Enter a valid email address."]}}
+  ]
+}

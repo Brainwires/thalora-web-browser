@@ -1,4 +1,5 @@
 {
+  "known_failing": 6,
   "pages": [
     {
       "min_refs": 7,
@@ -14,6 +15,93 @@
       "ok": true,
       "page": "/corpus/pages/checkout_form.html",
       "refs": 7,
+      "unexpected_text": []
+    },
+    {
+      "first_failed_step": 2,
+      "known_failing": "Stale extraction after actions: the live DOM updates (checked with browser_eval) but browser_get_page_content and browser_snapshot both still read the HTML captured at page load",
+      "min_refs": 2,
+      "missing_text": [],
+      "ok": false,
+      "page": "/corpus/pages/counter.html",
+      "refs": 2,
+      "steps": [
+        {
+          "action": "click",
+          "ok": true,
+          "step": 0,
+          "target": "e2",
+          "tool": "browser_click"
+        },
+        {
+          "action": "click",
+          "ok": true,
+          "step": 1,
+          "target": "e2",
+          "tool": "browser_click"
+        },
+        {
+          "expect": true,
+          "failed_in": [
+            "page_content",
+            "snapshot"
+          ],
+          "ok": false,
+          "page_content": {
+            "missing_text": [
+              "Quantity: 3",
+              "Total: 174 EUR"
+            ],
+            "unexpected_text": [
+              "Quantity: 1",
+              "Total: 58 EUR"
+            ]
+          },
+          "snapshot": {
+            "missing_text": [
+              "Quantity: 3",
+              "Total: 174 EUR"
+            ],
+            "unexpected_text": [
+              "Quantity: 1",
+              "Total: 58 EUR"
+            ]
+          },
+          "step": 2
+        },
+        {
+          "action": "click",
+          "ok": true,
+          "step": 3,
+          "target": "e1",
+          "tool": "browser_click"
+        },
+        {
+          "expect": true,
+          "failed_in": [
+            "page_content",
+            "snapshot"
+          ],
+          "ok": false,
+          "page_content": {
+            "missing_text": [
+              "Quantity: 2",
+              "Total: 116 EUR"
+            ],
+            "unexpected_text": []
+          },
+          "snapshot": {
+            "missing_text": [
+              "Quantity: 2",
+              "Total: 116 EUR"
+            ],
+            "unexpected_text": []
+          },
+          "step": 4
+        }
+      ],
+      "steps_passed": 3,
+      "steps_total": 5,
       "unexpected_text": []
     },
     {
@@ -33,6 +121,70 @@
       "unexpected_text": []
     },
     {
+      "first_failed_step": 1,
+      "known_failing": "Stale extraction after actions: the live DOM updates (checked with browser_eval) but browser_get_page_content and browser_snapshot both still read the HTML captured at page load",
+      "min_refs": 2,
+      "missing_text": [],
+      "ok": false,
+      "page": "/corpus/pages/disclosure.html",
+      "refs": 2,
+      "steps": [
+        {
+          "action": "click",
+          "ok": true,
+          "step": 0,
+          "target": "e1",
+          "tool": "browser_click"
+        },
+        {
+          "expect": true,
+          "failed_in": [
+            "page_content",
+            "snapshot"
+          ],
+          "ok": false,
+          "page_content": {
+            "missing_text": [
+              "Orders ship within 3 business days from Lisbon.",
+              "Hide shipping details"
+            ],
+            "unexpected_text": []
+          },
+          "snapshot": {
+            "missing_text": [
+              "Orders ship within 3 business days from Lisbon.",
+              "Hide shipping details"
+            ],
+            "unexpected_text": []
+          },
+          "step": 1
+        },
+        {
+          "action": "click",
+          "error": "no snapshot element matches {\"text\":\"Hide shipping details\"} (2 refs in snapshot)",
+          "ok": false,
+          "step": 2
+        },
+        {
+          "expect": true,
+          "failed_in": [],
+          "ok": true,
+          "page_content": {
+            "missing_text": [],
+            "unexpected_text": []
+          },
+          "snapshot": {
+            "missing_text": [],
+            "unexpected_text": []
+          },
+          "step": 3
+        }
+      ],
+      "steps_passed": 2,
+      "steps_total": 4,
+      "unexpected_text": []
+    },
+    {
       "min_refs": 0,
       "missing_text": [],
       "ok": true,
@@ -46,6 +198,324 @@
       "ok": true,
       "page": "/corpus/pages/event_delegation.html",
       "refs": 2,
+      "unexpected_text": []
+    },
+    {
+      "first_failed_step": 1,
+      "known_failing": "Stale extraction after actions: the live DOM updates (checked with browser_eval) but browser_get_page_content and browser_snapshot both still read the HTML captured at page load",
+      "min_refs": 1,
+      "missing_text": [],
+      "ok": false,
+      "page": "/corpus/pages/filter_list.html",
+      "refs": 1,
+      "steps": [
+        {
+          "action": "type",
+          "ok": true,
+          "step": 0,
+          "target": "e1",
+          "tool": "browser_type_text"
+        },
+        {
+          "expect": true,
+          "failed_in": [
+            "page_content",
+            "snapshot"
+          ],
+          "ok": false,
+          "page_content": {
+            "missing_text": [
+              "2 of 6 ports shown"
+            ],
+            "unexpected_text": [
+              "Lisbon",
+              "Tangier",
+              "6 of 6 ports shown"
+            ]
+          },
+          "snapshot": {
+            "missing_text": [
+              "2 of 6 ports shown"
+            ],
+            "unexpected_text": [
+              "Lisbon",
+              "Tangier",
+              "6 of 6 ports shown"
+            ]
+          },
+          "step": 1
+        },
+        {
+          "action": "type",
+          "ok": true,
+          "step": 2,
+          "target": "e1",
+          "tool": "browser_type_text"
+        },
+        {
+          "expect": true,
+          "failed_in": [
+            "page_content",
+            "snapshot"
+          ],
+          "ok": false,
+          "page_content": {
+            "missing_text": [
+              "1 of 6 ports shown"
+            ],
+            "unexpected_text": [
+              "Porto"
+            ]
+          },
+          "snapshot": {
+            "missing_text": [
+              "1 of 6 ports shown"
+            ],
+            "unexpected_text": [
+              "Porto"
+            ]
+          },
+          "step": 3
+        }
+      ],
+      "steps_passed": 2,
+      "steps_total": 4,
+      "unexpected_text": []
+    },
+    {
+      "first_failed_step": 1,
+      "known_failing": "Stale extraction after actions: the live DOM updates (checked with browser_eval) but browser_get_page_content and browser_snapshot both still read the HTML captured at page load",
+      "min_refs": 3,
+      "missing_text": [],
+      "ok": false,
+      "page": "/corpus/pages/form_validation.html",
+      "refs": 3,
+      "steps": [
+        {
+          "action": "click",
+          "ok": true,
+          "step": 0,
+          "target": "e3",
+          "tool": "browser_click"
+        },
+        {
+          "expect": true,
+          "failed_in": [
+            "page_content",
+            "snapshot"
+          ],
+          "ok": false,
+          "page_content": {
+            "missing_text": [
+              "Email is required."
+            ],
+            "unexpected_text": []
+          },
+          "snapshot": {
+            "missing_text": [
+              "Email is required."
+            ],
+            "unexpected_text": []
+          },
+          "step": 1
+        },
+        {
+          "action": "type",
+          "ok": true,
+          "step": 2,
+          "target": "e1",
+          "tool": "browser_type_text"
+        },
+        {
+          "action": "click",
+          "ok": true,
+          "step": 3,
+          "target": "e3",
+          "tool": "browser_click"
+        },
+        {
+          "expect": true,
+          "failed_in": [
+            "page_content",
+            "snapshot"
+          ],
+          "ok": false,
+          "page_content": {
+            "missing_text": [
+              "Enter a valid email address."
+            ],
+            "unexpected_text": []
+          },
+          "snapshot": {
+            "missing_text": [
+              "Enter a valid email address."
+            ],
+            "unexpected_text": []
+          },
+          "step": 4
+        },
+        {
+          "action": "select",
+          "ok": true,
+          "step": 5,
+          "target": "e2",
+          "tool": "browser_select_option"
+        },
+        {
+          "expect": true,
+          "failed_in": [
+            "page_content",
+            "snapshot"
+          ],
+          "ok": false,
+          "page_content": {
+            "missing_text": [
+              "Selected plan: Pro"
+            ],
+            "unexpected_text": [
+              "Selected plan: Free"
+            ]
+          },
+          "snapshot": {
+            "missing_text": [
+              "Selected plan: Pro"
+            ],
+            "unexpected_text": [
+              "Selected plan: Free"
+            ]
+          },
+          "step": 6
+        },
+        {
+          "action": "type",
+          "ok": true,
+          "step": 7,
+          "target": "e1",
+          "tool": "browser_type_text"
+        },
+        {
+          "action": "click",
+          "ok": true,
+          "step": 8,
+          "target": "e3",
+          "tool": "browser_click"
+        },
+        {
+          "expect": true,
+          "failed_in": [
+            "page_content",
+            "snapshot"
+          ],
+          "ok": false,
+          "page_content": {
+            "missing_text": [
+              "Thanks! a@b.co is subscribed to pro."
+            ],
+            "unexpected_text": []
+          },
+          "snapshot": {
+            "missing_text": [
+              "Thanks! a@b.co is subscribed to pro."
+            ],
+            "unexpected_text": []
+          },
+          "step": 9
+        }
+      ],
+      "steps_passed": 6,
+      "steps_total": 10,
+      "unexpected_text": []
+    },
+    {
+      "first_failed_step": 2,
+      "known_failing": "Stale extraction after actions: the live DOM updates (checked with browser_eval) but browser_get_page_content and browser_snapshot both still read the HTML captured at page load",
+      "min_refs": 1,
+      "missing_text": [],
+      "ok": false,
+      "page": "/corpus/pages/load_more.html",
+      "refs": 1,
+      "steps": [
+        {
+          "action": "click",
+          "ok": true,
+          "step": 0,
+          "target": "e1",
+          "tool": "browser_click"
+        },
+        {
+          "action": "wait",
+          "ok": true,
+          "step": 1,
+          "target": "#corpus-wait-never-matches",
+          "tool": "browser_wait"
+        },
+        {
+          "expect": true,
+          "failed_in": [
+            "page_content",
+            "snapshot"
+          ],
+          "ok": false,
+          "page_content": {
+            "missing_text": [
+              "Sighted the Azores",
+              "4 entries shown"
+            ],
+            "unexpected_text": []
+          },
+          "snapshot": {
+            "missing_text": [
+              "Sighted the Azores",
+              "4 entries shown"
+            ],
+            "unexpected_text": []
+          },
+          "step": 2
+        },
+        {
+          "action": "click",
+          "ok": true,
+          "step": 3,
+          "target": "e1",
+          "tool": "browser_click"
+        },
+        {
+          "action": "wait",
+          "ok": true,
+          "step": 4,
+          "target": "#corpus-wait-never-matches",
+          "tool": "browser_wait"
+        },
+        {
+          "expect": true,
+          "failed_in": [
+            "page_content",
+            "snapshot"
+          ],
+          "ok": false,
+          "page_content": {
+            "missing_text": [
+              "Anchored off Ponta Delgada",
+              "5 entries shown. End of log."
+            ],
+            "unexpected_text": [
+              "Load more entries"
+            ]
+          },
+          "snapshot": {
+            "missing_text": [
+              "Anchored off Ponta Delgada",
+              "5 entries shown. End of log."
+            ],
+            "unexpected_text": [
+              "Load more entries"
+            ]
+          },
+          "step": 5
+        }
+      ],
+      "steps_passed": 4,
+      "steps_total": 6,
       "unexpected_text": []
     },
     {
@@ -73,6 +543,80 @@
       "unexpected_text": []
     },
     {
+      "first_failed_step": 1,
+      "known_failing": "Stale extraction after actions: the live DOM updates (checked with browser_eval) but browser_get_page_content and browser_snapshot both still read the HTML captured at page load",
+      "min_refs": 3,
+      "missing_text": [],
+      "ok": false,
+      "page": "/corpus/pages/tabs.html",
+      "refs": 3,
+      "steps": [
+        {
+          "action": "click",
+          "ok": true,
+          "step": 0,
+          "target": "e2",
+          "tool": "browser_click"
+        },
+        {
+          "expect": true,
+          "failed_in": [
+            "page_content",
+            "snapshot"
+          ],
+          "ok": false,
+          "page_content": {
+            "missing_text": [
+              "Arc radius 160 mm, weight 1.2 kg."
+            ],
+            "unexpected_text": [
+              "A hand-finished navigation instrument."
+            ]
+          },
+          "snapshot": {
+            "missing_text": [
+              "Arc radius 160 mm, weight 1.2 kg."
+            ],
+            "unexpected_text": [
+              "A hand-finished navigation instrument."
+            ]
+          },
+          "step": 1
+        },
+        {
+          "action": "click",
+          "ok": true,
+          "step": 2,
+          "target": "e3",
+          "tool": "browser_click"
+        },
+        {
+          "expect": true,
+          "failed_in": [
+            "page_content",
+            "snapshot"
+          ],
+          "ok": false,
+          "page_content": {
+            "missing_text": [
+              "4.8 out of 5 from 212 sailors."
+            ],
+            "unexpected_text": []
+          },
+          "snapshot": {
+            "missing_text": [
+              "4.8 out of 5 from 212 sailors."
+            ],
+            "unexpected_text": []
+          },
+          "step": 3
+        }
+      ],
+      "steps_passed": 2,
+      "steps_total": 4,
+      "unexpected_text": []
+    },
+    {
       "min_refs": 3,
       "missing_text": [],
       "ok": true,
@@ -82,5 +626,5 @@
     }
   ],
   "passed": 10,
-  "total": 10
+  "total": 16
 }
