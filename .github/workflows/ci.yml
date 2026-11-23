@@ -11,8 +11,26 @@ env:
   RUSTFLAGS: -Dwarnings
 
 jobs:
+  runners:
+    name: pick runners
+    # Our self-hosted pools first, GitHub-hosted for the overflow: a job takes our pool only
+    # while it has a free slot, else its GitHub image at once (fork pull requests: GitHub only).
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
+    outputs:
+      plan: ${{ steps.pick.outputs.plan }}
+    steps:
+      - id: pick
+        uses: Brainwires/.github/actions/pick-runners@415ef1f9941d798b5760bf69f908be88789371a2 # pick-runners
+        with:
+          jobs: fmt=linux-x64
+          vars: ${{ toJSON(vars) }}
+
   check:
     name: Check
+    # Stays on GitHub-hosted: sudo apt-get install (sudo is inert on the self-hosted pool).
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -29,6 +47,7 @@ jobs:
 
   clippy:
     name: Clippy
+    # Stays on GitHub-hosted: sudo apt-get install (sudo is inert on the self-hosted pool).
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -47,7 +66,9 @@ jobs:
 
   fmt:
     name: Format
-    runs-on: ubuntu-latest
+    needs: runners
+    if: ${{ !cancelled() }}
+    runs-on: ${{ fromJSON(needs.runners.outputs.plan || '{}').fmt || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -62,6 +83,7 @@ jobs:
 
   test:
     name: Test
+    # Stays on GitHub-hosted: sudo apt-get install (sudo is inert on the self-hosted pool).
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -82,6 +104,7 @@ jobs:
 
   doc:
     name: Documentation
+    # Stays on GitHub-hosted: sudo apt-get install (sudo is inert on the self-hosted pool).
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
