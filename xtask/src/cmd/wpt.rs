@@ -367,18 +367,28 @@ fn ensure_checkout(dir: &Path, commit: &str, dirs: &[String]) -> Result<()> {
     let head = git_quiet(dir, &["rev-parse", "HEAD"]).unwrap_or_default();
     if head != commit {
         println!("── Fetching web-platform-tests @ {commit} (shallow, blobless)");
-        git(
-            dir,
-            &[
-                "fetch",
-                "-q",
-                "--depth",
-                "1",
-                "--filter=blob:none",
-                "origin",
-                commit,
-            ],
-        )?;
+        // Fetch-by-SHA needs protocol v2 (v0 only serves ref tips), and GitHub
+        // occasionally answers "not our ref" transiently, so force v2 and retry.
+        let args = [
+            "-c",
+            "protocol.version=2",
+            "fetch",
+            "-q",
+            "--depth",
+            "1",
+            "--filter=blob:none",
+            "origin",
+            commit,
+        ];
+        let mut attempt = 1;
+        while let Err(e) = git(dir, &args) {
+            if attempt == 3 {
+                return Err(e);
+            }
+            eprintln!("── fetch attempt {attempt} failed, retrying");
+            std::thread::sleep(std::time::Duration::from_secs(5 * attempt));
+            attempt += 1;
+        }
     }
     let wanted = sparse_paths(dirs);
     let current: BTreeSet<String> = git_quiet(dir, &["sparse-checkout", "list"])
