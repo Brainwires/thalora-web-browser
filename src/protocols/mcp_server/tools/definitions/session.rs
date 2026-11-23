@@ -121,7 +121,7 @@ pub(crate) fn get_session_tool_definitions() -> Vec<Value> {
                     },
                     "wait_for_js": {
                         "type": "boolean",
-                        "description": "Whether to execute page JavaScript and wait for DOM to stabilize (default: false). Enable for SPAs and dynamic sites."
+                        "description": "Accepted for compatibility; page JavaScript is currently not executed (no JavaScript engine)"
                     },
                     "session_id": {
                         "type": "string",

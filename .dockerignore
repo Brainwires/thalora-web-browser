@@ -1,5 +1,3 @@
 target/
 .git/
 tests/
-engines/boa/tests/
-engines/boa/benches/

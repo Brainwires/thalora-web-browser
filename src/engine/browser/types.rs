@@ -214,28 +214,6 @@ impl Default for ResourceCache {
     }
 }
 
-/// Events emitted by the JavaScript History API for GUI synchronization.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type")]
-pub enum HistoryEvent {
-    #[serde(rename = "pushState")]
-    PushState {
-        url: String,
-        state_json: Option<String>,
-    },
-    #[serde(rename = "replaceState")]
-    ReplaceState {
-        url: String,
-        state_json: Option<String>,
-    },
-    #[serde(rename = "popstate")]
-    PopState {
-        url: String,
-        state_json: Option<String>,
-        delta: i32,
-    },
-}
-
 /// Condition for [`HeadlessWebBrowser::wait_for_condition`](crate::engine::browser::HeadlessWebBrowser).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WaitCondition {

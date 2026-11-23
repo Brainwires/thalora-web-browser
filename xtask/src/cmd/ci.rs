@@ -2,7 +2,6 @@
 //!
 //! Runs fmt, check, clippy, test, and doc steps sequentially,
 //! reporting pass/fail for each and a summary at the end.
-//! Each step runs for both the main workspace and the boa engine workspace.
 
 use std::process::{Command, ExitCode};
 
@@ -17,94 +16,30 @@ const STEPS: &[Step] = &[
     Step {
         key: "fmt",
         name: "Format",
-        commands: &[
-            ("workspace", &["cargo", "fmt", "--all", "--check"]),
-            (
-                "boa engine",
-                &[
-                    "cargo",
-                    "fmt",
-                    "--all",
-                    "--check",
-                    "--manifest-path",
-                    "engines/boa/Cargo.toml",
-                ],
-            ),
-        ],
+        commands: &[("workspace", &["cargo", "fmt", "--all", "--check"])],
     },
     Step {
         key: "check",
         name: "Check",
-        commands: &[
-            ("workspace", &["cargo", "check", "--workspace"]),
-            (
-                "boa engine",
-                &[
-                    "cargo",
-                    "check",
-                    "--manifest-path",
-                    "engines/boa/Cargo.toml",
-                    "--workspace",
-                ],
-            ),
-        ],
+        commands: &[("workspace", &["cargo", "check", "--workspace"])],
     },
     Step {
         key: "clippy",
         name: "Clippy",
-        commands: &[
-            ("workspace", &["cargo", "clippy", "--workspace"]),
-            (
-                "boa engine",
-                &[
-                    "cargo",
-                    "clippy",
-                    "--manifest-path",
-                    "engines/boa/Cargo.toml",
-                    "--workspace",
-                ],
-            ),
-        ],
+        commands: &[("workspace", &["cargo", "clippy", "--workspace"])],
     },
     Step {
         key: "test",
         name: "Test",
-        commands: &[
-            (
-                "workspace",
-                &["cargo", "test", "--workspace", "--", "--test-threads=1"],
-            ),
-            (
-                "boa engine",
-                &[
-                    "cargo",
-                    "test",
-                    "--manifest-path",
-                    "engines/boa/Cargo.toml",
-                    "--workspace",
-                    "--",
-                    "--test-threads=1",
-                ],
-            ),
-        ],
+        commands: &[(
+            "workspace",
+            &["cargo", "test", "--workspace", "--", "--test-threads=1"],
+        )],
     },
     Step {
         key: "doc",
         name: "Doc",
-        commands: &[
-            ("workspace", &["cargo", "doc", "--workspace", "--no-deps"]),
-            (
-                "boa engine",
-                &[
-                    "cargo",
-                    "doc",
-                    "--manifest-path",
-                    "engines/boa/Cargo.toml",
-                    "--workspace",
-                    "--no-deps",
-                ],
-            ),
-        ],
+        commands: &[("workspace", &["cargo", "doc", "--workspace", "--no-deps"])],
     },
 ];
 
@@ -189,8 +124,6 @@ pub fn run(args: &[String]) -> ExitCode {
 
 pub fn print_help() {
     println!("Run CI pipeline steps (default: all)");
-    println!();
-    println!("Each step runs for both the main workspace and the boa engine workspace.");
     println!();
     println!("USAGE:");
     println!("  cargo xtask ci [STEPS...]");

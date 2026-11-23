@@ -103,7 +103,7 @@ impl McpTestHarness {
             Command::new(&debug_binary)
         } else {
             let mut cmd = Command::new("cargo");
-            cmd.args(&["run", "--quiet", "--bin", "thalora"]);
+            cmd.args(["run", "--quiet", "--bin", "thalora"]);
             cmd
         };
 
@@ -366,7 +366,7 @@ impl McpTestHarness {
 impl Drop for McpTestHarness {
     fn drop(&mut self) {
         // Try to terminate gracefully first
-        if let Err(_) = self.process.kill() {
+        if self.process.kill().is_err() {
             // If kill fails, process might already be dead
         }
 
@@ -416,8 +416,11 @@ pub fn create_harness_with_env(
 pub fn create_harness_with_raw_env(
     env_vars: std::collections::HashMap<String, String>,
 ) -> Result<McpTestHarness> {
-    let mut config = McpTestConfig::default();
-    config.env_vars = env_vars; // Replace defaults entirely
+    // Replace the default env vars entirely
+    let config = McpTestConfig {
+        env_vars,
+        ..Default::default()
+    };
     let mut harness = McpTestHarness::with_config(config)?;
     harness.initialize()?;
     Ok(harness)
@@ -483,6 +486,7 @@ pub fn create_harness_with_only_categories(enabled_categories: &[&str]) -> Resul
 }
 
 /// Validate that a tool response contains expected fields
+#[allow(dead_code)]
 pub fn validate_tool_response(
     response: &McpToolResponse,
     expected_content_type: &str,

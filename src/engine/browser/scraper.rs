@@ -85,7 +85,7 @@ impl WebScraper {
                     && let Ok(url) = self.resolve_url(base_url, src)
                 {
                     // CSP: Check img-src before including the image
-                    if !thalora_browser_apis::csp::csp_allows_image(&url) {
+                    if !crate::engine::security::csp_state::csp_allows_image(&url) {
                         eprintln!("🔒 CSP: Image blocked by img-src: {}", url);
                         continue;
                     }

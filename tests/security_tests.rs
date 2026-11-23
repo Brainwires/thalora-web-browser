@@ -65,62 +65,6 @@ mod crypto_security {
     }
 }
 
-mod javascript_security {
-    /// Test 4: eval() is blocked
-    #[test]
-    fn test_eval_blocked() {
-        // Create a JavaScript validator
-        // Verify that eval() calls are rejected
-        // This is tested in js_security.rs
-
-        let dangerous_code = "eval('alert(1)')";
-        // Should be rejected by is_safe_javascript()
-        assert!(dangerous_code.contains("eval"));
-    }
-
-    /// Test 5: Function constructor is blocked
-    #[test]
-    fn test_function_constructor_blocked() {
-        let dangerous_code = "Function('return 1')()";
-        assert!(dangerous_code.contains("Function"));
-    }
-
-    /// Test 6: setTimeout with string is blocked
-    #[test]
-    fn test_settimeout_string_blocked() {
-        let dangerous_code = "setTimeout('alert(1)', 1000)";
-        assert!(dangerous_code.contains("setTimeout"));
-    }
-
-    /// Test 7: __proto__ pollution is blocked
-    #[test]
-    fn test_proto_pollution_blocked() {
-        let dangerous_code = "obj.__proto__ = {}";
-        assert!(dangerous_code.contains("__proto__"));
-    }
-
-    /// Test 8: constructor.constructor is blocked
-    #[test]
-    fn test_constructor_constructor_blocked() {
-        let dangerous_code = "obj.constructor.constructor('return 1')()";
-        assert!(dangerous_code.contains("constructor.constructor"));
-    }
-
-    /// Test 9: with statement is blocked
-    #[test]
-    fn test_with_statement_blocked() {
-        let dangerous_code = "with (obj) { x = 1; }";
-        assert!(dangerous_code.contains("with"));
-    }
-
-    /// Test 10: import is blocked
-    #[test]
-    fn test_import_blocked() {
-        let dangerous_code = "import { foo } from 'bar';";
-        assert!(dangerous_code.contains("import"));
-    }
-}
-
 mod origin_isolation {
 
     /// Test 11: Storage is isolated by origin
@@ -230,31 +174,6 @@ mod ssrf_prevention {
     }
 }
 
-mod webrtc_security {
-    /// Test 18: WebRTC is disabled by default
-    #[test]
-    fn test_webrtc_disabled_by_default() {
-        // WebRTC should be disabled to prevent IP leaks
-        // This would be verified in browser configuration
-        let webrtc_enabled = false; // Default should be false
-        assert!(!webrtc_enabled);
-    }
-}
-
-mod service_worker_security {
-    /// Test 19: Service workers have scope restrictions
-    #[test]
-    fn test_service_worker_scope_restrictions() {
-        // Service workers should be restricted to their registered scope
-        let service_worker_scope = "/app/";
-        let allowed_path = "/app/page.html";
-        let blocked_path = "/admin/page.html";
-
-        assert!(allowed_path.starts_with(service_worker_scope));
-        assert!(!blocked_path.starts_with(service_worker_scope));
-    }
-}
-
 mod path_security {
     /// Test 20: Socket paths are not predictable
     #[test]
@@ -359,7 +278,7 @@ mod cookie_security {
     #[test]
     fn test_samesite_attribute() {
         // Cookies should have SameSite attribute to prevent CSRF
-        let samesite_values = vec!["Strict", "Lax", "None"];
+        let samesite_values = ["Strict", "Lax", "None"];
         let cookie_samesite = "Lax";
 
         assert!(samesite_values.contains(&cookie_samesite));
@@ -399,7 +318,7 @@ mod additional_hardening {
     /// Test 30: X-Frame-Options prevents clickjacking
     #[test]
     fn test_xframe_options() {
-        let xframe_options = vec!["DENY", "SAMEORIGIN"];
+        let xframe_options = ["DENY", "SAMEORIGIN"];
         let current_setting = "SAMEORIGIN";
 
         assert!(xframe_options.contains(&current_setting));
@@ -436,5 +355,4 @@ fn test_security_remediation_complete() {
     // Verified by additional tests
 
     // All priorities have been addressed
-    assert!(true, "All security priorities have been implemented");
 }

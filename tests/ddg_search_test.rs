@@ -5,6 +5,10 @@
 // fail on network errors, rate-limiting or bot blocking from CI runners.
 // Run explicitly with: cargo test --test ddg_search_test -- --ignored
 
+// Each browser is only used from its own test's thread, so holding its
+// MutexGuard across .await cannot contend or deadlock.
+#![allow(clippy::await_holding_lock)]
+
 use thalora::HeadlessWebBrowser;
 
 #[tokio::test]
@@ -94,24 +98,7 @@ async fn test_duckduckgo_type_into_search() {
             );
         }
         Err(e) => {
-            eprintln!("Type error (may need JS context): {}", e);
+            eprintln!("Type error: {}", e);
         }
     }
-
-    // Verify via JS
-    let value = guard
-        .execute_javascript(
-            r#"
-            (function() {
-                try {
-                    var input = document.querySelector('input[name="q"]');
-                    return input ? 'found:' + (input.value || 'empty') : 'not_found';
-                } catch(e) {
-                    return 'error:' + e.message;
-                }
-            })()
-            "#,
-        )
-        .await;
-    eprintln!("Input value: {:?}", value);
 }

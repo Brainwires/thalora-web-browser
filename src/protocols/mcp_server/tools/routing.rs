@@ -106,19 +106,6 @@ impl McpServer {
             "browser_extract" => self.handle_snapshot_url(arguments).await,
             "browser_search" => self.web_search(arguments).await,
 
-            // WASM Debug tools
-            #[cfg(feature = "wasm-debug")]
-            "wasm_debug_load_module"
-            | "wasm_debug_unload_module"
-            | "wasm_debug_list_modules"
-            | "wasm_debug_validate"
-            | "wasm_debug_inspect"
-            | "wasm_debug_disassemble"
-            | "wasm_debug_read_memory"
-            | "wasm_debug_write_memory"
-            | "wasm_debug_call_function"
-            | "wasm_debug_profile_function" => self.route_wasm_debug_tool(name, arguments).await,
-
             // Accessibility tools
             "get_accessibility_tree" => {
                 let session_id = arguments
@@ -172,42 +159,5 @@ impl McpServer {
         }
         // extract_basic true by default in snapshot_url already; keep that behaviour
         self.handle_snapshot_url(arguments).await
-    }
-
-    /// Route WASM debug tool calls to the WasmDebugTools handler
-    #[cfg(feature = "wasm-debug")]
-    async fn route_wasm_debug_tool(&mut self, name: &str, arguments: Value) -> McpResponse {
-        let tools = match self.wasm_debug_tools.as_mut() {
-            Some(t) => t,
-            None => {
-                return McpResponse::error(
-                    -32603,
-                    "WASM debug tools are not initialized. Set THALORA_ENABLE_WASM_DEBUG=true"
-                        .to_string(),
-                );
-            }
-        };
-
-        let result = match name {
-            "wasm_debug_load_module" => tools.load_module(arguments),
-            "wasm_debug_unload_module" => tools.unload_module(arguments),
-            "wasm_debug_list_modules" => Ok(tools.list_modules()),
-            "wasm_debug_validate" => tools.validate(arguments),
-            "wasm_debug_inspect" => tools.inspect(arguments),
-            "wasm_debug_disassemble" => tools.disassemble(arguments),
-            "wasm_debug_read_memory" => tools.read_memory(arguments),
-            "wasm_debug_write_memory" => tools.write_memory(arguments),
-            "wasm_debug_call_function" => tools.call_function(arguments).await,
-            "wasm_debug_profile_function" => tools.profile_function(arguments).await,
-            _ => return McpResponse::error(-32601, format!("Unknown wasm debug tool: {}", name)),
-        };
-
-        match result {
-            Ok(value) => McpResponse::success(serde_json::json!({
-                "type": "text",
-                "text": serde_json::to_string_pretty(&value).unwrap_or_else(|_| format!("{}", value))
-            })),
-            Err(e) => McpResponse::error(-1, format!("Error: {e}")),
-        }
     }
 }

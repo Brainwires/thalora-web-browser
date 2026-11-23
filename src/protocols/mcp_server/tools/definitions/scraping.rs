@@ -18,7 +18,7 @@ pub(crate) fn get_scraping_tool_definitions() -> Vec<Value> {
                 },
                 "wait_for_js": {
                     "type": "boolean",
-                    "description": "Whether to wait for JavaScript execution (default: false)"
+                    "description": "Accepted for compatibility; page JavaScript is currently not executed (no JavaScript engine)"
                 },
                 "wait_timeout": {
                     "type": "number",
@@ -155,7 +155,7 @@ pub(crate) fn get_minimal_scraping_tool_definitions() -> Vec<Value> {
                 },
                 "wait_for_js": {
                     "type": "boolean",
-                    "description": "Wait for JavaScript to execute before scraping (default: false)"
+                    "description": "Accepted for compatibility; page JavaScript is currently not executed (no JavaScript engine)"
                 },
                 "extract_basic": {
                     "type": "boolean",

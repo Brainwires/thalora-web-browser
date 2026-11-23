@@ -10,8 +10,9 @@ impl super::super::HeadlessWebBrowser {
         self.navigate_to_with_options(url, false).await
     }
 
-    /// Navigate to URL with options for JavaScript execution.
-    /// `wait_for_js` controls whether page scripts are executed after loading.
+    /// Navigate to URL.
+    /// `wait_for_js` is accepted for compatibility; page scripts are not
+    /// executed (there is no JavaScript engine at the moment).
     /// `wait_for_load` is always true (we always want to wait for the HTTP response).
     pub async fn navigate_to_with_options(
         &mut self,

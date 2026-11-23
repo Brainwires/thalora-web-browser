@@ -6,8 +6,6 @@ mod cdp;
 mod scraping;
 mod session;
 mod vault;
-#[cfg(feature = "wasm-debug")]
-mod wasm_debug;
 
 // Re-export all tool definition functions
 pub(crate) use accessibility::get_accessibility_tool_definitions;
@@ -20,5 +18,3 @@ pub(crate) use scraping::{
 };
 pub(crate) use session::get_session_tool_definitions;
 pub(crate) use vault::get_vault_tool_definitions;
-#[cfg(feature = "wasm-debug")]
-pub(crate) use wasm_debug::get_wasm_debug_tool_definitions;

@@ -10,9 +10,6 @@
 // Core browser engine
 pub mod engine;
 
-// Web APIs and standards
-pub mod apis;
-
 // Advanced browser features
 pub mod features;
 
@@ -29,19 +26,11 @@ pub mod debug_utils;
 
 // Re-export main components for clean public API
 #[cfg(feature = "core")]
-pub use engine::JavaScriptEngine;
-#[cfg(feature = "core")]
 pub use engine::{
     AuthContext, BrowserStorage, Form, FormField, HeadlessWebBrowser, Image, InteractionResponse,
     Link, ScrapedData,
 };
-pub use engine::{CssProcessor, LayoutEngine, LayoutResult, RustRenderer};
-pub use engine::{EngineConfig, EngineFactory, EngineType, ThaloraBrowserEngine};
-// EventListener is now natively implemented in Boa engine
-
-// websocket API is now natively implemented in Boa engine
-// WebStorage is now natively implemented in Boa engine
-// events API is now natively implemented in Boa engine
+pub use engine::{CssProcessor, LayoutEngine, LayoutResult};
 
 #[cfg(feature = "core")]
 pub use features::{BrowserFingerprint, BrowserType, FingerprintManager};
@@ -57,5 +46,3 @@ pub use web_search::{SearchResult, SearchResults, perform_search};
 pub use protocols::McpResponse;
 #[cfg(feature = "core")]
 pub use protocols::McpServer;
-#[cfg(feature = "wasm-debug")]
-pub use protocols::wasm_debug_tools::WasmDebugTools;

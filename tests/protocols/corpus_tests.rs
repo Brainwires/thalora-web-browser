@@ -372,7 +372,11 @@ fn score_page(h: &mut McpTestHarness, site: &FixtureServer, path: &str, expect: 
     result
 }
 
+// Nearly every corpus page builds its content with script, and there is no
+// JavaScript engine at the moment (Boa was removed, V8 is not wired in yet).
+// The corpus and this harness are engine-independent and return with V8.
 #[test]
+#[ignore = "needs a JavaScript engine: Boa was removed, V8 support is in progress"]
 fn corpus_pages_meet_their_expectations() {
     let (mut h, site) = corpus_harness();
     let bundled = pages_in("pages");

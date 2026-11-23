@@ -22,7 +22,7 @@ pub(crate) fn get_brainclaw_alias_tool_definitions() -> Vec<Value> {
                     },
                     "wait_for_js": {
                         "type": "boolean",
-                        "description": "Wait for JavaScript execution before extracting (default: false)"
+                        "description": "Accepted for compatibility; page JavaScript is currently not executed (no JavaScript engine)"
                     },
                     "include_images": {
                         "type": "boolean",
@@ -53,7 +53,7 @@ pub(crate) fn get_brainclaw_alias_tool_definitions() -> Vec<Value> {
                     },
                     "wait_for_js": {
                         "type": "boolean",
-                        "description": "Wait for JavaScript to settle after navigation (default: false)"
+                        "description": "Accepted for compatibility; page JavaScript is currently not executed (no JavaScript engine)"
                     }
                 },
                 "required": ["url", "session_id"]
@@ -115,7 +115,7 @@ pub(crate) fn get_brainclaw_alias_tool_definitions() -> Vec<Value> {
         // ── CDP aliases ──────────────────────────────────────────────────────────
         serde_json::json!({
             "name": "browser_eval",
-            "description": "Execute JavaScript in the browser and return the result. Alias for `cdp_runtime_evaluate`.",
+            "description": "Execute JavaScript in the browser and return the result. Alias for `cdp_runtime_evaluate`. Currently unavailable (returns an error): the Boa JavaScript engine was removed and V8 support is in progress.",
             "inputSchema": {
                 "type": "object",
                 "properties": {

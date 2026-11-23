@@ -1,14 +1,39 @@
 //! Layout Bridge
 //!
-//! Connects the taffy layout engine output to the Boa DOM by computing layout
-//! geometry for all elements and storing the results as a HashMap keyed by
-//! unique CSS selector paths. These paths are deterministic for a given HTML
-//! document, allowing the DOM layer to look up geometry when elements are
-//! created via querySelector/getElementById.
+//! Flattens the taffy layout engine output into per-element geometry stored
+//! in a HashMap keyed by unique CSS selector paths. These paths are
+//! deterministic for a given HTML document, so a DOM layer can look up an
+//! element's geometry by its path.
 
 use super::layout::{BoxModelSides, ElementLayout, LayoutResult};
 use std::collections::HashMap;
-use thalora_browser_apis::dom::document::LayoutRect;
+
+/// Layout rectangle for an element, computed by the layout engine
+#[derive(Debug, Clone)]
+pub struct LayoutRect {
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+    /// Content box (excluding padding/border)
+    pub content_x: f64,
+    pub content_y: f64,
+    pub content_width: f64,
+    pub content_height: f64,
+    /// Box model sides
+    pub padding_top: f64,
+    pub padding_right: f64,
+    pub padding_bottom: f64,
+    pub padding_left: f64,
+    pub border_top: f64,
+    pub border_right: f64,
+    pub border_bottom: f64,
+    pub border_left: f64,
+    pub margin_top: f64,
+    pub margin_right: f64,
+    pub margin_bottom: f64,
+    pub margin_left: f64,
+}
 
 /// Flatten a `LayoutResult` tree into a HashMap keyed by CSS selector path.
 ///

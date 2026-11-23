@@ -90,14 +90,14 @@ fn encrypted_persist_and_load() {
     let key = derive_session_key("test-session-123");
 
     {
-        let vfs = VfsInstance::open_file_backed_encrypted(&backing, &*key).expect("create vfs");
+        let vfs = VfsInstance::open_file_backed_encrypted(&backing, &key).expect("create vfs");
         let arc = Arc::new(vfs);
         let _prev = set_current_vfs(Some(arc.clone()));
 
         let p = PathBuf::from("/encrypted/secret.txt");
         fs::write(&p, b"sensitive data").expect("write");
 
-        arc.persist_encrypted(&*key).expect("persist encrypted");
+        arc.persist_encrypted(&key).expect("persist encrypted");
         drop(set_current_vfs(None));
     }
 
@@ -108,7 +108,7 @@ fn encrypted_persist_and_load() {
     assert!(!String::from_utf8_lossy(&raw_bytes).contains("sensitive data"));
 
     {
-        let vfs = VfsInstance::open_file_backed_encrypted(&backing, &*key).expect("reload vfs");
+        let vfs = VfsInstance::open_file_backed_encrypted(&backing, &key).expect("reload vfs");
         let arc = Arc::new(vfs);
         let _prev = set_current_vfs(Some(arc.clone()));
 
@@ -131,18 +131,18 @@ fn encrypted_wrong_key_fails() {
 
     let key1 = derive_session_key("session-key-1");
     {
-        let vfs = VfsInstance::open_file_backed_encrypted(&backing, &*key1).expect("create vfs");
+        let vfs = VfsInstance::open_file_backed_encrypted(&backing, &key1).expect("create vfs");
         let arc = Arc::new(vfs);
         let _prev = set_current_vfs(Some(arc.clone()));
 
         let p = PathBuf::from("/test/data.txt");
         fs::write(&p, b"test content").expect("write");
-        arc.persist_encrypted(&*key1).expect("persist");
+        arc.persist_encrypted(&key1).expect("persist");
         drop(set_current_vfs(None));
     }
 
     let key2 = derive_session_key("session-key-2-different");
-    let result = VfsInstance::open_file_backed_encrypted(&backing, &*key2);
+    let result = VfsInstance::open_file_backed_encrypted(&backing, &key2);
     assert!(result.is_err());
 
     let _ = stdfs::remove_file(&backing);
@@ -604,9 +604,9 @@ fn quota_total_enforced() {
     let prev = set_current_vfs(Some(arc.clone()));
 
     // Write 50 bytes — should succeed
-    fs::write("/q1.txt", &vec![0u8; 50]).unwrap();
+    fs::write("/q1.txt", vec![0u8; 50]).unwrap();
     // Write another 50 — should succeed (exactly at quota)
-    fs::write("/q2.txt", &vec![0u8; 50]).unwrap();
+    fs::write("/q2.txt", vec![0u8; 50]).unwrap();
     // Write 1 more byte — should fail
     let result = fs::write("/q3.txt", b"x");
     assert!(result.is_err());
@@ -624,7 +624,7 @@ fn quota_max_file_size_enforced() {
     let prev = set_current_vfs(Some(arc.clone()));
 
     fs::write("/small.txt", b"ok").unwrap();
-    let result = fs::write("/big.txt", &vec![0u8; 20]);
+    let result = fs::write("/big.txt", vec![0u8; 20]);
     assert!(result.is_err());
 
     arc.delete_backing_file().ok();

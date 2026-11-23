@@ -1,4 +1,0 @@
-[submodule "engines/boa"]
-	path = engines/boa
-	url = https://github.com/Brainwires/thalora-boa-engine.git
-	branch = main

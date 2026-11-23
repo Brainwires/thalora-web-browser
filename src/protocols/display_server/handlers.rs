@@ -434,17 +434,19 @@ impl CommandHandler {
             )
             .await?;
 
-        // Send result as console log
-        if let BrowserResponse::Success { data } = response {
-            self.client_registry.send_to_client(
-                client_id,
-                DisplayMessage::ConsoleLog {
-                    level: "info".to_string(),
-                    message: format!("Script result: {:?}", data),
-                    timestamp: current_timestamp(),
-                },
-            )?;
-        }
+        // Send result (or the failure, e.g. no JavaScript engine) as console log
+        let (level, message) = match response {
+            BrowserResponse::Success { data } => ("info", format!("Script result: {:?}", data)),
+            BrowserResponse::Error { message } => ("error", message),
+        };
+        self.client_registry.send_to_client(
+            client_id,
+            DisplayMessage::ConsoleLog {
+                level: level.to_string(),
+                message,
+                timestamp: current_timestamp(),
+            },
+        )?;
 
         Ok(())
     }

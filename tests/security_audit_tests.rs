@@ -2,11 +2,11 @@
 /// Security audit verification tests
 ///
 /// These tests verify the security fixes implemented in the security audit:
-/// 1. FileSystem API permission model with default-deny
-/// 2. VFS path canonicalization to prevent traversal attacks
-/// 3. Encrypted storage for localStorage/sessionStorage
-/// 4. Encrypted storage for IndexedDB
-/// 5. Session secret management (no hardcoded fallback)
+/// 1. VFS path canonicalization to prevent traversal attacks
+/// 2. Session secret management (no hardcoded fallback)
+///
+/// (The checks for the FileSystem API, Web Storage and IndexedDB went away
+/// with the JavaScript APIs when the Boa engine was removed.)
 use std::path::Path;
 
 /// Tests for VFS path canonicalization and traversal prevention
@@ -91,75 +91,6 @@ mod vfs_path_security {
     }
 }
 
-/// Tests for FileSystem API permission model
-mod filesystem_api_permissions {
-    /// Test that permissions default to denied
-    #[test]
-    fn test_permissions_default_denied() {
-        // The FileSystem API should default to "denied" for all operations
-        // This prevents automatic access to the filesystem
-
-        // Default permission state should be Denied, not Granted
-        let default_state = "denied"; // Expected default
-        assert_eq!(
-            default_state, "denied",
-            "FileSystem API permissions should default to denied"
-        );
-    }
-
-    /// Test that different origins have isolated permissions
-    #[test]
-    fn test_origin_isolation() {
-        // Each origin should have its own permission store
-        let origin_a = "https://example.com";
-        let origin_b = "https://attacker.com";
-
-        // Permissions for origin A should not affect origin B
-        assert_ne!(origin_a, origin_b, "Origins should be different");
-    }
-
-    /// Test that read and readwrite permissions are separate
-    #[test]
-    fn test_permission_modes_separate() {
-        // Read-only permission should not grant write access
-        let read_mode = "read";
-        let readwrite_mode = "readwrite";
-
-        assert_ne!(
-            read_mode, readwrite_mode,
-            "Read and ReadWrite modes should be distinct"
-        );
-    }
-
-    /// Test that permission revocation works
-    #[test]
-    fn test_permission_revocation() {
-        // Once permissions are revoked, they should be denied
-        // The implementation uses revoke_permission() method
-
-        // After revocation, state should be denied
-        let after_revocation = "denied";
-        assert_eq!(
-            after_revocation, "denied",
-            "Permissions should be denied after revocation"
-        );
-    }
-
-    /// Test that explicit grant is required
-    #[test]
-    fn test_explicit_grant_required() {
-        // Permissions should only be granted through explicit grant_permission() call
-        // This should be triggered by MCP client approval
-
-        // Without explicit grant, permission check should return denied
-        let without_grant = "denied";
-        assert_eq!(
-            without_grant, "denied",
-            "Permission should be denied without explicit grant"
-        );
-    }
-}
-
 /// Tests for session secret management
 mod session_secret_security {
     use std::env;
@@ -209,14 +140,10 @@ mod session_secret_security {
         // The old hardcoded secret "thalora-dev-session-secret-do-not-use-in-production"
         // should no longer be used
 
-        let old_hardcoded = "thalora-dev-session-secret-do-not-use-in-production";
+        let _old_hardcoded = "thalora-dev-session-secret-do-not-use-in-production";
 
         // This string should NOT be the fallback anymore
         // The implementation now auto-generates a secure random secret
-        assert!(
-            !old_hardcoded.is_empty(),
-            "Old hardcoded secret should exist for this test"
-        );
         // The actual secret generation is tested by verifying secrets are unique
     }
 
@@ -241,125 +168,6 @@ mod session_secret_security {
             temp_dir_exists,
             "Temp dir should exist for secret persistence fallback"
         );
-    }
-}
-
-/// Tests for encrypted storage
-mod storage_encryption {
-    /// Test that localStorage uses encrypted files
-    #[test]
-    fn test_localstorage_encrypted_extension() {
-        // The encrypted localStorage file should use .enc extension
-        // instead of the old .json extension
-
-        let new_extension = ".enc";
-        let old_extension = ".json";
-
-        assert_ne!(
-            new_extension, old_extension,
-            "New extension should be different from old"
-        );
-        assert_eq!(new_extension, ".enc", "Should use .enc extension");
-    }
-
-    /// Test that sessionStorage uses encrypted files
-    #[test]
-    fn test_sessionstorage_encrypted_extension() {
-        // sessionStorage should also use encryption
-        let encrypted = true;
-        assert!(encrypted, "sessionStorage should be encrypted");
-    }
-
-    /// Test that legacy unencrypted files are migrated
-    #[test]
-    fn test_legacy_migration() {
-        // Old .json files should be read and the data migrated
-        // Then the old file should be deleted
-
-        // Migration flow:
-        // 1. Try to read new .enc file
-        // 2. If not found, try to read old .json file
-        // 3. If old file found, decrypt (no-op since it's plain JSON)
-        // 4. Delete old .json file after successful migration
-
-        let migration_steps = vec![
-            "try_read_encrypted",
-            "fallback_read_legacy",
-            "delete_legacy_after_success",
-        ];
-
-        assert_eq!(migration_steps.len(), 3, "Should have 3 migration steps");
-    }
-
-    /// Test that encryption uses unique keys per storage type
-    #[test]
-    fn test_unique_encryption_keys() {
-        // Each storage type should derive a unique key
-        // using the storage type name as additional context
-
-        let storage_types = vec!["localStorage", "sessionStorage", "indexeddb"];
-
-        // Each should produce a different derived key
-        for (i, type_a) in storage_types.iter().enumerate() {
-            for (j, type_b) in storage_types.iter().enumerate() {
-                if i != j {
-                    assert_ne!(
-                        type_a, type_b,
-                        "Different storage types should have different keys"
-                    );
-                }
-            }
-        }
-    }
-}
-
-/// Tests for IndexedDB encryption
-mod indexeddb_encryption {
-    /// Test that IndexedDB values are encrypted before storage
-    #[test]
-    fn test_indexeddb_value_encryption() {
-        // Values stored in IndexedDB should be encrypted
-
-        // The encryption happens in:
-        // - add() method
-        // - put() method
-
-        // Decryption happens in:
-        // - get() method
-        // - get_all() method
-        // - get_by_index() method
-        // - get_all_from_index() method
-
-        let encrypted_operations = vec!["add", "put"];
-        let decrypted_operations = vec!["get", "get_all", "get_by_index", "get_all_from_index"];
-
-        assert!(!encrypted_operations.is_empty(), "Should encrypt on write");
-        assert!(!decrypted_operations.is_empty(), "Should decrypt on read");
-    }
-
-    /// Test that IndexedDB uses AES-256-GCM
-    #[test]
-    fn test_indexeddb_encryption_algorithm() {
-        // IndexedDB should use the same AES-256-GCM encryption as localStorage
-
-        let algorithm = "AES-256-GCM";
-        assert!(algorithm.contains("AES"), "Should use AES encryption");
-        assert!(algorithm.contains("256"), "Should use 256-bit key");
-        assert!(algorithm.contains("GCM"), "Should use GCM mode");
-    }
-
-    /// Test that IndexedDB keys are stored unencrypted
-    #[test]
-    fn test_indexeddb_keys_unencrypted() {
-        // Keys should remain unencrypted for indexing
-        // Only values are encrypted
-
-        // This allows efficient key-based lookups
-        let keys_encrypted = false;
-        let values_encrypted = true;
-
-        assert!(!keys_encrypted, "Keys should not be encrypted for indexing");
-        assert!(values_encrypted, "Values should be encrypted");
     }
 }
 
@@ -399,24 +207,14 @@ fn test_security_audit_complete() {
     println!("Security Audit Verification:");
     println!("============================");
 
-    // 1. FileSystem API permissions
-    println!("✓ FileSystem API: Default deny permission model");
-
-    // 2. VFS path canonicalization
+    // 1. VFS path canonicalization
     println!("✓ VFS: Path canonicalization prevents traversal attacks");
 
-    // 3. Session secret management
+    // 2. Session secret management
     println!("✓ Session: No hardcoded secret fallback");
 
-    // 4. localStorage/sessionStorage encryption
-    println!("✓ Web Storage: AES-256-GCM encryption");
-
-    // 5. IndexedDB encryption
-    println!("✓ IndexedDB: Value encryption enabled");
-
-    // 6. real_fs protection
+    // 3. real_fs protection
     println!("✓ VFS: real_fs feature causes compile error");
 
     // All checks passed
-    assert!(true, "All security audit fixes verified");
 }

@@ -9,12 +9,10 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 // Core modules organized by functionality
-pub mod apis;
 pub mod engine;
 pub mod features;
 pub mod protocols;
 
-use engine::{EngineConfig, EngineFactory};
 use protocols::mcp_server::McpServer;
 
 /// Global flag to signal shutdown
@@ -138,9 +136,6 @@ async fn main() -> Result<()> {
 
     let cli = Cli::parse();
 
-    let engine_config = EngineConfig::default();
-
-    // Log the selected engine
     if std::env::var("THALORA_SILENT").is_err() {
         tracing_subscriber::fmt()
             .with_writer(std::io::stderr)
@@ -150,12 +145,7 @@ async fn main() -> Result<()> {
             )
             .init();
 
-        tracing::info!("Using {} JavaScript engine", engine_config.engine_type);
-
-        // Display available engines for info
-        let available = EngineFactory::available_engines();
-        let available_names: Vec<String> = available.iter().map(|e| e.to_string()).collect();
-        tracing::debug!("Available engines: {}", available_names.join(", "));
+        tracing::info!("No JavaScript engine: {}", engine::JS_UNAVAILABLE);
     } else {
         // Still configure tracing but silent
         tracing_subscriber::fmt()
@@ -175,7 +165,7 @@ async fn main() -> Result<()> {
         }) => {
             // Run as browser session process with signal handling
             tokio::select! {
-                result = run_browser_session(session_id, socket_path, persistent, engine_config) => result,
+                result = run_browser_session(session_id, socket_path, persistent) => result,
                 _ = shutdown_signal => {
                     eprintln!("🛑 Session received shutdown signal");
                     Ok(())
@@ -214,7 +204,7 @@ async fn main() -> Result<()> {
                 #[cfg(feature = "http-transport")]
                 {
                     tokio::select! {
-                        result = protocols::mcp_server::http_transport::run_http_transport(engine_config, host, port) => result,
+                        result = protocols::mcp_server::http_transport::run_http_transport(host, port) => result,
                         _ = shutdown_signal => {
                             eprintln!("🛑 MCP Server received shutdown signal");
                             Ok(())
@@ -226,7 +216,7 @@ async fn main() -> Result<()> {
                     anyhow::bail!("HTTP transport not compiled in (missing http-transport feature)")
                 }
             } else {
-                let server = McpServer::new_with_engine(engine_config);
+                let server = McpServer::new();
 
                 // Run server with signal handling
                 tokio::select! {
@@ -256,7 +246,7 @@ async fn main() -> Result<()> {
                 eprintln!("🚀 Starting Thalora MCP Server in '{}' mode", mcp_mode);
             }
 
-            let server = McpServer::new_with_engine(engine_config);
+            let server = McpServer::new();
 
             // Run server with signal handling
             tokio::select! {
@@ -312,7 +302,6 @@ async fn run_browser_session(
     session_id: String,
     socket_path: String,
     persistent: bool,
-    engine_config: EngineConfig,
 ) -> Result<()> {
     use anyhow::Context;
     use engine::browser::{BrowserThread, HeadlessWebBrowser};
@@ -328,20 +317,17 @@ async fn run_browser_session(
         session_id: String,
         browser: BrowserThread,
         persistent: bool,
-        engine_config: EngineConfig,
     }
 
     impl BrowserSessionHandler {
-        fn new(session_id: String, persistent: bool, engine_config: EngineConfig) -> Result<Self> {
-            // The browser lives on its own thread so its JS heap is never
-            // touched from another one.
-            let browser = BrowserThread::spawn(&session_id, engine_config.engine_type)?;
+        fn new(session_id: String, persistent: bool) -> Result<Self> {
+            // The browser lives on its own thread (see BrowserThread)
+            let browser = BrowserThread::spawn(&session_id)?;
 
             Ok(Self {
                 session_id,
                 browser,
                 persistent,
-                engine_config,
             })
         }
 
@@ -575,17 +561,16 @@ async fn run_browser_session(
             .await
         }
 
-        /// Run a script in the page and return its string result.
-        async fn eval(&self, code: String) -> Result<String> {
-            self.with_browser(move |browser| {
-                async move { browser.execute_javascript(&code).await }.boxed_local()
-            })
-            .await
-        }
-
-        /// Execute JavaScript
+        /// Execute JavaScript (always fails: there is no JavaScript engine,
+        /// see `engine::JS_UNAVAILABLE`)
         async fn execute_javascript(&self, code: &str) -> Result<serde_json::Value> {
-            Ok(serde_json::json!(self.eval(code.to_string()).await?))
+            let code = code.to_string();
+            let result = self
+                .with_browser(move |browser| {
+                    async move { browser.execute_javascript(&code).await }.boxed_local()
+                })
+                .await?;
+            Ok(serde_json::json!(result))
         }
 
         /// Get page content
@@ -597,45 +582,66 @@ async fn run_browser_session(
             .await
         }
 
-        /// Click an element (simplified implementation)
+        /// Click an element: performs the click's default action (submit a
+        /// form, follow a link, toggle a checkbox)
         async fn click_element(&self, selector: &str) -> Result<bool> {
-            let click_js = format!(
-                "document.querySelector('{}')?.click(); true",
-                selector.replace("'", "\\'")
-            );
-            Ok(self.eval(click_js).await?.contains("true"))
+            let selector = selector.to_string();
+            self.with_browser(move |browser| {
+                async move { Ok(browser.click_element(&selector).await?.success) }.boxed_local()
+            })
+            .await
         }
 
-        /// Fill a form element (simplified implementation)
+        /// Fill a form field (the value is sent when its form is submitted)
         async fn fill_element(&self, selector: &str, value: &str) -> Result<bool> {
-            let fill_js = format!(
-                "var el = document.querySelector('{}'); if(el) {{ el.value = '{}'; el.dispatchEvent(new Event('input')); el.dispatchEvent(new Event('change')); true }} else {{ false }}",
-                selector.replace("'", "\\'"),
-                value.replace("'", "\\'")
-            );
-            Ok(self.eval(fill_js).await?.contains("true"))
-        }
-
-        /// Get cookies (simplified implementation)
-        async fn get_cookies(&self) -> Result<Vec<String>> {
-            let result = self.eval("document.cookie".to_string()).await?;
-            Ok(result
-                .split(';')
-                .map(|s| s.trim().to_string())
-                .filter(|s| !s.is_empty())
-                .collect())
-        }
-
-        /// Set cookies (simplified implementation)
-        async fn set_cookies(&self, cookies: Vec<String>) -> Result<usize> {
-            let mut count = 0;
-            for cookie in cookies {
-                let set_cookie_js = format!("document.cookie = '{}'", cookie.replace("'", "\\'"));
-                if self.eval(set_cookie_js).await.is_ok() {
-                    count += 1;
+            let selector = selector.to_string();
+            let value = value.to_string();
+            self.with_browser(move |browser| {
+                async move {
+                    Ok(browser
+                        .type_text_into_element(&selector, &value, true)
+                        .await?
+                        .success)
                 }
-            }
-            Ok(count)
+                .boxed_local()
+            })
+            .await
+        }
+
+        /// Get the cookies ("name=value") the browser would send to the current page
+        async fn get_cookies(&self) -> Result<Vec<String>> {
+            self.with_browser(|browser| {
+                let header = browser
+                    .get_current_url()
+                    .and_then(|url| browser.get_cookie_header(&url))
+                    .unwrap_or_default();
+                let cookies = header
+                    .split(';')
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect();
+                async move { Ok(cookies) }.boxed_local()
+            })
+            .await
+        }
+
+        /// Set cookies for the current page's host
+        async fn set_cookies(&self, cookies: Vec<String>) -> Result<usize> {
+            self.with_browser(move |browser| {
+                let host = browser
+                    .get_current_url()
+                    .and_then(|url| url::Url::parse(&url).ok())
+                    .and_then(|url| url.host_str().map(str::to_string));
+                let result = match host {
+                    Some(host) => Ok(cookies
+                        .iter()
+                        .filter(|cookie| browser.set_cookie(&host, cookie).is_ok())
+                        .count()),
+                    None => Err(anyhow::anyhow!("No page loaded")),
+                };
+                async move { result }.boxed_local()
+            })
+            .await
         }
     }
 
@@ -721,11 +727,7 @@ async fn run_browser_session(
     info!("Persistent: {}", persistent);
 
     // Create session handler
-    let handler = Rc::new(BrowserSessionHandler::new(
-        session_id.clone(),
-        persistent,
-        engine_config,
-    )?);
+    let handler = Rc::new(BrowserSessionHandler::new(session_id.clone(), persistent)?);
 
     // Remove existing socket file if it exists
     if std::path::Path::new(&socket_path).exists() {
