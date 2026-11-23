@@ -67,8 +67,8 @@ Page contexts run untrusted web JavaScript. What isolates them:
 Because of that last row:
 
 - **Standalone `thalora`:** the process is the boundary. It holds no app state beyond the profile, and it should run under the fork's `deno_sandbox` confinement (Landlock + seccomp on Linux, Seatbelt on macOS) with a filesystem view limited to its profile directory. Tracked as an A3 follow-up.
-- **A5 (inside a Denext app): pages run in a separate process.** Same-process isolates next to the app's backend inside libdenort are too weak a boundary for hostile web content while the V8 sandbox is off. The laufey host spawns a Thalora page process (libdenort with `web-page`, confined by `deno_sandbox`) and talks to it over IPC: input in, display lists out. This lines up with the board's "process-isolated workers after 5.0". The in-process `PageRuntime` stays the building block either way; only where it runs changes.
-- Revisit in-process A5 only if the fork turns the V8 sandbox on.
+- **A5 (inside a Denext app): pages run in a separate process (decided).** Same-process isolates next to the app's backend inside libdenort are too weak a boundary for hostile web content while the V8 sandbox is off. The laufey host spawns a Thalora page process (libdenort with `web-page`, confined by `deno_sandbox`) and talks to it over IPC: input in, display lists out. This lines up with the board's "process-isolated workers after 5.0". The in-process `PageRuntime` stays the building block either way; only where it runs changes.
+- In-process A5 is off the table unless the PM session's V8-sandbox evaluation lands.
 
 ## Alternatives considered
 
@@ -87,4 +87,6 @@ Because of that last row:
 1. Git dependency on `thalora-dom`, pinned by `rev`, no vendoring, on the conditions above.
 2. The builder lives inside `deno_web_page` as `PageRuntime::new(options)`. A5's vtable entries call it; nothing else depends on it.
 3. Thalora-supplied permissions only as a real `PermissionsContainer` from parsed descriptors, plus `denyAddresses` by default.
-4. Security: answer before code merges (section above). Open: whether the V8 sandbox should be turned on fork-wide.
+4. Security: (a)-(f) accepted as written. **Decided: A5 runs pages in a separate, confined page process over IPC; no in-process page isolates next to the app backend.** Turning the V8 sandbox on fork-wide is not on the table: it breaks Node-API addons that hand out external ArrayBuffers (which packaged denext apps support), costs performance, and needs the sandbox archive for every target. The PM session tracks it as a separate evaluation; in-process A5 is reconsidered only if that lands.
+
+`thalora-dom` notes: it depends on `selectors` (MPL-2.0), which the fork's `Cargo.lock` already contains.
