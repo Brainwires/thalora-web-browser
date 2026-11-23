@@ -75,6 +75,21 @@ The pieces:
   - Build time and binary size.
   - Packaging: the 5.0 kernel-sandbox desktop profile and the macOS signing/notarization path in denext's package scripts must allow what GPUI loads (the Metal shader cache, fonts).
 
+**B0 result (2026-11-23): GO with conditions.** `spike/gpui-b0` in Brainwires/laufey (`196883f`, not pushed); details in `backends/gpui/SPIKE.md` there.
+
+On macOS arm64:
+- It links on the first try. V8's libc++ (`std::__Cr`) is the only C++ runtime in the process, with no duplicate symbols.
+- `b0-result presses=20 counter=20`.
+- Commit to view: 0.25 ms. Press to repainted frame: 33 ms.
+- First frame at 1.8 s (not yet explained; likely runtime shader compile).
+- Binary: 73 MB raw, 54 MB stripped. Clean build ~1m40s.
+
+Conditions before B1 is called done:
+- Windows (static CRT, 4 MiB js-thread stack) and Linux (libstdc++ next to V8's libc++?) must link in a laufey train.
+- Replace the whole-fork git dependency on deno_core, which costs 3.5 min / 2.3 GB of submodules. Proposed DENEXT.md item.
+- Check the sandbox profile and notarization.
+- Explain the 1.8 s first frame.
+
 **B1, mutation protocol + core primitives**
 - Batch format: create, insert-before, remove, set-props, set-style, set-text and commit. Node ids are u32 and the layout is versioned.
 - Host side: a retained node tree mapped onto GPUI elements. RN flexbox maps onto GPUI's Taffy styles.
