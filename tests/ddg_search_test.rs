@@ -94,24 +94,7 @@ async fn test_duckduckgo_type_into_search() {
             );
         }
         Err(e) => {
-            eprintln!("Type error (may need JS context): {}", e);
+            eprintln!("Type error: {}", e);
         }
     }
-
-    // Verify via JS
-    let value = guard
-        .execute_javascript(
-            r#"
-            (function() {
-                try {
-                    var input = document.querySelector('input[name="q"]');
-                    return input ? 'found:' + (input.value || 'empty') : 'not_found';
-                } catch(e) {
-                    return 'error:' + e.message;
-                }
-            })()
-            "#,
-        )
-        .await;
-    eprintln!("Input value: {:?}", value);
 }

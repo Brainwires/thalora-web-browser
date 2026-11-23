@@ -13,16 +13,15 @@ use futures::FutureExt;
 
 use super::types::{ImageSearchResults, SearchResults};
 use crate::engine::browser::BrowserThread;
-use crate::engine::engine_trait::EngineType;
 
 /// Start a temporary browser for one search on its own thread (dropped with
 /// the returned handle).
 pub(crate) fn temporary_browser(engine: &str) -> Result<BrowserThread> {
-    BrowserThread::spawn(&format!("search-{engine}"), EngineType::Boa)
+    BrowserThread::spawn(&format!("search-{engine}"))
 }
 
-/// Navigate `browser` to `url` (running the page's JavaScript) and return
-/// the rendered HTML. `full_load` uses the load-and-JS navigation path.
+/// Navigate `browser` to `url` and return the page's HTML (scripts are not
+/// executed). `full_load` uses the wait-for-load navigation path.
 pub(crate) async fn navigate_and_read(
     browser: &BrowserThread,
     url: String,

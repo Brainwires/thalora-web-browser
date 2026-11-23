@@ -62,12 +62,12 @@ mod tests {
         );
     }
 
-    /// Quick smoke test for all major tool categories
+    /// Tools that need a JavaScript engine stay registered but fail with a
+    /// clear error (Boa was removed; V8 is not wired in yet)
     #[test]
-    fn test_tool_categories_smoke() {
+    fn test_javascript_tools_report_unavailable() {
         let mut harness = create_initialized_harness().expect("Failed to create test harness");
 
-        // JavaScript evaluation
         let js_result = harness.call_tool(
             "cdp_runtime_evaluate",
             serde_json::json!({
@@ -75,20 +75,20 @@ mod tests {
                 "await_promise": false
             }),
         );
-        match &js_result {
+        match js_result {
             Err(e) if e.to_string().contains("Timeout") || e.to_string().contains("timeout") => {
                 eprintln!("Skipping: cdp_runtime_evaluate timed out (expected on CI)");
-                return;
             }
-            _ => {
+            Err(e) => panic!("cdp_runtime_evaluate failed at transport level: {e}"),
+            Ok(response) => {
+                let text = response.content[0]["text"].as_str().unwrap_or_default();
+                assert!(response.is_error, "evaluation must not appear to succeed");
                 assert!(
-                    js_result.is_ok(),
-                    "JavaScript evaluation should be functional"
+                    text.contains("JavaScript execution is unavailable"),
+                    "unexpected error: {text}"
                 );
             }
         }
-
-        eprintln!("All major tool categories passed smoke test");
     }
 }
 

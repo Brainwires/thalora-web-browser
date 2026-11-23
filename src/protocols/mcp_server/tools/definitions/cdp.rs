@@ -6,7 +6,7 @@ use serde_json::Value;
 pub(crate) fn get_cdp_tool_definitions() -> Vec<Value> {
     vec![serde_json::json!({
         "name": "cdp_runtime_evaluate",
-        "description": "Evaluate a JavaScript expression in a browser session's page and return the result",
+        "description": "Evaluate a JavaScript expression in a browser session's page and return the result. Currently unavailable (returns an error): the Boa JavaScript engine was removed and V8 support is in progress.",
         "inputSchema": {
             "type": "object",
             "properties": {

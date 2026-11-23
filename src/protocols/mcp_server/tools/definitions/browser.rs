@@ -5,7 +5,7 @@ pub(crate) fn get_browser_automation_tool_definitions() -> Vec<Value> {
     vec![
         serde_json::json!({
             "name": "browser_click_element",
-            "description": "Click an element (by ref from browser_snapshot or CSS selector). Submit buttons submit their form and links navigate unless a handler calls preventDefault().",
+            "description": "Click an element (by ref from browser_snapshot or CSS selector). Submit buttons submit their form, links navigate and checkboxes/radio buttons change state. Click handlers do not run (no JavaScript engine): clicking an element without such a default action returns an error.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -57,7 +57,7 @@ pub(crate) fn get_browser_automation_tool_definitions() -> Vec<Value> {
         }),
         serde_json::json!({
             "name": "browser_type_text",
-            "description": "Type text into an input field or element",
+            "description": "Type text into a named input or textarea; the value is sent when its form is submitted",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -139,7 +139,7 @@ pub(crate) fn get_browser_automation_tool_definitions() -> Vec<Value> {
         }),
         serde_json::json!({
             "name": "browser_press_key",
-            "description": "Press a key (keydown/keypress/keyup), e.g. \"Enter\", \"Escape\", \"ArrowDown\". Enter in a single-line form field submits the form unless prevented. Without ref/selector the key goes to the focused element.",
+            "description": "Press a key. Enter in a single-line form field submits its form. Any other key press only matters to page JavaScript, which is currently unavailable (returns an error): the Boa JavaScript engine was removed and V8 support is in progress.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -165,7 +165,7 @@ pub(crate) fn get_browser_automation_tool_definitions() -> Vec<Value> {
         }),
         serde_json::json!({
             "name": "browser_hover",
-            "description": "Move the pointer over an element (mouseover/mouseenter/mousemove), e.g. to open hover menus.",
+            "description": "Move the pointer over an element (mouseover/mouseenter/mousemove), e.g. to open hover menus. Currently unavailable (returns an error): the Boa JavaScript engine was removed and V8 support is in progress.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -187,7 +187,7 @@ pub(crate) fn get_browser_automation_tool_definitions() -> Vec<Value> {
         }),
         serde_json::json!({
             "name": "browser_scroll",
-            "description": "Scroll an element into view (ref/selector) or scroll the page by delta_y pixels, firing scroll events (e.g. to trigger lazy loading).",
+            "description": "Scroll an element into view (ref/selector) or scroll the page by delta_y pixels, firing scroll events (e.g. to trigger lazy loading). Currently unavailable (returns an error): the Boa JavaScript engine was removed and V8 support is in progress.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -213,7 +213,7 @@ pub(crate) fn get_browser_automation_tool_definitions() -> Vec<Value> {
         }),
         serde_json::json!({
             "name": "browser_console_messages",
-            "description": "Console messages (log/info/warn/error/debug) logged by the current page, oldest first (up to 500).",
+            "description": "Console messages (log/info/warn/error/debug) logged by the current page, oldest first (up to 500). Currently unavailable (returns an error): the Boa JavaScript engine was removed and V8 support is in progress.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -230,7 +230,7 @@ pub(crate) fn get_browser_automation_tool_definitions() -> Vec<Value> {
         }),
         serde_json::json!({
             "name": "browser_wait",
-            "description": "Wait (running page timers and network) until a condition holds: an element by ref or selector exists, the page text contains a string, the URL contains a string, or the network is idle. Give exactly one condition. Returns met=false on timeout.",
+            "description": "Check a condition on the loaded page: an element by ref or selector exists, the page contains a string, the URL contains a string, or the network is idle. Give exactly one condition. Page JavaScript is currently not executed, so the page cannot change while waiting and the result (met=true/false) is returned immediately.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -267,7 +267,7 @@ pub(crate) fn get_browser_automation_tool_definitions() -> Vec<Value> {
         }),
         serde_json::json!({
             "name": "browser_wait_for_element",
-            "description": "Wait for an element to appear on the page",
+            "description": "Check whether an element is present on the loaded page (answers immediately: page JavaScript is currently not executed, so the page cannot change while waiting)",
             "inputSchema": {
                 "type": "object",
                 "properties": {

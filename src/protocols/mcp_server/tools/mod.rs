@@ -27,6 +27,7 @@ use features::*;
     Tools are grouped into categories:
         - Credential Vault Tools: Store credentials and fill them into pages without revealing them.
         - JavaScript Tools: Evaluate JavaScript in a session's page (`cdp_runtime_evaluate`).
+          Registered, but returns an error until a JavaScript engine (V8) is wired in.
         - Web Scraping Tools: Scrape web pages and extract content.
         - Web Search Tools: Perform web searches using various search engines.
         - Browser Automation Tools: Interact with web pages by clicking elements and filling forms.
@@ -84,12 +85,6 @@ impl McpServer {
         // Session Management Tools - Create, manage, and clean up browser sessions for persistent AI interactions
         if is_sessions_enabled() {
             tools.extend(get_session_tool_definitions());
-        }
-
-        // WASM Debug Tools - Load, inspect, disassemble, execute, and profile WASM modules
-        #[cfg(feature = "wasm-debug")]
-        if is_wasm_debug_enabled() {
-            tools.extend(get_wasm_debug_tool_definitions());
         }
 
         // Accessibility Tools - Always enabled for AI semantic understanding

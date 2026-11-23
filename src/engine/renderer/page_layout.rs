@@ -1036,7 +1036,7 @@ pub fn compute_styled_tree_with_css(
     let inline_css_start = Instant::now();
     let style_selector = Selector::parse("style").unwrap();
     let mut style_block_count = 0u32;
-    let csp_allows_inline = thalora_browser_apis::csp::csp_allows_inline_style();
+    let csp_allows_inline = crate::engine::security::csp_state::csp_allows_inline_style();
     for style_el in document.select(&style_selector) {
         let css_text: String = style_el.text().collect();
         if !css_text.trim().is_empty() {
@@ -1377,7 +1377,7 @@ fn build_styled_element_from_dom(
     let img_src = if tag == "img" {
         el.attr("src").and_then(|s| {
             // CSP: Check img-src before allowing the image URL
-            if thalora_browser_apis::csp::csp_allows_image(s) {
+            if crate::engine::security::csp_state::csp_allows_image(s) {
                 Some(s.to_string())
             } else {
                 eprintln!("🔒 CSP: Image blocked by img-src: {}", s);
@@ -2240,7 +2240,7 @@ pub fn compute_page_layout_with_css(
     // Step 1b: Then parse <style> blocks (higher source-order precedence, overrides external)
     // CSP: Check if inline styles are allowed
     let style_selector = Selector::parse("style").unwrap();
-    let csp_allows_inline_legacy = thalora_browser_apis::csp::csp_allows_inline_style();
+    let csp_allows_inline_legacy = crate::engine::security::csp_state::csp_allows_inline_style();
     for style_el in document.select(&style_selector) {
         let css_text: String = style_el.text().collect();
         if !css_text.trim().is_empty() {
@@ -2405,7 +2405,7 @@ fn build_layout_tree_from_dom(
     if tag == "img" {
         if let Some(src) = el.attr("src") {
             // CSP: Check img-src before allowing the image URL
-            if thalora_browser_apis::csp::csp_allows_image(src) {
+            if crate::engine::security::csp_state::csp_allows_image(src) {
                 styles
                     .other
                     .insert("__img_src".to_string(), src.to_string());

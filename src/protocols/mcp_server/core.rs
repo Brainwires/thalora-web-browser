@@ -7,32 +7,21 @@ use tracing::{error, info};
 use vfs::VfsInstance;
 
 use crate::engine::browser::HeadlessWebBrowser;
-// websocket API is now natively implemented in Boa engine
-// DOM is now natively handled by Boa engine
-use crate::engine::EngineConfig;
 use crate::features::credential_vault::CredentialVault;
 use crate::protocols::browser_tools::BrowserTools;
 use crate::protocols::rate_limiter::RateLimiter;
 use crate::protocols::security::sanitize_session_id;
 use crate::protocols::session_manager::SessionManager;
-#[cfg(feature = "wasm-debug")]
-use crate::protocols::wasm_debug_tools::WasmDebugTools;
 
 #[allow(dead_code)]
 pub struct McpServer {
-    // websocket API is now natively implemented in Boa engine
     pub(super) vault: CredentialVault,
     pub(super) browser_tools: BrowserTools,
     pub(super) session_manager: SessionManager,
     /// Optional session-scoped persistent VFS instances. Keyed by session_id.
     pub(super) session_vfs: Arc<Mutex<HashMap<String, Arc<VfsInstance>>>>,
-    /// Engine configuration for JavaScript execution
-    pub(super) engine_config: EngineConfig,
     /// Rate limiter for DoS prevention
     pub(super) rate_limiter: RateLimiter,
-    /// WASM debug tools (optional, requires wasm-debug feature + env var)
-    #[cfg(feature = "wasm-debug")]
-    pub(super) wasm_debug_tools: Option<WasmDebugTools>,
 }
 
 impl Default for McpServer {
@@ -43,10 +32,6 @@ impl Default for McpServer {
 
 impl McpServer {
     pub fn new() -> Self {
-        Self::new_with_engine(EngineConfig::default())
-    }
-
-    pub fn new_with_engine(engine_config: EngineConfig) -> Self {
         let vault = if crate::protocols::mcp_server::tools::features::is_vault_enabled() {
             CredentialVault::open_default().unwrap_or_else(|e| {
                 tracing::warn!("Failed to open credential vault: {e}; using an in-memory vault");
@@ -63,35 +48,12 @@ impl McpServer {
 
         let browser_tools = BrowserTools::new();
 
-        #[cfg(feature = "wasm-debug")]
-        let wasm_debug_tools = {
-            use crate::protocols::mcp_server::tools::features::is_wasm_debug_enabled;
-            if is_wasm_debug_enabled() {
-                match WasmDebugTools::new() {
-                    Ok(tools) => {
-                        tracing::info!("WASM debug tools enabled via THALORA_ENABLE_WASM_DEBUG");
-                        Some(tools)
-                    }
-                    Err(e) => {
-                        tracing::warn!("Failed to initialize WASM debug tools: {}", e);
-                        None
-                    }
-                }
-            } else {
-                None
-            }
-        };
-
         Self {
-            // websocket API is now natively implemented in Boa engine
             vault,
             browser_tools,
             session_manager,
             session_vfs: Arc::new(Mutex::new(HashMap::new())),
-            engine_config,
             rate_limiter: RateLimiter::new(),
-            #[cfg(feature = "wasm-debug")]
-            wasm_debug_tools,
         }
     }
 
@@ -165,7 +127,7 @@ impl McpServer {
 
     /// Run the MCP server over stdio using rmcp.
     ///
-    /// Uses `tokio::task::LocalSet` so the `!Send` boa engine (`Rc`-based) is safe.
+    /// Uses `tokio::task::LocalSet` because the server is `!Send`.
     #[cfg(feature = "http-transport")]
     pub async fn run(self) -> Result<()> {
         use crate::protocols::mcp_server::service::McpServerService;

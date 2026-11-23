@@ -7,7 +7,6 @@ use rmcp::{
     service::RequestContext,
 };
 
-use crate::engine::EngineConfig;
 use crate::protocols::mcp_server::core::McpServer;
 
 /// rmcp `ServerHandler` wrapper for `McpServer`.
@@ -22,10 +21,6 @@ pub struct McpServerService(tokio::sync::Mutex<McpServer>);
 impl McpServerService {
     pub fn new(server: McpServer) -> Self {
         Self(tokio::sync::Mutex::new(server))
-    }
-
-    pub fn with_engine(config: EngineConfig) -> Self {
-        Self::new(McpServer::new_with_engine(config))
     }
 
     /// Run one tool call (serialized with all other calls on this server).

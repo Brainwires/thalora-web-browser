@@ -1,4 +1,4 @@
-# Stage 1: Build with desktop features (no FFmpeg/audio/video/WebRTC/wasmtime)
+# Stage 1: Build with desktop features
 FROM rust:1.91.0-bookworm AS builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends \

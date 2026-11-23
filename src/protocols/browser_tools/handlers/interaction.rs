@@ -519,6 +519,11 @@ async move {
     }
 
     /// `browser_console_messages`: console output logged by the page.
+    ///
+    /// Only page scripts write to the console, and there is no JavaScript
+    /// engine at the moment, so this returns the
+    /// [`JS_UNAVAILABLE`](crate::engine::JS_UNAVAILABLE) error instead of an
+    /// empty list.
     pub async fn handle_console_messages(&self, params: Value) -> McpResponse {
         let session_id = params
             .get("session_id")
@@ -527,33 +532,7 @@ async move {
         if let Err(e) = sanitize_session_id(session_id) {
             return McpResponse::error(-32602, format!("Session ID validation failed: {}", e));
         }
-        let clear = params
-            .get("clear")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false);
-        let browser = match self.get_session(session_id) {
-            Ok(browser) => browser,
-            Err(e) => return McpResponse::error(-32602, e),
-        };
-        crate::protocols::browser_tools::core::run_in(&browser, move |browser| {
-            async move {
-                let Ok(mut guard) = browser.lock() else {
-                    return McpResponse::error(-1, "Failed to acquire browser lock".to_string());
-                };
-                let messages: Vec<Value> = guard
-                    .console_messages(clear)
-                    .into_iter()
-                    .map(|m| json!({"level": m.level, "text": m.text}))
-                    .collect();
-                let url = guard.get_current_url();
-                McpResponse::page_content(
-                    url.as_deref(),
-                    json!({"count": messages.len(), "messages": messages}),
-                )
-            }
-            .boxed_local()
-        })
-        .await
+        McpResponse::error(-1, crate::engine::JS_UNAVAILABLE.to_string())
     }
 
     /// `browser_wait`: wait for a selector/ref, text, URL fragment or network idle.
@@ -681,7 +660,12 @@ async move {
                             "message": if found {
                                 format!("Element found: {}", selector_owned)
                             } else {
-                                format!("Element not found after {}ms: {}", timeout, selector_owned)
+                                // Nothing can add it later: scripts don't run
+                                format!(
+                                    "Element not found: {} (page scripts are not executed: {})",
+                                    selector_owned,
+                                    crate::engine::JS_UNAVAILABLE
+                                )
                             }
                         })),
                         Err(e) => {

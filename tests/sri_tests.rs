@@ -1,15 +1,5 @@
 // Subresource Integrity (SRI) tests
-// Tests the verify_integrity function logic via the public browser API
-
-use thalora::HeadlessWebBrowser;
-
-#[tokio::test]
-async fn test_sri_function_accessible() {
-    // Verify that the browser can execute scripts (basic sanity)
-    let browser = HeadlessWebBrowser::new();
-    let result = browser.lock().unwrap().execute_javascript("1 + 1").await;
-    assert!(result.is_ok());
-}
+// Tests the hash computations behind the verify_integrity function
 
 // Unit test the verify_integrity logic directly by testing the sha2 integration
 #[test]

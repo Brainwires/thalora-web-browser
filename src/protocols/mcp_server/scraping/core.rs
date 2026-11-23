@@ -143,14 +143,7 @@ impl McpServer {
                 session_id.and_then(|sid| self.browser_tools.get_session_browser(sid));
             let result = match session_browser {
                 Some(browser) => browser.call(job).await,
-                None => {
-                    crate::engine::browser::BrowserThread::run_once(
-                        "snapshot",
-                        crate::engine::engine_trait::EngineType::Boa,
-                        job,
-                    )
-                    .await
-                }
+                None => crate::engine::browser::BrowserThread::run_once("snapshot", job).await,
             };
 
             match result {

@@ -483,6 +483,7 @@ pub fn create_harness_with_only_categories(enabled_categories: &[&str]) -> Resul
 }
 
 /// Validate that a tool response contains expected fields
+#[allow(dead_code)]
 pub fn validate_tool_response(
     response: &McpToolResponse,
     expected_content_type: &str,

@@ -61,55 +61,6 @@ fn test_search_and_scrape_workflow() {
 }
 
 #[test]
-fn test_browser_automation_workflow() {
-    let mut harness = create_initialized_harness().expect("Failed to create harness");
-
-    // Simulate browser automation workflow:
-    // 1. Execute JavaScript to set up page state
-    // 2. Get DOM document structure
-    // 3. Try to interact with elements
-
-    // Step 1: Execute JavaScript to create a simple DOM structure
-    let js_response = match harness.call_tool("cdp_runtime_evaluate", json!({
-        "expression": "const div = document.createElement('div'); div.id = 'test-element'; div.textContent = 'Test Content'; document.body.appendChild(div); div.textContent",
-        "await_promise": false
-    })) {
-        Ok(r) => r,
-        Err(e) if e.to_string().contains("Timeout") || e.to_string().contains("timeout") => {
-            eprintln!("Skipping: cdp_runtime_evaluate timed out (expected on CI)");
-            return;
-        }
-        Err(e) => panic!("Unexpected error: {}", e),
-    };
-
-    assert!(!js_response.is_error, "JavaScript should not error");
-    assert_tool_success(&js_response, Duration::from_secs(10)).expect("JavaScript should be fast");
-
-    // Step 2: Try to click the element we created
-    let click_response = harness.call_tool(
-        "browser_click_element",
-        json!({
-            "selector": "#test-element"
-        }),
-    );
-
-    // Click might fail if element doesn't exist in the browser context, which is acceptable
-    match click_response {
-        Ok(response) => {
-            if !response.is_error {
-                assert_tool_success(&response, Duration::from_secs(10))
-                    .expect("Click should be fast");
-            }
-        }
-        Err(_) => {
-            // Click failures are acceptable in test environment
-        }
-    }
-
-    println!("Browser automation workflow completed successfully");
-}
-
-#[test]
 fn test_error_recovery_workflow() {
     let mut harness = create_initialized_harness().expect("Failed to create harness");
 
@@ -263,7 +214,6 @@ fn test_end_to_end_ai_simulation() {
     // Simulate how an AI model might use the MCP server:
     // 1. Research a topic by searching
     // 2. Scrape relevant content
-    // 3. Analyze content with JavaScript
 
     // Step 1: "AI decides to research Rust programming"
     let search_response = match harness.call_tool(
@@ -301,32 +251,8 @@ fn test_end_to_end_ai_simulation() {
 
     assert!(!scrape_response.is_error, "AI scraping should not error");
 
-    // Step 3: "AI analyzes content using JavaScript"
-    let analysis_js = r#"
-        const content = 'Sample Rust tutorial content';
-        const wordCount = content.split(' ').length;
-        const hasRust = content.toLowerCase().includes('rust');
-        JSON.stringify({
-            wordCount: wordCount,
-            mentionsRust: hasRust,
-            analysis: 'Basic content analysis complete'
-        });
-    "#;
-
-    let js_response = harness
-        .call_tool(
-            "cdp_runtime_evaluate",
-            json!({
-                "expression": analysis_js,
-                "await_promise": false
-            }),
-        )
-        .expect("AI analysis should succeed");
-
-    assert!(!js_response.is_error, "AI analysis should not error");
-
     // Calculate total workflow time
-    let total_time = search_response.duration + scrape_response.duration + js_response.duration;
+    let total_time = search_response.duration + scrape_response.duration;
 
     // Verify the AI simulation completed efficiently
     assert!(

@@ -1,7 +1,7 @@
 // Real-world site loading tests
 // Validates that the browser can navigate to and load content from popular sites
-// without crashing from any of our recent changes (SecurityContext, CSP, SRI,
-// event bubbling, module loader, etc.)
+// without crashing (CSP and SRI handling, stylesheet fetching, etc.). Page
+// scripts are not executed: there is no JavaScript engine at the moment.
 
 use thalora::HeadlessWebBrowser;
 
@@ -128,27 +128,4 @@ async fn test_load_site_with_modules_svelte() {
     assert!(err.is_none(), "svelte.dev failed: {:?}", err);
     assert!(len > 500, "svelte.dev content too short: {} bytes", len);
     eprintln!("svelte.dev: {} bytes", len);
-}
-
-// Test JS execution doesn't crash on loaded pages
-#[tokio::test]
-async fn test_js_execution_after_navigation() {
-    let browser = HeadlessWebBrowser::new();
-    let mut guard = browser.lock().unwrap();
-
-    let nav_result = guard.navigate_to("https://example.com").await;
-    assert!(
-        nav_result.is_ok(),
-        "Navigation failed: {:?}",
-        nav_result.err()
-    );
-
-    // Execute JS on the loaded page
-    let js_result = guard.execute_javascript("document.title").await;
-    assert!(
-        js_result.is_ok(),
-        "JS execution after nav failed: {:?}",
-        js_result.err()
-    );
-    eprintln!("example.com title: {}", js_result.unwrap());
 }

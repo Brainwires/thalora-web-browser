@@ -62,14 +62,3 @@ pub(super) fn get_mcp_mode() -> String {
 pub(super) fn is_minimal_mode() -> bool {
     !is_brainclaw_preset() && get_mcp_mode() == "minimal"
 }
-
-/// Check if WASM debug tools are enabled (requires wasm-debug feature at compile time)
-#[cfg(feature = "wasm-debug")]
-pub(crate) fn is_wasm_debug_enabled() -> bool {
-    env::var("THALORA_ENABLE_WASM_DEBUG").unwrap_or_else(|_| "false".to_string()) == "true"
-}
-
-#[cfg(not(feature = "wasm-debug"))]
-pub(crate) fn is_wasm_debug_enabled() -> bool {
-    false
-}

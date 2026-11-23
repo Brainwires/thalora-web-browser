@@ -6,7 +6,6 @@ use std::sync::Mutex;
 use tracing::{debug, info};
 
 use crate::engine::browser::BrowserThread;
-use crate::engine::engine_trait::EngineType;
 use crate::protocols::browser_tools::session::BrowserSession;
 use crate::protocols::mcp::McpResponse;
 
@@ -79,7 +78,7 @@ impl BrowserTools {
         }
 
         debug!(session_id, "Creating new session");
-        let browser = BrowserThread::spawn(session_id, EngineType::Boa).map_err(|e| {
+        let browser = BrowserThread::spawn(session_id).map_err(|e| {
             format!(
                 "Failed to start browser for session '{}': {}",
                 session_id, e

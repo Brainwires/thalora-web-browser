@@ -211,79 +211,64 @@ fn e2e_unknown_session_is_an_error() {
     assert!(text(&resp).contains("Unknown session"), "{}", text(&resp));
 }
 
+// ── No JavaScript engine ────────────────────────────────────────────────────
+//
+// Boa was removed and V8 is not wired in yet. Tools that need to run script
+// stay registered but must fail with a clear error, never silently succeed.
+
+const JS_UNAVAILABLE: &str =
+    "JavaScript execution is unavailable: the Boa engine was removed; V8 support is in progress";
+
+fn assert_js_unavailable(harness: &mut McpTestHarness, tool: &str, args: Value) {
+    let resp = call(harness, tool, args);
+    let body = text(&resp);
+    assert!(
+        resp.is_error,
+        "{tool} should fail without JavaScript: {body}"
+    );
+    assert!(body.contains(JS_UNAVAILABLE), "{tool} error: {body}");
+}
+
 #[test]
-fn e2e_eval_runs_in_default_session() {
+fn e2e_script_tools_report_that_js_is_unavailable() {
     let (mut h, site) = fixture_harness();
     call_ok(
         &mut h,
         "browser_navigate",
         json!({"url": site.url("/index.html")}),
     );
-    let result = call_ok(
+    assert_js_unavailable(
         &mut h,
         "browser_eval",
         json!({"expression": "document.title"}),
     );
-    assert!(
-        result.contains("Thalora Fixture Index"),
-        "eval should see the navigated page: {result}"
-    );
-}
-
-// ── Event loop (Phase 1) ────────────────────────────────────────────────────
-
-fn navigate_with_js(h: &mut McpTestHarness, url: String, session_id: &str) {
-    call_ok(
-        h,
-        "browser_navigate_to",
-        json!({"url": url, "session_id": session_id, "wait_for_js": true}),
-    );
-}
-
-fn eval_in(h: &mut McpTestHarness, session_id: &str, expression: &str) -> String {
-    call_ok(
-        h,
-        "cdp_runtime_evaluate",
-        json!({"expression": expression, "session_id": session_id}),
-    )
-}
-
-#[test]
-fn e2e_timers_microtasks_and_animation_frames_run_during_navigation() {
-    let (mut h, site) = fixture_harness();
-    navigate_with_js(&mut h, site.url("/timers.html"), "timers");
-    let log = eval_in(&mut h, "timers", "fixtureLog.join(',')");
-    for entry in ["microtask", "raf", "timeout"] {
-        assert!(log.contains(entry), "{entry} did not run: {log}");
-    }
-    // ...and their DOM writes persist
-    let text = eval_in(
+    assert_js_unavailable(
         &mut h,
-        "timers",
-        "document.getElementById('timeout').textContent",
+        "cdp_runtime_evaluate",
+        json!({"expression": "1 + 1"}),
     );
-    assert!(text.contains("timeout fired"), "timeout text: {text}");
+    assert_js_unavailable(&mut h, "browser_console_messages", json!({}));
+    // Hovering, scrolling and clicking an element without a default action
+    // only matter to page script
+    assert_js_unavailable(&mut h, "browser_hover", json!({"selector": "#to-login"}));
+    assert_js_unavailable(&mut h, "browser_scroll", json!({"delta_y": 200}));
+    assert_js_unavailable(&mut h, "browser_click", json!({"selector": "h1"}));
 }
 
 #[test]
-fn e2e_fetch_settles_during_navigation() {
+fn e2e_navigation_does_not_run_page_scripts() {
     let (mut h, site) = fixture_harness();
-    navigate_with_js(&mut h, site.url("/spa_fetch.html"), "fetch");
-    let result = eval_in(&mut h, "fetch", "fetchResult");
-    assert!(
-        result.contains("fixture data loaded"),
-        "fetch did not settle: {result}"
+    // timers.html fills its elements from script; with wait_for_js the page
+    // still loads, as static HTML
+    call_ok(
+        &mut h,
+        "browser_navigate_to",
+        json!({"url": site.url("/timers.html"), "session_id": "static", "wait_for_js": true}),
     );
-}
-
-#[test]
-fn e2e_bundled_code_runs() {
-    let (mut h, site) = fixture_harness();
-    navigate_with_js(&mut h, site.url("/webpack_bundle.html"), "bundle");
-    let result = eval_in(&mut h, "bundle", "String(window.bundleResult)");
+    let content = page_content(&mut h, "static");
     assert!(
-        result.contains("bundle rendered (production)"),
-        "bundle did not run: {result}"
+        content.contains("pending") && !content.contains("timeout fired"),
+        "page scripts must not run: {content}"
     );
 }
 
@@ -425,21 +410,6 @@ fn e2e_check_and_enter_submit() {
     assert!(
         !echoed.contains("remember=yes"),
         "unchecked box was submitted: {echoed}"
-    );
-}
-
-#[test]
-fn e2e_console_messages_are_captured() {
-    let (mut h, site) = fixture_harness();
-    navigate_with_js(&mut h, site.url("/timers.html"), "console");
-    let messages = call_ok(
-        &mut h,
-        "browser_console_messages",
-        json!({"session_id": "console"}),
-    );
-    assert!(
-        messages.contains("timers fixture loaded"),
-        "console.log not captured: {messages}"
     );
 }
 
@@ -620,70 +590,4 @@ fn e2e_redirects_into_private_networks_are_blocked() {
         }),
     );
     assert!(ok.contains("Thalora Fixture Site"), "{ok}");
-}
-
-#[test]
-fn e2e_page_fetch_to_metadata_endpoint_is_blocked() {
-    let (mut h, site) = fixture_harness();
-    navigate_with_js(&mut h, site.url("/index.html"), "ssrf-fetch");
-    let result = eval_in(
-        &mut h,
-        "ssrf-fetch",
-        "(function () { try { fetch('http://169.254.169.254/latest/meta-data').then(function () { window.ssrfResult = 'fetched'; }, function (e) { window.ssrfResult = 'blocked: ' + e.message; }); return 'started'; } catch (e) { return 'threw: ' + e.message; } })()",
-    );
-    assert!(
-        result.contains("started") || result.contains("threw"),
-        "{result}"
-    );
-    call_ok(
-        &mut h,
-        "browser_wait",
-        json!({"session_id": "ssrf-fetch", "network_idle": true, "timeout_ms": 2000}),
-    );
-    let outcome = eval_in(&mut h, "ssrf-fetch", "String(window.ssrfResult)");
-    assert!(
-        outcome.contains("blocked") || result.contains("threw"),
-        "metadata fetch was not blocked: {outcome}"
-    );
-}
-
-// ── Persistent DOM (Phase 3 R) ──────────────────────────────────────────────
-
-#[test]
-fn e2e_dom_mutations_reach_page_content_and_snapshot() {
-    let (mut h, site) = fixture_harness();
-    navigate_with_js(&mut h, site.url("/dom_mutation.html"), "dom");
-
-    let content = page_content(&mut h, "dom");
-    for expected in [
-        "static item",
-        "added by script",
-        "Inserted button",
-        "from inserted script",
-    ] {
-        assert!(
-            content.contains(expected),
-            "{expected:?} missing: {content}"
-        );
-    }
-
-    let snapshot = call_ok(&mut h, "browser_snapshot", json!({"session_id": "dom"}));
-    assert!(
-        snapshot.contains("Inserted button") && snapshot.contains("[ref="),
-        "snapshot: {snapshot}"
-    );
-
-    // Node identity holds across lookups
-    let same = eval_in(
-        &mut h,
-        "dom",
-        "document.getElementById('added') === document.querySelector('#items > #added')",
-    );
-    assert!(same.contains("true"), "identity: {same}");
-    let count = eval_in(
-        &mut h,
-        "dom",
-        "document.querySelectorAll('#items li').length",
-    );
-    assert!(count.contains('3'), "items: {count}");
 }

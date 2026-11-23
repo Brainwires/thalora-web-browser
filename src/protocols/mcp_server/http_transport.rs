@@ -2,8 +2,8 @@
 //!
 //! Each MCP session (identified by `Mcp-Session-Id`) runs on a dedicated OS thread
 //! with its own single-threaded tokio runtime and `McpServer` instance. This sidesteps
-//! the `!Send` constraint imposed by `boa_engine::Context` (which uses `Rc` internally)
-//! while still providing true per-session isolation.
+//! the `!Send` constraint of `McpServer` while still providing true per-session
+//! isolation.
 //!
 //! Protocol: MCP Streamable HTTP (2025-03-26) — JSON-only responses (no SSE streaming).
 //! The spec permits returning `Content-Type: application/json` directly for non-streaming
@@ -21,7 +21,6 @@ use parking_lot::RwLock;
 use serde_json::{Value, json};
 use tokio::sync::oneshot;
 
-use crate::engine::EngineConfig;
 use crate::protocols::mcp_server::core::McpServer;
 
 // ---------------------------------------------------------------------------
@@ -47,7 +46,6 @@ struct SessionHandle {
 #[derive(Clone)]
 struct AppState {
     sessions: Arc<RwLock<HashMap<String, SessionHandle>>>,
-    engine_config: EngineConfig,
     max_sessions: usize,
 }
 
@@ -57,7 +55,7 @@ struct AppState {
 
 /// Spawn an OS thread that owns a `McpServer` and processes requests via a
 /// sync channel.  Returns a `SessionHandle` for routing requests to this session.
-fn spawn_session(engine_config: EngineConfig) -> SessionHandle {
+fn spawn_session() -> SessionHandle {
     let (tx, rx) = std::sync::mpsc::sync_channel::<SessionMsg>(64);
 
     std::thread::spawn(move || {
@@ -68,7 +66,7 @@ fn spawn_session(engine_config: EngineConfig) -> SessionHandle {
 
         let local = tokio::task::LocalSet::new();
         local.block_on(&rt, async move {
-            let mut server = McpServer::new_with_engine(engine_config);
+            let mut server = McpServer::new();
 
             while let Ok(msg) = rx.recv() {
                 let result = dispatch(&mut server, &msg.method, msg.params).await;
@@ -174,7 +172,7 @@ async fn handle_mcp(
 
         // New session
         let sid = uuid::Uuid::new_v4().to_string();
-        let handle = spawn_session(state.engine_config.clone());
+        let handle = spawn_session();
         let (response_tx, response_rx) = oneshot::channel();
         let _ = handle.tx.send(SessionMsg {
             method,
@@ -283,12 +281,8 @@ async fn health_handler() -> Json<Value> {
 // ---------------------------------------------------------------------------
 
 /// Start the HTTP MCP server.  Each session runs on a dedicated OS thread
-/// so the `!Send` boa engine context is never sent across thread boundaries.
-pub async fn run_http_transport(
-    engine_config: EngineConfig,
-    host: String,
-    port: u16,
-) -> anyhow::Result<()> {
+/// so the `!Send` server is never sent across thread boundaries.
+pub async fn run_http_transport(host: String, port: u16) -> anyhow::Result<()> {
     let max_sessions: usize = std::env::var("THALORA_MAX_MCP_SESSIONS")
         .ok()
         .and_then(|v| v.parse().ok())
@@ -296,7 +290,6 @@ pub async fn run_http_transport(
 
     let state = AppState {
         sessions: Arc::new(RwLock::new(HashMap::new())),
-        engine_config,
         max_sessions,
     };
 

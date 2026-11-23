@@ -517,9 +517,6 @@ impl super::HeadlessWebBrowser {
         if self.current_content.is_empty() {
             return Err(anyhow::anyhow!("No page loaded. Navigate to a page first."));
         }
-        // Let pending microtasks/timers that are already due run first
-        self.pump_event_loop(thalora_browser_apis::event_loop::PumpBudget::no_wait());
-
         let page = page_key(self.current_url.as_deref(), &self.current_content);
         let focus = match focus_ref {
             Some(r) => Some(self.resolve_ref(r)?),

@@ -1,26 +1,23 @@
 //! One long-lived OS thread per browser.
 //!
-//! Boa's garbage collector is thread-local: objects belong to the thread that
-//! allocated them, and are freed when that thread exits. A browser (its
-//! renderer and JS context) must therefore be created, used and dropped on a
-//! single thread. [`BrowserThread`] owns a [`HeadlessWebBrowser`] on a
-//! dedicated thread and runs work on it as jobs sent over a channel, so any
-//! caller — async MCP handlers on any runtime, FFI calls from .NET threads —
-//! can drive the browser without touching it from the wrong thread.
+//! A browser is `!Send` (it is shared as `Rc<Mutex<_>>` and held across
+//! `.await`), and a JavaScript engine's heap is bound to the thread that
+//! created it, so a browser must be created, used and dropped on a single
+//! thread. [`BrowserThread`] owns a [`HeadlessWebBrowser`] on a dedicated
+//! thread and runs work on it as jobs sent over a channel, so any caller —
+//! async MCP handlers on any runtime, FFI calls from other threads — can
+//! drive the browser without touching it from the wrong thread.
 //!
 //! Jobs run one at a time, to completion (a job may hold the browser's
-//! `MutexGuard` across `.await`). Between jobs the thread pumps the page's
-//! event loop so timers keep running.
+//! `MutexGuard` across `.await`).
 
 use super::HeadlessWebBrowser;
-use crate::engine::engine_trait::EngineType;
 use anyhow::{Result, anyhow};
 use futures::FutureExt;
 use futures::future::LocalBoxFuture;
 use std::rc::Rc;
 use std::sync::Mutex;
 use std::thread::{JoinHandle, ThreadId};
-use std::time::Duration;
 
 /// The browser as seen by jobs running on its thread.
 pub type BrowserHandle = Rc<Mutex<HeadlessWebBrowser>>;
@@ -55,29 +52,18 @@ impl std::fmt::Debug for BrowserThread {
     }
 }
 
-/// Stack size for browser threads (deep JS recursion, layout).
+/// Stack size for browser threads (deeply nested layout).
 const STACK_SIZE: usize = 16 * 1024 * 1024;
-
-/// How often an idle browser thread runs ready timers/microtasks
-/// (`THALORA_IDLE_PUMP_MS`, default 50; 0 disables).
-fn idle_tick() -> Option<Duration> {
-    let ms = std::env::var("THALORA_IDLE_PUMP_MS")
-        .ok()
-        .and_then(|v| v.parse::<u64>().ok())
-        .unwrap_or(50);
-    (ms > 0).then(|| Duration::from_millis(ms))
-}
 
 impl BrowserThread {
     /// Start a thread named `thalora-<name>` that creates and owns a browser.
-    pub fn spawn(name: &str, engine: EngineType) -> Result<Self> {
+    pub fn spawn(name: &str) -> Result<Self> {
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
         let (stopped_tx, stopped_rx) = tokio::sync::oneshot::channel();
         let handle = std::thread::Builder::new()
             .name(format!("thalora-{name}"))
             .stack_size(STACK_SIZE)
             .spawn(move || {
-                super::core::mark_owner_thread();
                 let runtime = match tokio::runtime::Builder::new_current_thread()
                     .enable_all()
                     .build()
@@ -89,7 +75,7 @@ impl BrowserThread {
                     }
                 };
                 let local = tokio::task::LocalSet::new();
-                local.block_on(&runtime, run_loop(rx, engine));
+                local.block_on(&runtime, run_loop(rx));
                 let _ = stopped_tx.send(());
             })
             .map_err(|e| anyhow!("failed to spawn browser thread: {e}"))?;
@@ -104,12 +90,12 @@ impl BrowserThread {
     }
 
     /// Spawn a browser thread, run one job on it, and shut it down.
-    pub async fn run_once<R, F>(name: &str, engine: EngineType, f: F) -> Result<R>
+    pub async fn run_once<R, F>(name: &str, f: F) -> Result<R>
     where
         R: Send + 'static,
         F: FnOnce(BrowserHandle) -> LocalBoxFuture<'static, R> + Send + 'static,
     {
-        let thread = Self::spawn(name, engine)?;
+        let thread = Self::spawn(name)?;
         let result = thread.call(f).await;
         thread.shutdown().await;
         result
@@ -217,31 +203,10 @@ impl BrowserThread {
     }
 }
 
-async fn run_loop(mut rx: tokio::sync::mpsc::UnboundedReceiver<Message>, engine: EngineType) {
-    let browser = HeadlessWebBrowser::new_with_engine(engine);
-    let tick = idle_tick();
-    loop {
-        let message = match tick {
-            Some(tick) => {
-                tokio::select! {
-                    message = rx.recv() => message,
-                    _ = tokio::time::sleep(tick) => {
-                        // Keep page timers running between jobs
-                        if let Ok(mut b) = browser.try_lock() {
-                            b.pump_event_loop(
-                                thalora_browser_apis::event_loop::PumpBudget::no_wait(),
-                            );
-                        }
-                        continue;
-                    }
-                }
-            }
-            None => rx.recv().await,
-        };
-        match message {
-            Some(Message::Run(job)) => job(browser.clone()).await,
-            Some(Message::Stop) | None => break,
-        }
+async fn run_loop(mut rx: tokio::sync::mpsc::UnboundedReceiver<Message>) {
+    let browser = HeadlessWebBrowser::new();
+    while let Some(Message::Run(job)) = rx.recv().await {
+        job(browser.clone()).await;
     }
     // Dropped here, on the thread that created it
     drop(browser);
@@ -285,7 +250,7 @@ mod tests {
 
     #[test]
     fn calls_run_on_one_browser_and_thread() {
-        let thread = BrowserThread::spawn("test", EngineType::Boa).unwrap();
+        let thread = BrowserThread::spawn("test").unwrap();
         assert_eq!(get_marker(&thread), None);
         set_marker(&thread, "one");
         assert_eq!(get_marker(&thread).as_deref(), Some("one"));
@@ -303,7 +268,7 @@ mod tests {
 
     #[test]
     fn a_panicking_job_does_not_kill_the_thread() {
-        let thread = BrowserThread::spawn("test-panic", EngineType::Boa).unwrap();
+        let thread = BrowserThread::spawn("test-panic").unwrap();
         let result: Result<()> = thread.call_blocking(|_| async { panic!("boom") }.boxed_local());
         assert!(result.is_err());
         set_marker(&thread, "still alive");
@@ -313,7 +278,7 @@ mod tests {
 
     #[test]
     fn reentrant_blocking_call_is_refused() {
-        let thread = BrowserThread::spawn("test-reentrant", EngineType::Boa).unwrap();
+        let thread = BrowserThread::spawn("test-reentrant").unwrap();
         let inner = thread.clone();
         let nested = thread
             .call_blocking(move |_| {
@@ -332,7 +297,7 @@ mod tests {
             .build()
             .unwrap();
         runtime.block_on(async {
-            let thread = BrowserThread::spawn("test-async", EngineType::Boa).unwrap();
+            let thread = BrowserThread::spawn("test-async").unwrap();
             let url = thread
                 .call(|b| async move { b.lock().unwrap().get_current_url() }.boxed_local())
                 .await
@@ -342,85 +307,9 @@ mod tests {
         });
     }
 
-    /// Old renderers are dropped on the owner thread (not leaked), and the
-    /// browser keeps working after many resets.
-    #[test]
-    fn renderer_resets_drop_old_renderers_and_js_still_runs() {
-        if std::env::var("THALORA_LEAK_RENDERERS").is_ok() {
-            return;
-        }
-        let thread = BrowserThread::spawn("test-resets", EngineType::Boa).unwrap();
-        let before =
-            super::super::core::RENDERERS_DROPPED.load(std::sync::atomic::Ordering::Relaxed);
-        let result = thread
-            .call_blocking(|b| {
-                async move {
-                    let mut guard = b.lock().unwrap();
-                    for _ in 0..20 {
-                        guard.reset_renderer();
-                    }
-                    guard.execute_javascript("6 * 7").await
-                }
-                .boxed_local()
-            })
-            .unwrap()
-            .unwrap();
-        assert!(result.contains("42"), "unexpected result: {result}");
-        let after =
-            super::super::core::RENDERERS_DROPPED.load(std::sync::atomic::Ordering::Relaxed);
-        assert!(
-            after - before >= 20,
-            "only {} renderers dropped",
-            after - before
-        );
-        thread.shutdown_blocking();
-    }
-
-    /// Resident set size in KiB (Linux only).
-    fn rss_kib() -> Option<u64> {
-        let status = std::fs::read_to_string("/proc/self/status").ok()?;
-        let line = status.lines().find(|l| l.starts_with("VmRSS:"))?;
-        line.split_whitespace().nth(1)?.parse().ok()
-    }
-
-    /// Soak test: memory stays bounded across many page loads.
-    /// Run with `cargo test --lib renderer_soak -- --ignored --nocapture`.
-    #[test]
-    #[ignore]
-    fn renderer_soak_memory_is_bounded() {
-        let thread = BrowserThread::spawn("test-soak", EngineType::Boa).unwrap();
-        let cycle = |n: usize| {
-            thread
-                .call_blocking(move |b| {
-                    async move {
-                        let mut guard = b.lock().unwrap();
-                        for i in 0..n {
-                            guard.reset_renderer();
-                            let script = format!(
-                                "var a = []; for (var j = 0; j < 20000; j++) a.push({{i: {i}, j}}); a.length"
-                            );
-                            let _ = guard.execute_javascript(&script).await;
-                        }
-                    }
-                    .boxed_local()
-                })
-                .unwrap()
-        };
-        cycle(20);
-        let Some(baseline) = rss_kib() else {
-            return;
-        };
-        cycle(200);
-        let grown = rss_kib().unwrap_or(baseline).saturating_sub(baseline);
-        eprintln!("RSS grew {grown} KiB over 200 renderer cycles");
-        // Leaking every renderer costs 5-15 MB each (1-3 GB here)
-        assert!(grown < 300 * 1024, "RSS grew {grown} KiB");
-        thread.shutdown_blocking();
-    }
-
     #[test]
     fn calls_after_shutdown_fail_cleanly() {
-        let thread = BrowserThread::spawn("test-stop", EngineType::Boa).unwrap();
+        let thread = BrowserThread::spawn("test-stop").unwrap();
         let other = thread.clone();
         thread.shutdown_blocking();
         assert!(other.call_blocking(|_| async {}.boxed_local()).is_err());

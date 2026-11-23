@@ -2,214 +2,48 @@ use anyhow::{Result, anyhow};
 use std::collections::HashMap;
 
 use crate::engine::browser::InteractionResponse;
+use crate::engine::js_unavailable;
+
+// Page interaction without a JavaScript engine.
+//
+// Boa was removed and V8 is not wired in yet, so no events are dispatched
+// and no handlers run. What still works is what a browser does natively,
+// worked out from the page's static HTML: values entered into named form
+// controls are remembered and sent on submit, submit buttons submit their
+// form, links navigate, and Enter in a single-line field submits its form.
+// Anything whose only effect would be to run page script fails with the
+// "JavaScript execution is unavailable" error rather than appearing to work.
 
 impl super::super::HeadlessWebBrowser {
-    /// Type text into a form input element identified by CSS selector
+    /// Type text into a form input element identified by CSS selector.
+    ///
+    /// The value is remembered for the field's `name` and sent when the form
+    /// is submitted. Typing replaces the field's value (`clear_first` has no
+    /// further effect). Fails if the element is not a named `<input>` or
+    /// `<textarea>`: changing anything else needs JavaScript.
     pub async fn type_text_into_element(
         &mut self,
         selector: &str,
         text: &str,
-        clear_first: bool,
+        _clear_first: bool,
     ) -> Result<InteractionResponse> {
-        // Debug logging for session state
-        tracing::debug!(
-            "type_text_into_element - current_content length: {}",
-            self.current_content.len()
-        );
-        tracing::debug!(
-            "type_text_into_element - current_url: {:?}",
-            self.current_url
-        );
-
         if self.current_content.is_empty() {
             return Err(anyhow!("No current page loaded"));
         }
 
-        // Use JavaScript-based form field manipulation for better compatibility.
-        // Encode as JS string literals so quotes, backslashes and newlines in
-        // the selector or text can't break out of the string.
-        let selector_js = js_string_literal(selector);
-        let text_js = js_string_literal(text);
+        let (tag, name) = text_field(&self.current_content, selector)?;
+        let Some(name) = name else {
+            // An unnamed field is not submitted; only script could read it
+            return Err(js_unavailable());
+        };
+        self.record_filled_value(&name, text);
 
-        let js_code = format!(
-            r#"
-(function() {{
-    try {{
-        // Check if document.querySelector is available
-        if (typeof document === 'undefined') {{
-            return JSON.stringify({{
-                success: false,
-                message: "Error typing text: document is undefined",
-                error: "document_undefined"
-            }});
-        }}
-
-        if (typeof document.querySelector !== 'function') {{
-            return JSON.stringify({{
-                success: false,
-                message: "Error typing text: document.querySelector is not a function",
-                error: "querySelector_not_function"
-            }});
-        }}
-
-        var element = document.querySelector({});
-        if (element) {{
-            var elementType = element.tagName.toLowerCase();
-            var isInput = (elementType === 'input' || elementType === 'textarea');
-
-            if (isInput) {{
-                // Handle input/textarea elements
-                try {{
-                    // Step 1: Set the value
-                    if ({}) {{
-                        element.value = '';
-                    }}
-                    element.value = {};
-
-                    // Step 2: Check Event constructor availability
-                    if (typeof Event === 'undefined') {{
-                        return JSON.stringify({{
-                            success: false,
-                            message: "Error typing text: Event constructor is undefined",
-                            error: "event_constructor_undefined"
-                        }});
-                    }}
-
-                    if (typeof Event !== 'function') {{
-                        return JSON.stringify({{
-                            success: false,
-                            message: "Error typing text: Event is not a function, type is: " + typeof Event,
-                            error: "event_constructor_not_function"
-                        }});
-                    }}
-
-                    // Step 3: Test Event constructor
-                    var inputEvent;
-                    try {{
-                        inputEvent = new Event('input', {{ bubbles: true }});
-                    }} catch (eventError) {{
-                        return JSON.stringify({{
-                            success: false,
-                            message: "Error typing text: Event constructor failed: " + eventError.message,
-                            error: "event_constructor_failed"
-                        }});
-                    }}
-
-                    // Trigger input events to simulate real user interaction
-                    var inputEvent = new Event('input', {{ bubbles: true }});
-                    element.dispatchEvent(inputEvent);
-
-                    var changeEvent = new Event('change', {{ bubbles: true }});
-                    element.dispatchEvent(changeEvent);
-
-                    return JSON.stringify({{
-                        success: true,
-                        message: "Text entered into " + elementType + " element: " + (element.name || element.id || "unnamed") + " = " + element.value,
-                        element_type: elementType,
-                        element_name: element.name,
-                        element_value: element.value
-                    }});
-                }} catch (inputError) {{
-                    return JSON.stringify({{
-                        success: false,
-                        message: "Error typing text: input handling failed: " + inputError.message,
-                        error: "input_handling_failed"
-                    }});
-                }}
-            }} else {{
-                // Handle non-input elements (h1, p, div, etc.) - set textContent
-                if ({}) {{
-                    element.textContent = '';
-                }}
-                element.textContent = {};
-
-                return JSON.stringify({{
-                    success: true,
-                    message: "Text set for " + elementType + " element: " + (element.id || element.className || "unnamed") + " = " + element.textContent,
-                    element_type: elementType,
-                    element_id: element.id,
-                    element_value: element.textContent
-                }});
-            }}
-        }} else {{
-            return JSON.stringify({{
-                success: false,
-                message: "Element not found: " + {},
-                error: "selector_not_found"
-            }});
-        }}
-    }} catch (error) {{
-        return JSON.stringify({{
-            success: false,
-            message: "Error typing text: " + error.message,
-            error: error.toString()
-        }});
-    }}
-}})();
-"#,
-            selector_js,
-            if clear_first { "true" } else { "false" },
-            text_js,
-            if clear_first { "true" } else { "false" },
-            text_js,
-            selector_js
-        );
-
-        // Execute the JavaScript in the browser engine
-        if let Some(ref mut renderer) = self.renderer {
-            match renderer.evaluate_javascript_direct(&js_code) {
-                Ok(result) => {
-                    // Try to parse the result as JSON
-                    if let Ok(json_result) = serde_json::from_str::<serde_json::Value>(&result) {
-                        let success = json_result
-                            .get("success")
-                            .and_then(|v| v.as_bool())
-                            .unwrap_or(false);
-                        let message = json_result
-                            .get("message")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("Text entered");
-
-                        self.settle_after_interaction();
-
-                        // The JS DOM does not yet persist values across
-                        // queries, so remember filled values on the Rust side
-                        // for a later submit_form on this page.
-                        if success {
-                            let name = json_result
-                                .get("element_name")
-                                .and_then(|v| v.as_str())
-                                .filter(|n| !n.is_empty())
-                                .map(str::to_string)
-                                .or_else(|| {
-                                    first_match_attr(&self.current_content, selector, "name")
-                                });
-                            if let Some(name) = name {
-                                self.record_filled_value(&name, text);
-                            }
-                        }
-
-                        Ok(InteractionResponse {
-                            success,
-                            message: message.to_string(),
-                            redirect_url: None,
-                            new_content: None,
-                        })
-                    } else {
-                        // Fallback if result is not JSON
-                        Ok(InteractionResponse {
-                            success: !result.contains("error") && !result.contains("Error"),
-                            message: format!("Text input result: {}", result),
-                            redirect_url: None,
-                            new_content: None,
-                        })
-                    }
-                }
-                Err(e) => Err(anyhow!("Failed to execute text input JavaScript: {}", e)),
-            }
-        } else {
-            Err(anyhow!("No JavaScript renderer available"))
-        }
+        Ok(InteractionResponse {
+            success: true,
+            message: format!("Text entered into {} element: {} = {}", tag, name, text),
+            redirect_url: None,
+            new_content: None,
+        })
     }
 
     /// Submit a form with the provided field data.
@@ -359,54 +193,22 @@ impl super::super::HeadlessWebBrowser {
         if needs_element && selector.is_none() {
             return Err(anyhow!("selector or ref is required for this action"));
         }
-        let target_js = match selector {
-            Some(sel) => format!("document.querySelector({})", js_string_literal(sel)),
-            None => "(document.activeElement || document.body)".to_string(),
-        };
 
         match action {
             ElementAction::SelectOption(wanted) => {
                 let sel = selector.unwrap_or_default();
                 let (name, value, label) = find_option(&self.current_content, sel, wanted)?;
-                let js = format!(
-                    r#"(function() {{
-    var el = {target_js};
-    if (!el) {{ return JSON.stringify({{success: false, message: "Element not found"}}); }}
-    try {{ el.value = {value}; }} catch (e) {{}}
-    try {{
-        el.dispatchEvent(new Event('input', {{bubbles: true}}));
-        el.dispatchEvent(new Event('change', {{bubbles: true}}));
-    }} catch (e) {{}}
-    return JSON.stringify({{success: true}});
-}})()"#,
-                    value = js_string_literal(&value)
-                );
-                self.run_action_script(&js)?;
-                if let Some(name) = name {
-                    self.record_filled_value(&name, &value);
-                }
+                // An unnamed control is not submitted; only script could read it
+                let name = name.ok_or_else(js_unavailable)?;
+                self.record_filled_value(&name, &value);
                 Ok(action_response(format!("Selected option \"{label}\"")))
             }
             ElementAction::SetChecked(checked) => {
                 let sel = selector.unwrap_or_default();
                 let (name, value) = checkable_input(&self.current_content, sel)?;
-                let js = format!(
-                    r#"(function() {{
-    var el = {target_js};
-    if (!el) {{ return JSON.stringify({{success: false, message: "Element not found"}}); }}
-    try {{ el.checked = {checked}; }} catch (e) {{}}
-    try {{
-        el.dispatchEvent(new Event('input', {{bubbles: true}}));
-        el.dispatchEvent(new Event('change', {{bubbles: true}}));
-    }} catch (e) {{}}
-    return JSON.stringify({{success: true}});
-}})()"#
-                );
-                self.run_action_script(&js)?;
-                if let Some(name) = name {
-                    let recorded = if *checked { value.as_str() } else { UNCHECKED };
-                    self.record_filled_value(&name, recorded);
-                }
+                let name = name.ok_or_else(js_unavailable)?;
+                let recorded = if *checked { value.as_str() } else { UNCHECKED };
+                self.record_filled_value(&name, recorded);
                 Ok(action_response(if *checked {
                     "Checked".to_string()
                 } else {
@@ -414,32 +216,9 @@ impl super::super::HeadlessWebBrowser {
                 }))
             }
             ElementAction::PressKey(key) => {
-                let js = format!(
-                    r#"(function() {{
-    var el = {target_js};
-    if (!el) {{ return JSON.stringify({{success: false, message: "Element not found"}}); }}
-    var key = {key};
-    var prevented = false;
-    ['keydown', 'keypress', 'keyup'].forEach(function(type) {{
-        var ev;
-        try {{ ev = new KeyboardEvent(type, {{key: key, bubbles: true, cancelable: true}}); }}
-        catch (e) {{ ev = new Event(type, {{bubbles: true, cancelable: true}}); ev.key = key; }}
-        if ((el.dispatchEvent(ev) === false || ev.defaultPrevented === true) && type === 'keydown') {{
-            prevented = true;
-        }}
-    }});
-    return JSON.stringify({{success: true, default_prevented: prevented}});
-}})()"#,
-                    key = js_string_literal(key)
-                );
-                let result = self.run_action_script(&js)?;
-                let prevented = result
-                    .get("default_prevented")
-                    .and_then(|v| v.as_bool())
-                    .unwrap_or(false);
-                // Implicit submission: Enter in a single-line field submits its form
+                // Implicit submission: Enter in a single-line field submits its form.
+                // Every other key press only matters to page script.
                 if key == "Enter"
-                    && !prevented
                     && let Some(sel) = selector
                     && is_implicit_submit_target(&self.current_content, sel)
                 {
@@ -447,116 +226,27 @@ impl super::super::HeadlessWebBrowser {
                     resp.message = format!("Pressed Enter; {}", resp.message);
                     return Ok(resp);
                 }
-                Ok(action_response(format!("Pressed {key}")))
+                Err(js_unavailable())
             }
-            ElementAction::Hover => {
-                let js = format!(
-                    r#"(function() {{
-    var el = {target_js};
-    if (!el) {{ return JSON.stringify({{success: false, message: "Element not found"}}); }}
-    ['mouseover', 'mouseenter', 'mousemove'].forEach(function(type) {{
-        try {{ el.dispatchEvent(new Event(type, {{bubbles: type !== 'mouseenter'}})); }} catch (e) {{}}
-    }});
-    return JSON.stringify({{success: true}});
-}})()"#
-                );
-                self.run_action_script(&js)?;
-                Ok(action_response("Hovered".to_string()))
-            }
-            ElementAction::Scroll(delta_y) => {
-                let js = match selector {
-                    Some(_) => format!(
-                        r#"(function() {{
-    var el = {target_js};
-    if (!el) {{ return JSON.stringify({{success: false, message: "Element not found"}}); }}
-    try {{ if (el.scrollIntoView) {{ el.scrollIntoView(); }} }} catch (e) {{}}
-    try {{ window.dispatchEvent(new Event('scroll')); }} catch (e) {{}}
-    return JSON.stringify({{success: true}});
-}})()"#
-                    ),
-                    None => format!(
-                        r#"(function() {{
-    try {{
-        if (typeof window.scrollBy === 'function') {{ window.scrollBy(0, {delta_y}); }}
-        else {{ window.scrollY = (window.scrollY || 0) + ({delta_y}); }}
-    }} catch (e) {{}}
-    try {{ window.dispatchEvent(new Event('scroll')); }} catch (e) {{}}
-    return JSON.stringify({{success: true}});
-}})()"#
-                    ),
-                };
-                self.run_action_script(&js)?;
-                Ok(action_response(match selector {
-                    Some(_) => "Scrolled element into view".to_string(),
-                    None => format!("Scrolled page by {delta_y}px"),
-                }))
-            }
+            // Hovering and scrolling only fire events for page script
+            ElementAction::Hover | ElementAction::Scroll(_) => Err(js_unavailable()),
         }
     }
 
     /// Put a secret (e.g. a stored password) into the field matching
-    /// `selector`, firing input/change. Unlike `type_text_into_element` the
-    /// value is never echoed back in results or logs.
+    /// `selector`, to be sent when its form is submitted. Unlike
+    /// `type_text_into_element` the value is never echoed back in results or
+    /// logs.
     pub async fn fill_secret(&mut self, selector: &str, secret: &str) -> Result<()> {
         if self.current_content.is_empty() {
             return Err(anyhow!("No current page loaded"));
         }
-        let js = format!(
-            r#"(function() {{
-    var el = document.querySelector({selector});
-    if (!el) {{ return JSON.stringify({{success: false, message: "Element not found"}}); }}
-    try {{
-        el.value = {secret};
-        el.dispatchEvent(new Event('input', {{bubbles: true}}));
-        el.dispatchEvent(new Event('change', {{bubbles: true}}));
-    }} catch (e) {{
-        return JSON.stringify({{success: false, message: "Could not set the field value"}});
-    }}
-    return JSON.stringify({{success: true}});
-}})()"#,
-            selector = js_string_literal(selector),
-            secret = js_string_literal(secret)
-        );
-        self.run_action_script(&js)
-            .map_err(|_| anyhow!("Could not fill the field {}", selector))?;
-        if let Some(name) = first_match_attr(&self.current_content, selector, "name") {
-            self.record_filled_value(&name, secret);
-        }
+        let name = match text_field(&self.current_content, selector) {
+            Ok((_, Some(name))) => name,
+            _ => return Err(anyhow!("Could not fill the field {}", selector)),
+        };
+        self.record_filled_value(&name, secret);
         Ok(())
-    }
-
-    /// Evaluate a generated action script that returns a JSON object with a
-    /// `success` flag, then let async handlers run.
-    fn run_action_script(&mut self, js: &str) -> Result<serde_json::Value> {
-        let renderer = self
-            .renderer
-            .as_mut()
-            .ok_or_else(|| anyhow!("No JavaScript renderer available"))?;
-        let raw = renderer
-            .evaluate_javascript_direct(js)
-            .map_err(|e| anyhow!("Action script failed: {}", e))?;
-        let result: serde_json::Value =
-            serde_json::from_str(&raw).unwrap_or_else(|_| serde_json::json!({"success": true}));
-        if result.get("success").and_then(|v| v.as_bool()) == Some(false) {
-            let message = result
-                .get("message")
-                .and_then(|v| v.as_str())
-                .unwrap_or("action failed");
-            return Err(anyhow!("{}", message));
-        }
-        self.settle_after_interaction();
-        Ok(result)
-    }
-
-    /// Run the event loop briefly after a simulated user action so async
-    /// handlers (timers, promises, fetch) can update the page.
-    fn settle_after_interaction(&mut self) {
-        self.pump_event_loop(
-            thalora_browser_apis::event_loop::PumpBudget::until_network_idle(
-                std::time::Duration::from_secs(2),
-                std::time::Duration::from_millis(300),
-            ),
-        );
     }
 
     /// Remember a value typed into the field `name` on the current page.
@@ -578,294 +268,66 @@ impl super::super::HeadlessWebBrowser {
         }
     }
 
-    /// Click on a form element (checkbox, submit button, etc.) using CSS selector
+    /// Click the element matching a CSS selector and perform the click's
+    /// default action: submit buttons submit their form, links navigate and
+    /// checkboxes/radio buttons change their checked state.
+    ///
+    /// No click event is dispatched, so clicking an element whose behaviour
+    /// comes from a script handler fails with the "JavaScript execution is
+    /// unavailable" error.
     pub async fn click_element(&mut self, selector: &str) -> Result<InteractionResponse> {
         if self.current_content.is_empty() {
             return Err(anyhow!("No current page loaded"));
         }
 
         tracing::debug!("click_element - attempting to click selector: {}", selector);
-        tracing::debug!(
-            "click_element - current_content length: {}",
-            self.current_content.len()
-        );
 
-        // Wait for element to appear in DOM (5 second timeout)
-        let element_found = self.wait_for_element(selector, 5000).await?;
-        if !element_found {
-            return Err(anyhow!("Element not found after waiting: {}", selector));
+        if !self.wait_for_element(selector, 0).await? {
+            return Err(anyhow!("Element not found: {}", selector));
         }
 
-        // Use JavaScript-based element interaction for better compatibility
-        let selector_js = js_string_literal(selector);
-
-        let js_code = format!(
-            r#"
-(function() {{
-    try {{
-        var defaultPrevented = false;
-        var element = document.querySelector({});
-        if (element) {{
-            // Handle different element types
-            if (element.type === 'checkbox' || element.type === 'radio') {{
-                // Toggle checkbox/radio state
-                element.checked = !element.checked;
-
-                // Try to dispatch change event, fallback gracefully
-                var eventDispatchSuccessful = false;
-                var eventErrors = [];
-
-                try {{
-                    if (typeof element.dispatchEvent === 'function') {{
-                        var changeEvent = new Event('change', {{ bubbles: true }});
-                        element.dispatchEvent(changeEvent);
-                        eventDispatchSuccessful = true;
-                    }} else {{
-                        eventErrors.push("dispatchEvent not available (type: " + typeof element.dispatchEvent + ")");
-                    }}
-                }} catch (eventError) {{
-                    eventErrors.push("Event dispatch failed: " + eventError.message);
-                }}
-
-                // Fallback: try onchange property
-                if (!eventDispatchSuccessful) {{
-                    try {{
-                        if (typeof element.onchange === 'function') {{
-                            element.onchange();
-                            eventDispatchSuccessful = true;
-                        }}
-                    }} catch (propError) {{
-                        eventErrors.push("onchange property trigger failed: " + propError.message);
-                    }}
-                }}
-
-                var message = "Clicked " + element.type + " element: " + (element.name || "unnamed") + ", checked: " + element.checked;
-                if (!eventDispatchSuccessful && eventErrors.length > 0) {{
-                    message += " (Note: Event dispatching failed - " + eventErrors.join(", ") + ")";
-                }}
-
-                return JSON.stringify({{
-                    success: true,
-                    message: message,
-                    element_type: element.type,
-                    element_name: element.name,
-                    element_checked: element.checked,
-                    event_dispatch_successful: eventDispatchSuccessful,
-                    event_errors: eventErrors
-                }});
-            }} else if (element.type === 'submit' || element.tagName.toLowerCase() === 'button') {{
-                // For submit buttons and regular buttons
-                var eventDispatchSuccessful = false;
-                var eventErrors = [];
-
-                // Try to dispatch click event
-                try {{
-                    if (typeof element.dispatchEvent === 'function') {{
-                        var clickEvent = new Event('click', {{ bubbles: true, cancelable: true }});
-                        if (element.dispatchEvent(clickEvent) === false || clickEvent.defaultPrevented === true) {{
-                            defaultPrevented = true;
-                        }}
-                        eventDispatchSuccessful = true;
-                    }} else {{
-                        eventErrors.push("dispatchEvent not available (type: " + typeof element.dispatchEvent + ")");
-                    }}
-                }} catch (eventError) {{
-                    eventErrors.push("Event dispatch failed: " + eventError.message);
-                }}
-
-                // Fallback: try onclick property
-                if (!eventDispatchSuccessful) {{
-                    try {{
-                        if (typeof element.onclick === 'function') {{
-                            element.onclick();
-                            eventDispatchSuccessful = true;
-                        }}
-                    }} catch (propError) {{
-                        eventErrors.push("onclick property trigger failed: " + propError.message);
-                    }}
-                }}
-
-                // If it's a submit button, also trigger form submission
-                if (element.type === 'submit' && element.form) {{
-                    var message = "Clicked submit button: " + (element.value || "unnamed") + ", form will be submitted";
-                    if (!eventDispatchSuccessful && eventErrors.length > 0) {{
-                        message += " (Note: Event dispatching failed - " + eventErrors.join(", ") + ")";
-                    }}
-
-                    return JSON.stringify({{
-                        success: true,
-                        message: message,
-                        element_type: element.type,
-                        element_value: element.value,
-                        form_action: element.form.action,
-                        form_method: element.form.method,
-                        submit_triggered: true,
-                        default_prevented: defaultPrevented,
-                        event_dispatch_successful: eventDispatchSuccessful,
-                        event_errors: eventErrors
-                    }});
-                }} else {{
-                    var message = "Clicked button element: " + (element.value || element.textContent || "unnamed");
-                    if (!eventDispatchSuccessful && eventErrors.length > 0) {{
-                        message += " (Note: Event dispatching failed - " + eventErrors.join(", ") + ")";
-                    }}
-
-                    return JSON.stringify({{
-                        success: true,
-                        message: message,
-                        element_type: element.type || "button",
-                        element_value: element.value || element.textContent,
-                        default_prevented: defaultPrevented,
-                        event_dispatch_successful: eventDispatchSuccessful,
-                        event_errors: eventErrors
-                    }});
-                }}
-            }} else {{
-                // Generic element click
-                var eventDispatchSuccessful = false;
-                var eventErrors = [];
-
-                // Try to dispatch click event
-                try {{
-                    if (typeof element.dispatchEvent === 'function') {{
-                        var clickEvent = new Event('click', {{ bubbles: true, cancelable: true }});
-                        if (element.dispatchEvent(clickEvent) === false || clickEvent.defaultPrevented === true) {{
-                            defaultPrevented = true;
-                        }}
-                        eventDispatchSuccessful = true;
-                    }} else {{
-                        eventErrors.push("dispatchEvent not available (type: " + typeof element.dispatchEvent + ")");
-                    }}
-                }} catch (eventError) {{
-                    eventErrors.push("Event dispatch failed: " + eventError.message);
-                }}
-
-                // Fallback: try onclick property
-                if (!eventDispatchSuccessful) {{
-                    try {{
-                        if (typeof element.onclick === 'function') {{
-                            element.onclick();
-                            eventDispatchSuccessful = true;
-                        }}
-                    }} catch (propError) {{
-                        eventErrors.push("onclick property trigger failed: " + propError.message);
-                    }}
-                }}
-
-                var message = "Clicked element: " + element.tagName + (element.name ? " (name: " + element.name + ")" : "");
-                if (!eventDispatchSuccessful && eventErrors.length > 0) {{
-                    message += " (Note: Event dispatching failed - " + eventErrors.join(", ") + ")";
-                }}
-
-                return JSON.stringify({{
-                    success: true,
-                    message: message,
-                    element_type: element.tagName.toLowerCase(),
-                    element_name: element.name || null,
-                    default_prevented: defaultPrevented,
-                    event_dispatch_successful: eventDispatchSuccessful,
-                    event_errors: eventErrors
-                }});
-            }}
-        }} else {{
-            return JSON.stringify({{
-                success: false,
-                message: "Element not found: " + {},
-                error: "selector_not_found"
-            }});
-        }}
-    }} catch (error) {{
-        return JSON.stringify({{
-            success: false,
-            message: "Error clicking element: " + error.message,
-            error: error.toString()
-        }});
-    }}
-}})();
-"#,
-            selector_js, selector_js
-        );
-
-        // Execute the JavaScript in the browser engine
-        if let Some(ref mut renderer) = self.renderer {
-            tracing::debug!("click_element - executing JavaScript to click element");
-            match renderer.evaluate_javascript_direct(&js_code) {
-                Ok(result) => {
-                    tracing::debug!("click_element - JavaScript result: {}", result);
-
-                    // Try to parse the result as JSON
-                    if let Ok(json_result) = serde_json::from_str::<serde_json::Value>(&result) {
-                        let success = json_result
-                            .get("success")
-                            .and_then(|v| v.as_bool())
-                            .unwrap_or(false);
-                        let message = json_result
-                            .get("message")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("Element clicked");
-                        let default_prevented = json_result
-                            .get("default_prevented")
-                            .and_then(|v| v.as_bool())
-                            .unwrap_or(false);
-
-                        // Let handlers' timers, promises and fetches run
-                        self.settle_after_interaction();
-
-                        // Perform the click's default action (form submission
-                        // or link navigation) unless a handler prevented it.
-                        if success && !default_prevented {
-                            match click_default_action(
-                                &self.current_content,
-                                self.current_url.as_deref(),
-                                selector,
-                            ) {
-                                ClickDefaultAction::SubmitForm {
-                                    form_index,
-                                    submitter,
-                                } => {
-                                    let mut resp = self
-                                        .submit_form_at_index(form_index, HashMap::new(), submitter)
-                                        .await?;
-                                    resp.message = format!("{}; {}", message, resp.message);
-                                    return Ok(resp);
-                                }
-                                ClickDefaultAction::FollowLink(url) => {
-                                    let content =
-                                        self.navigate_to_with_js_option(&url, false, true).await?;
-                                    return Ok(InteractionResponse {
-                                        success: true,
-                                        message: format!("{}; navigated to {}", message, url),
-                                        redirect_url: Some(url),
-                                        new_content: Some(content),
-                                    });
-                                }
-                                ClickDefaultAction::None => {}
-                            }
-                        }
-
-                        Ok(InteractionResponse {
-                            success,
-                            message: message.to_string(),
-                            redirect_url: None,
-                            new_content: None,
-                        })
-                    } else {
-                        // Fallback if result is not JSON
-                        Ok(InteractionResponse {
-                            success: !result.contains("error") && !result.contains("Error"),
-                            message: format!("Element interaction result: {}", result),
-                            redirect_url: None,
-                            new_content: None,
-                        })
-                    }
-                }
-                Err(e) => {
-                    tracing::debug!("click_element - JavaScript execution error: {}", e);
-                    Err(anyhow!("Failed to execute element click JavaScript: {}", e))
-                }
+        match click_default_action(&self.current_content, self.current_url.as_deref(), selector) {
+            ClickDefaultAction::SubmitForm {
+                form_index,
+                submitter,
+            } => {
+                let mut resp = self
+                    .submit_form_at_index(form_index, HashMap::new(), submitter)
+                    .await?;
+                resp.message = format!("Clicked submit button; {}", resp.message);
+                Ok(resp)
             }
-        } else {
-            Err(anyhow!("No JavaScript renderer available"))
+            ClickDefaultAction::FollowLink(url) => {
+                let content = self.navigate_to_with_js_option(&url, false, true).await?;
+                Ok(InteractionResponse {
+                    success: true,
+                    message: format!("Clicked link; navigated to {}", url),
+                    redirect_url: Some(url),
+                    new_content: Some(content),
+                })
+            }
+            ClickDefaultAction::None => {
+                // Checkboxes toggle and radio buttons become checked
+                let Ok((Some(name), value)) = checkable_input(&self.current_content, selector)
+                else {
+                    return Err(js_unavailable());
+                };
+                let is_radio = first_match_attr(&self.current_content, selector, "type")
+                    .is_some_and(|t| t.eq_ignore_ascii_case("radio"));
+                let was_checked = match self.filled_values_for_current_page().get(&name) {
+                    Some(recorded) => recorded == &value,
+                    None => has_attr(&self.current_content, selector, "checked"),
+                };
+                let checked = is_radio || !was_checked;
+                let recorded = if checked { value.as_str() } else { UNCHECKED };
+                self.record_filled_value(&name, recorded);
+                Ok(action_response(format!(
+                    "Clicked {} element: {}, checked: {}",
+                    if is_radio { "radio" } else { "checkbox" },
+                    name,
+                    checked
+                )))
+            }
         }
     }
 }
@@ -878,10 +340,35 @@ static CONTROL_SELECTOR: std::sync::LazyLock<scraper::Selector> = std::sync::Laz
 static OPTION_SELECTOR: std::sync::LazyLock<scraper::Selector> =
     std::sync::LazyLock::new(|| scraper::Selector::parse("option").expect("valid selector"));
 
-/// Encode `s` as a JavaScript string literal (a JSON string is a valid JS
-/// string literal), so it can be interpolated into generated scripts safely.
-pub(super) fn js_string_literal(s: &str) -> String {
-    serde_json::to_string(s).unwrap_or_else(|_| "\"\"".to_string())
+/// Whether the first element matching `selector` in `html` has attribute `attr`.
+fn has_attr(html: &str, selector: &str, attr: &str) -> bool {
+    let Ok(selector) = scraper::Selector::parse(selector) else {
+        return false;
+    };
+    scraper::Html::parse_document(html)
+        .select(&selector)
+        .next()
+        .is_some_and(|el| el.value().attr(attr).is_some())
+}
+
+/// For an `<input>` or `<textarea>` matching `selector`, return its tag name
+/// and (non-empty) `name`. Any other element cannot take typed text without
+/// JavaScript.
+fn text_field(html: &str, selector: &str) -> Result<(String, Option<String>)> {
+    let document = scraper::Html::parse_document(html);
+    let parsed = scraper::Selector::parse(selector).map_err(|_| anyhow!("Invalid selector"))?;
+    let el = document
+        .select(&parsed)
+        .next()
+        .ok_or_else(|| anyhow!("Element not found: {}", selector))?;
+    let v = el.value();
+    if !matches!(v.name(), "input" | "textarea") {
+        return Err(js_unavailable());
+    }
+    Ok((
+        v.name().to_string(),
+        v.attr("name").filter(|n| !n.is_empty()).map(str::to_string),
+    ))
 }
 
 /// Attribute `attr` of the first element matching `selector` in `html`.
@@ -1107,7 +594,7 @@ fn is_implicit_submit_target(html: &str, selector: &str) -> bool {
             .any(|a| a.value().name() == "form")
 }
 
-/// What a click on an element does by default, absent `preventDefault()`.
+/// What a click on an element does by default.
 #[derive(Debug, PartialEq)]
 pub(crate) enum ClickDefaultAction {
     /// Submit the `form_index`-th form, with the button's name/value if any.
@@ -1350,8 +837,19 @@ mod tests {
     }
 
     #[test]
-    fn js_string_literal_escapes() {
-        assert_eq!(js_string_literal(r#"a"b\c"#), r#""a\"b\\c""#);
-        assert_eq!(js_string_literal("line\nbreak"), r#""line\nbreak""#);
+    fn text_fields_need_an_input_or_textarea() {
+        assert_eq!(
+            text_field(LOGIN, "input[name=pass]").unwrap(),
+            ("input".to_string(), Some("pass".to_string()))
+        );
+        assert_eq!(
+            text_field(LOGIN, "textarea").unwrap(),
+            ("textarea".to_string(), Some("bio".to_string()))
+        );
+        let err = text_field(LOGIN, "#about").unwrap_err();
+        assert_eq!(err.to_string(), crate::engine::JS_UNAVAILABLE);
+        assert!(text_field(LOGIN, "#missing").is_err());
+        assert!(has_attr(LOGIN, "input[name=remember]", "checked"));
+        assert!(!has_attr(LOGIN, "input[name=news]", "checked"));
     }
 }

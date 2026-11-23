@@ -14,10 +14,6 @@ pub mod readme_tools_test;
 pub mod session_management_tests;
 pub mod tool_registry_consistency;
 
-// WASM debug tools tests (requires wasm-debug feature)
-#[cfg(feature = "wasm-debug")]
-pub mod wasm_debug_tools_test;
-
 // Re-export common testing utilities
 #[allow(unused_imports)]
 pub use mcp_harness::{

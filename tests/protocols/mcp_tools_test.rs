@@ -260,7 +260,9 @@ fn test_browser_click_element() {
 
 // CDP (Chrome DevTools Protocol) Tools Tests
 #[test]
-fn test_cdp_runtime_evaluate() {
+fn test_cdp_runtime_evaluate_reports_js_unavailable() {
+    // There is no JavaScript engine at the moment (Boa was removed, V8 is not
+    // wired in yet): the tool stays registered but must fail clearly.
     let mut harness = create_initialized_harness().expect("Failed to create harness");
 
     let response = match harness.call_tool(
@@ -278,38 +280,12 @@ fn test_cdp_runtime_evaluate() {
         Err(e) => panic!("Unexpected error: {}", e),
     };
 
-    assert_tool_success(&response, Duration::from_secs(10)).expect("Evaluation should be fast");
-    validate_tool_response(&response, "text").expect("Evaluation should return valid response");
-
+    assert!(response.is_error, "Evaluation must not appear to succeed");
     let response_text = response.content[0].get("text").unwrap().as_str().unwrap();
     assert!(
-        response_text.contains("2") || response_text.contains("result"),
-        "Should contain evaluation result"
+        response_text.contains("JavaScript execution is unavailable"),
+        "Should explain that JavaScript is unavailable: {response_text}"
     );
-}
-
-#[test]
-fn test_cdp_runtime_evaluate_with_error() {
-    let mut harness = create_initialized_harness().expect("Failed to create harness");
-
-    let response = harness.call_tool(
-        "cdp_runtime_evaluate",
-        json!({
-            "expression": "throw new Error('test error')",
-            "await_promise": false
-        }),
-    );
-
-    // Should either return an error response or fail
-    if let Ok(response) = response {
-        // If it returns, it might include error information
-        let _response_text = response.content[0]
-            .get("text")
-            .unwrap_or(&json!(""))
-            .as_str()
-            .unwrap_or("");
-        // Error handling is implementation-dependent
-    }
 }
 
 // Parameter Validation Tests
@@ -384,10 +360,7 @@ fn test_tools_handle_invalid_param_types() {
 fn test_tools_response_times() {
     let mut harness = create_initialized_harness().expect("Failed to create harness");
 
-    let quick_tools = vec![
-        ("vault_list_credentials", json!({})),
-        ("cdp_runtime_evaluate", json!({"expression": "true"})),
-    ];
+    let quick_tools = vec![("vault_list_credentials", json!({}))];
 
     for (tool_name, args) in quick_tools {
         let response = match harness.call_tool(tool_name, args) {

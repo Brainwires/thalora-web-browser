@@ -55,10 +55,8 @@ impl McpServer {
         let html_content = if let Some(url_str) = url {
             // Temporary browser on its own short-lived thread
             let url_owned = url_str.to_string();
-            let result = crate::engine::browser::BrowserThread::run_once(
-                "readability",
-                crate::engine::engine_trait::EngineType::Boa,
-                move |browser| {
+            let result =
+                crate::engine::browser::BrowserThread::run_once("readability", move |browser| {
                     async move {
                         let mut guard = browser
                             .lock()
@@ -70,9 +68,8 @@ impl McpServer {
                         Ok::<String, String>(guard.get_current_content())
                     }
                     .boxed_local()
-                },
-            )
-            .await;
+                })
+                .await;
 
             match result {
                 Ok(Ok(html)) => html,
