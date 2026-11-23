@@ -37,6 +37,8 @@ mod error;
 mod mutation;
 mod names;
 mod node;
+mod parse;
+mod serialize;
 
 pub use document::{Ancestors, Children, Descendants, Document};
 pub use error::{DomError, DomResult};
