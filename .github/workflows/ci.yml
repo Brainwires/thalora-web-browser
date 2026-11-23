@@ -37,7 +37,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Install system dependencies
-        run: sudo apt-get update && sudo apt-get install -y libssl-dev pkg-config clang libclang-dev libasound2-dev
+        run: sudo apt-get update && sudo apt-get install -y libssl-dev pkg-config clang libclang-dev
       - name: Check workspace
         run: cargo check --workspace
       - name: Check workspace (test-hooks)
@@ -54,7 +54,7 @@ jobs:
           components: clippy
       - uses: Swatinem/rust-cache@v2
       - name: Install system dependencies
-        run: sudo apt-get update && sudo apt-get install -y libssl-dev pkg-config clang libclang-dev libasound2-dev
+        run: sudo apt-get update && sudo apt-get install -y libssl-dev pkg-config clang libclang-dev
       - name: Clippy workspace
         run: cargo clippy --workspace
 
@@ -80,7 +80,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Install system dependencies
-        run: sudo apt-get update && sudo apt-get install -y libssl-dev pkg-config clang libclang-dev libasound2-dev
+        run: sudo apt-get update && sudo apt-get install -y libssl-dev pkg-config clang libclang-dev
       - name: Build binary for MCP harness tests
         run: cargo build --bin thalora
       - name: Test workspace
@@ -97,7 +97,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Install system dependencies
-        run: sudo apt-get update && sudo apt-get install -y libssl-dev pkg-config clang libclang-dev libasound2-dev
+        run: sudo apt-get update && sudo apt-get install -y libssl-dev pkg-config clang libclang-dev
       - name: Doc workspace
         run: cargo doc --workspace --no-deps
 
