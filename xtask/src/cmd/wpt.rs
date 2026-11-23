@@ -358,7 +358,21 @@ fn sparse_paths(dirs: &[String]) -> BTreeSet<String> {
 }
 
 fn ensure_checkout(dir: &Path, commit: &str, dirs: &[String]) -> Result<()> {
-    if !dir.join(".git").exists() {
+    // target/ is restored by CI caches, which can leave a partial `.git` that git
+    // does not recognise; git then walks up to the enclosing thalora repo and
+    // fetches from *its* origin. Only reuse a checkout that is a repo in its own
+    // right with the WPT origin; otherwise start over.
+    let valid = dir.join(".git").exists()
+        && git_quiet(dir, &["rev-parse", "--show-toplevel"])
+            .and_then(|t| std::fs::canonicalize(t).ok())
+            .zip(std::fs::canonicalize(dir).ok())
+            .is_some_and(|(top, d)| top == d)
+        && git_quiet(dir, &["remote", "get-url", "origin"]).as_deref() == Some(WPT_REPO);
+    if !valid {
+        if dir.exists() {
+            println!("── Discarding unusable WPT checkout in {}", dir.display());
+            std::fs::remove_dir_all(dir)?;
+        }
         println!("── Initialising WPT checkout in {}", dir.display());
         std::fs::create_dir_all(dir)?;
         git(dir, &["init", "-q"])?;
@@ -367,8 +381,7 @@ fn ensure_checkout(dir: &Path, commit: &str, dirs: &[String]) -> Result<()> {
     let head = git_quiet(dir, &["rev-parse", "HEAD"]).unwrap_or_default();
     if head != commit {
         println!("── Fetching web-platform-tests @ {commit} (shallow, blobless)");
-        // Fetch-by-SHA needs protocol v2 (v0 only serves ref tips), and GitHub
-        // occasionally answers "not our ref" transiently, so force v2 and retry.
+        // Fetch-by-SHA needs protocol v2 (v0 only serves ref tips).
         let args = [
             "-c",
             "protocol.version=2",
@@ -381,9 +394,8 @@ fn ensure_checkout(dir: &Path, commit: &str, dirs: &[String]) -> Result<()> {
             commit,
         ];
         if git(dir, &args).is_err() {
-            // Some environments (GitHub-hosted runners) answer fetch-by-SHA with
-            // "not our ref" even for a ref tip. The pinned commit is an epoch tag
-            // tip, so find a ref that points at it and fetch that by name.
+            // Belt and braces: if fetch-by-SHA is refused, fetch an epochs/* tag
+            // that points at the pinned commit by name.
             let refs =
                 git_quiet(dir, &["ls-remote", "origin", "refs/tags/epochs/*"]).unwrap_or_default();
             let name = refs
