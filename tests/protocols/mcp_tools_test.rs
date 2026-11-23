@@ -6,142 +6,98 @@ use std::time::Duration;
 
 use super::mcp_harness::*;
 
-// AI Memory Tools Tests
+// Credential Vault Tools Tests
 #[test]
-fn test_ai_memory_store_and_retrieve() {
-    let mut harness = create_initialized_harness().expect("Failed to create harness");
+fn test_vault_store_list_delete_roundtrip() {
+    let mut config = McpTestConfig::default();
+    config
+        .env_vars
+        .insert("THALORA_ENABLE_VAULT".to_string(), "true".to_string());
+    config.env_vars.insert(
+        "THALORA_MASTER_PASSWORD".to_string(),
+        "test_master_password_min_32chars_secure".to_string(),
+    );
+    config
+        .env_vars
+        .insert("THALORA_VAULT_PATH".to_string(), unique_vault_path());
+    let mut harness = McpTestHarness::with_config(config).expect("Failed to create harness");
+    harness.initialize().expect("Failed to initialize harness");
 
-    // Store research data
-    let _test_data = json!({
-        "topic": "rust testing",
-        "findings": ["MCP protocol works well", "stdio communication is reliable"],
-        "timestamp": "2025-01-01T00:00:00Z"
-    });
+    let service = "vault-roundtrip-service";
+    let secret = "super-secret-password-value-123";
+    let text_of = |r: &McpToolResponse| -> String {
+        r.content[0]
+            .get("text")
+            .and_then(|t| t.as_str())
+            .unwrap_or("")
+            .to_string()
+    };
 
-    let store_response = harness
+    // Store
+    let store = harness
         .call_tool(
-            "ai_memory_store_research",
+            "vault_store_credential",
             json!({
-                "key": "test_research_001",
-                "topic": "rust testing",
-                "summary": "Testing MCP protocol with Rust implementation",
-                "tags": ["testing", "rust", "mcp"]
+                "service": service,
+                "username": "roundtrip-user",
+                "password": secret
             }),
         )
         .expect("Store should succeed");
-
-    assert_tool_success(&store_response, Duration::from_secs(5)).expect("Store should be fast");
-    validate_tool_response(&store_response, "text").expect("Store should return valid response");
-
-    // Retrieve the data
-    let get_response = harness
-        .call_tool(
-            "ai_memory_get_research",
-            json!({
-                "key": "test_research_001"
-            }),
-        )
-        .expect("Get should succeed");
-
-    assert_tool_success(&get_response, Duration::from_secs(5)).expect("Get should be fast");
-    validate_tool_response(&get_response, "text").expect("Get should return valid response");
-
-    // Verify the retrieved data contains our original data
-    let response_text = get_response.content[0]
-        .get("text")
-        .unwrap()
-        .as_str()
-        .unwrap();
-
-    // NOTE: Due to VFS being ephemeral, data doesn't persist between MCP tool calls
-    // This is a known limitation that requires implementing global persistent VFS
-    // The store and get operations work correctly but data doesn't persist across invocations
-    if !response_text.contains("rust testing") {
-        eprintln!(
-            "INFO: AI memory persistence test skipped due to ephemeral VFS - data doesn't persist between MCP invocations"
-        );
-        eprintln!("INFO: This is expected until global persistent VFS is implemented");
-        return; // Skip the verification - known VFS limitation
-    }
-
     assert!(
-        response_text.contains("rust testing"),
-        "Retrieved data should contain original topic"
+        !store.is_error,
+        "Store should not error: {}",
+        text_of(&store)
     );
     assert!(
-        response_text.contains("MCP protocol"),
-        "Retrieved data should contain original findings"
+        !text_of(&store).contains(secret),
+        "Store output must not contain the secret"
     );
-}
 
-#[test]
-fn test_ai_memory_search() {
-    let mut harness = create_initialized_harness().expect("Failed to create harness");
+    // List: credential present, secret absent
+    let list = harness
+        .call_tool("vault_list_credentials", json!({"service": service}))
+        .expect("List should succeed");
+    assert!(!list.is_error, "List should not error: {}", text_of(&list));
+    let list_text = text_of(&list);
+    assert!(
+        list_text.contains("roundtrip-user"),
+        "List should include the stored username: {list_text}"
+    );
+    assert!(
+        !list_text.contains(secret),
+        "List output must not contain the secret: {list_text}"
+    );
 
-    // Store multiple research entries
-    let entries = vec![
-        (
-            "rust_001",
-            "Rust ownership",
-            "Programming concepts for memory management",
-            vec!["rust", "ownership"],
-        ),
-        (
-            "web_001",
-            "Web scraping",
-            "Automation techniques for data extraction",
-            vec!["web", "scraping"],
-        ),
-        (
-            "ai_001",
-            "AI integration",
-            "Integrating AI models with applications",
-            vec!["ai", "integration"],
-        ),
-    ];
+    // Delete
+    let delete = harness
+        .call_tool("vault_delete_credential", json!({"service": service}))
+        .expect("Delete should succeed");
+    assert!(
+        !delete.is_error,
+        "Delete should not error: {}",
+        text_of(&delete)
+    );
 
-    for (key, topic, summary, tags) in entries {
-        let _ = harness.call_tool(
-            "ai_memory_store_research",
-            json!({
-                "key": key,
-                "topic": topic,
-                "summary": summary,
-                "tags": tags
-            }),
-        );
+    // List again: empty
+    let list_after = harness
+        .call_tool("vault_list_credentials", json!({"service": service}))
+        .expect("List after delete should succeed");
+    let after_text = text_of(&list_after);
+    assert!(
+        !after_text.contains("roundtrip-user"),
+        "Deleted credential should no longer be listed: {after_text}"
+    );
+    if let Ok(v) = serde_json::from_str::<Value>(&after_text) {
+        if let Some(creds) = v.get("credentials").and_then(|c| c.as_array()) {
+            assert!(
+                creds.is_empty(),
+                "Credentials should be empty: {after_text}"
+            );
+        }
     }
-
-    // Search by query
-    let search_response = harness
-        .call_tool(
-            "ai_memory_search_research",
-            json!({
-                "query": "rust",
-                "limit": 10
-            }),
-        )
-        .expect("Search should succeed");
-
-    assert_tool_success(&search_response, Duration::from_secs(5)).expect("Search should be fast");
-    validate_tool_response(&search_response, "text").expect("Search should return valid response");
-
-    // Search by tags
-    let tag_search_response = harness
-        .call_tool(
-            "ai_memory_search_research",
-            json!({
-                "tags": ["web"],
-                "limit": 10
-            }),
-        )
-        .expect("Tag search should succeed");
-
-    assert_tool_success(&tag_search_response, Duration::from_secs(5))
-        .expect("Tag search should be fast");
 }
 
-// Web Scraping Tools Tests
 #[test]
 fn test_scrape_basic() {
     let mut harness = create_initialized_harness().expect("Failed to create harness");
@@ -356,41 +312,16 @@ fn test_cdp_runtime_evaluate_with_error() {
     }
 }
 
-#[test]
-fn test_cdp_dom_get_document() {
-    let mut harness = create_initialized_harness().expect("Failed to create harness");
-
-    let response = harness
-        .call_tool(
-            "cdp_dom_get_document",
-            json!({
-                "depth": 2
-            }),
-        )
-        .expect("DOM document retrieval should succeed");
-
-    assert_tool_success(&response, Duration::from_secs(10)).expect("DOM retrieval should be fast");
-    validate_tool_response(&response, "text").expect("DOM should return valid response");
-
-    let response_text = response.content[0].get("text").unwrap().as_str().unwrap();
-    assert!(
-        response_text.contains("document")
-            || response_text.contains("DOM")
-            || response_text.contains("html"),
-        "Should contain DOM information"
-    );
-}
-
 // Parameter Validation Tests
 #[test]
 fn test_tools_handle_missing_required_params() {
     let mut harness = create_initialized_harness().expect("Failed to create harness");
 
     let test_cases = vec![
-        ("snapshot_url", json!({})),           // Missing required 'url'
-        ("ai_memory_get_research", json!({})), // Missing required 'key'
-        ("cdp_runtime_evaluate", json!({})),   // Missing required 'expression'
-        ("web_search", json!({})),             // Missing required 'query'
+        ("snapshot_url", json!({})),            // Missing required 'url'
+        ("vault_delete_credential", json!({})), // Missing required 'service'
+        ("cdp_runtime_evaluate", json!({})),    // Missing required 'expression'
+        ("web_search", json!({})),              // Missing required 'query'
     ];
 
     for (tool_name, args) in test_cases {
@@ -419,9 +350,9 @@ fn test_tools_handle_invalid_param_types() {
     let test_cases = vec![
         ("snapshot_url", json!({"url": 123})), // url should be string
         (
-            "ai_memory_store_research",
-            json!({"key": 123, "data": "invalid"}),
-        ), // key should be string
+            "vault_store_credential",
+            json!({"service": 123, "username": "u", "password": "p"}),
+        ), // service should be string
         (
             "google_search",
             json!({"query": ["array", "not", "string"], "num_results": "not_number"}),
@@ -454,10 +385,7 @@ fn test_tools_response_times() {
     let mut harness = create_initialized_harness().expect("Failed to create harness");
 
     let quick_tools = vec![
-        (
-            "ai_memory_search_research",
-            json!({"query": "test", "limit": 1}),
-        ),
+        ("vault_list_credentials", json!({})),
         ("cdp_runtime_evaluate", json!({"expression": "true"})),
     ];
 
@@ -480,158 +408,48 @@ fn test_tools_response_times() {
     }
 }
 
-#[test]
-fn test_multiple_tool_calls_in_sequence() {
-    let mut harness = create_initialized_harness().expect("Failed to create harness");
-
-    // Test sequence: store data, retrieve it, search for it
-    let key = "sequence_test_001";
-    let _test_data = json!({"test": "sequence data"});
-
-    // Step 1: Store
-    let store_response = harness
-        .call_tool(
-            "ai_memory_store_research",
-            json!({
-                "key": key,
-                "topic": "sequence testing",
-                "summary": "Testing multiple tool calls in sequence",
-                "tags": ["sequence", "test"]
-            }),
-        )
-        .expect("Store should succeed");
-    assert!(!store_response.is_error, "Store should not error");
-
-    // Step 2: Retrieve
-    let get_response = harness
-        .call_tool(
-            "ai_memory_get_research",
-            json!({
-                "key": key
-            }),
-        )
-        .expect("Get should succeed");
-    assert!(!get_response.is_error, "Get should not error");
-
-    // Step 3: Search
-    let search_response = harness
-        .call_tool(
-            "ai_memory_search_research",
-            json!({
-                "tags": ["sequence"],
-                "limit": 1
-            }),
-        )
-        .expect("Search should succeed");
-    assert!(!search_response.is_error, "Search should not error");
-
-    // All operations should complete in reasonable time
-    let total_time = store_response.duration + get_response.duration + search_response.duration;
-    assert!(
-        total_time < Duration::from_secs(15),
-        "Sequence of 3 operations should complete within 15 seconds"
-    );
-}
-
 // Edge Case Tests
-#[test]
-fn test_tools_with_large_data() {
-    let mut harness = create_initialized_harness().expect("Failed to create harness");
-
-    // Create a large data object
-    let _large_data = json!({
-        "large_text": "x".repeat(10000), // 10KB of text
-        "array_data": (0..1000).collect::<Vec<i32>>(),
-        "nested": {
-            "level1": {
-                "level2": {
-                    "data": "nested data".repeat(100)
-                }
-            }
-        }
-    });
-
-    let response = harness.call_tool(
-        "ai_memory_store_research",
-        json!({
-            "key": "large_data_test",
-            "topic": "large data testing",
-            "summary": "Testing storage of large data structures with nested objects and arrays"
-        }),
-    );
-
-    // Should handle large data gracefully
-    match response {
-        Ok(response) => {
-            assert!(!response.is_error, "Should handle large data without error");
-            assert!(
-                response.duration < Duration::from_secs(30),
-                "Should handle large data within reasonable time"
-            );
-        }
-        Err(_) => {
-            // If it fails, that's also acceptable for very large data
-            println!("Large data test failed, which may be expected");
-        }
-    }
-}
-
 #[test]
 fn test_tools_with_unicode_data() {
     let mut harness = create_initialized_harness().expect("Failed to create harness");
 
-    let unicode_data = json!({
-        "emoji": "🚀🧠🔗⚡",
-        "chinese": "测试数据",
-        "arabic": "بيانات الاختبار",
-        "mathematical": "∑∆∇∞",
-        "mixed": "Testing 🧪 with 中文 and عربي and math ∑"
-    });
+    let username = "测试用户 🚀 عربي ∑";
+    let service = "unicode-vault-service";
 
-    let response = harness.call_tool("ai_memory_store_research", json!({
-        "key": "unicode_test",
-        "topic": "unicode testing",
-        "summary": format!("Testing Unicode data support: {}", serde_json::to_string(&unicode_data).unwrap()),
-        "tags": ["unicode", "international"]
-    })).expect("Unicode data storage should succeed");
+    let response = harness
+        .call_tool(
+            "vault_store_credential",
+            json!({
+                "service": service,
+                "username": username,
+                "password": "unicode-test-password-123"
+            }),
+        )
+        .expect("Unicode credential storage should succeed");
 
     assert!(
         !response.is_error,
         "Should handle Unicode data without error"
     );
 
-    // Retrieve and verify
-    let get_response = harness
-        .call_tool(
-            "ai_memory_get_research",
-            json!({
-                "key": "unicode_test"
-            }),
-        )
-        .expect("Unicode data retrieval should succeed");
+    // Retrieve (metadata only) and verify
+    let list_response = harness
+        .call_tool("vault_list_credentials", json!({"service": service}))
+        .expect("Unicode credential listing should succeed");
 
     assert!(
-        !get_response.is_error,
-        "Should retrieve Unicode data without error"
+        !list_response.is_error,
+        "Should list Unicode credential without error"
     );
-    let response_text = get_response.content[0]
+    let response_text = list_response.content[0]
         .get("text")
         .unwrap()
         .as_str()
         .unwrap();
-
-    // NOTE: Due to VFS being ephemeral, Unicode data doesn't persist between MCP tool calls
-    // This is the same VFS limitation as other AI memory tests
-    if !response_text.contains("🚀") && !response_text.contains("emoji") {
-        eprintln!("INFO: Unicode data persistence test skipped due to ephemeral VFS");
-        eprintln!(
-            "INFO: AI memory store succeeded but data doesn't persist between MCP invocations"
-        );
-        return; // Skip verification - known VFS limitation
-    }
-
     assert!(
-        response_text.contains("🚀") || response_text.contains("emoji"),
-        "Should preserve Unicode content"
+        response_text.contains("测试用户") || response_text.contains("\\u"),
+        "Should preserve Unicode content: {response_text}"
     );
+
+    let _ = harness.call_tool("vault_delete_credential", json!({"service": service}));
 }

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Sign up</title></head>
+<body>
+  <h1>Join the newsletter</h1>
+  <form id="signup" novalidate>
+    <label for="email">Email</label>
+    <input id="email" name="email" type="email">
+    <p id="email-error" class="error" hidden></p>
+    <label for="plan">Plan</label>
+    <select id="plan" name="plan">
+      <option value="free">Free</option>
+      <option value="pro">Pro</option>
+    </select>
+    <p id="plan-summary">Selected plan: Free</p>
+    <button type="submit">Sign up</button>
+  </form>
+  <p id="result"></p>
+  <script>
+    const form = document.getElementById('signup');
+    const email = document.getElementById('email');
+    const error = document.getElementById('email-error');
+    const plan = document.getElementById('plan');
+    plan.addEventListener('change', () => {
+      document.getElementById('plan-summary').textContent =
+        'Selected plan: ' + plan.options[plan.selectedIndex].text;
+    });
+    form.addEventListener('submit', event => {
+      // Client-side validation: never posts, shows messages in the page
+      event.preventDefault();
+      const value = email.value.trim();
+      let message = '';
+      if (!value) message = 'Email is required.';
+      else if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value)) message = 'Enter a valid email address.';
+      error.textContent = message;
+      error.hidden = !message;
+      document.getElementById('result').textContent =
+        message ? '' : 'Thanks! ' + value + ' is subscribed to ' + plan.value + '.';
+    });
+  </script>
+</body>
+</html>

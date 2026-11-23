@@ -1,0 +1,12 @@
+{
+  "known_failing": "Stale extraction after actions: the live DOM updates (checked with browser_eval) but browser_get_page_content and browser_snapshot both still read the HTML captured at page load",
+  "text": ["A hand-finished navigation instrument."],
+  "absent": ["Arc radius 160 mm", "212 sailors"],
+  "min_refs": 3,
+  "steps": [
+    {"action": "click", "target": {"role": "tab", "text": "Specifications"}},
+    {"expect": {"text": ["Arc radius 160 mm, weight 1.2 kg."], "absent": ["A hand-finished navigation instrument.", "212 sailors"]}},
+    {"action": "click", "target": {"role": "tab", "text": "Reviews"}},
+    {"expect": {"text": ["4.8 out of 5 from 212 sailors."], "absent": ["Arc radius 160 mm"]}}
+  ]
+}

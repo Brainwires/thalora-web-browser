@@ -448,11 +448,23 @@ fn e2e_console_messages_are_captured() {
 #[test]
 fn e2e_fill_credential_never_reveals_the_secret() {
     let server = FixtureServer::start();
+    let vault_path = std::env::temp_dir().join(format!(
+        "thalora-e2e-vault-{}-{}.json",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
     let mut env = HashMap::new();
+    env.insert(
+        "THALORA_VAULT_PATH".to_string(),
+        vault_path.to_string_lossy().into_owned(),
+    );
     for (k, v) in [
         ("THALORA_PRESET", "brainclaw"),
         ("THALORA_ALLOW_LOOPBACK", "1"),
-        ("THALORA_ENABLE_AI_MEMORY", "true"),
+        ("THALORA_ENABLE_VAULT", "true"),
         (
             "THALORA_MASTER_PASSWORD",
             "test_master_password_min_32chars_secure",
@@ -471,7 +483,7 @@ fn e2e_fill_credential_never_reveals_the_secret() {
 
     call_ok(
         &mut h,
-        "ai_memory_store_credentials",
+        "vault_store_credential",
         json!({
             "service": service,
             "username": "agent",
@@ -481,10 +493,14 @@ fn e2e_fill_credential_never_reveals_the_secret() {
     );
     let looked_up = call_ok(
         &mut h,
-        "ai_memory_get_credentials",
+        "vault_list_credentials",
         json!({"service": service}),
     );
     assert!(!looked_up.contains(&secret), "secret returned: {looked_up}");
+    assert!(
+        looked_up.contains("agent"),
+        "username should be listed: {looked_up}"
+    );
 
     call_ok(
         &mut h,
@@ -518,7 +534,7 @@ fn e2e_fill_credential_never_reveals_the_secret() {
     let other = format!("other-site-{unique}");
     call_ok(
         &mut h,
-        "ai_memory_store_credentials",
+        "vault_store_credential",
         json!({
             "service": other,
             "username": "x",

@@ -29,50 +29,26 @@ export THALORA_MASTER_PASSWORD="your-secure-password-at-least-32-chars"
 
 ## Features
 
-### `THALORA_ENABLE_AI_MEMORY`
+### `THALORA_ENABLE_VAULT`
 
-**Required for**: Persistent AI memory storage
-**Type**: Boolean (truthy values only)
-**Default**: Disabled (not set)
+**Required for**: the credential vault tools
+**Type**: Boolean (`1`, `true`, `yes`, `on`)
+**Default**: Disabled
 
-Controls whether the AI Memory Heap persists data to disk. When disabled, Thalora uses in-memory storage only.
+Lists the vault tools (`vault_store_credential`, `vault_list_credentials`,
+`vault_delete_credential`, `browser_fill_credential`) and persists the vault to
+disk. When disabled, the vault is in-memory only. The retired
+`THALORA_ENABLE_AI_MEMORY` is still accepted as an alias.
 
-**Truthy Values** (enables AI memory):
-- `1`
-- `true`
-- `yes`
-- `on`
-- Any other non-empty string except the falsy values below
+No tool returns a stored secret: `browser_fill_credential` types it into a page
+of the credential's own origin server-side.
 
-**Falsy Values** (disables AI memory):
-- `0`
-- `false`
-- `no`
-- `off`
-- Empty string `""`
-- Unset (default)
+### `THALORA_VAULT_PATH`
 
-**Example**:
-```bash
-# Enable AI memory persistence (any of these work)
-export THALORA_ENABLE_AI_MEMORY=1
-export THALORA_ENABLE_AI_MEMORY=true
-export THALORA_ENABLE_AI_MEMORY=yes
+**Default**: `~/.thalora/credentials.json`
 
-# Explicitly disable (same as not setting it)
-export THALORA_ENABLE_AI_MEMORY=false
-export THALORA_ENABLE_AI_MEMORY=0
-unset THALORA_ENABLE_AI_MEMORY
-```
-
-**Behavior**:
-- **Disabled** (default): Creates temporary in-memory storage, no disk writes
-- **Enabled**: Persists research, credentials, bookmarks, and sessions to `~/.cache/thalora/ai_memory/`
-
-**Use Cases**:
-- **Production/CI**: Keep disabled to avoid persistent state
-- **Development**: Enable for testing memory features
-- **AI Agents**: Enable to maintain context across sessions
+Where the vault is stored, on the real filesystem with owner-only permissions
+(`0600` on Unix). Passwords inside it are encrypted with the master password.
 
 ---
 
@@ -86,9 +62,6 @@ unset THALORA_ENABLE_AI_MEMORY
 | `THALORA_ENABLE_SEARCH` | `false` | `web_search`, `image_search` |
 | `THALORA_ENABLE_SESSIONS` | `false` | Browser session, navigation and form automation tools |
 | `THALORA_ENABLE_CDP` | `false` | `cdp_runtime_evaluate` (also enables sessions) |
-| `THALORA_ENABLE_CDP_EXPERIMENTAL` | `false` | Also list the mock-backed CDP tools (`cdp_dom_*`, `cdp_network_*`, `cdp_console_get_messages`, `cdp_page_*`) |
-| `THALORA_ENABLE_ADVANCED` | `false` | List the not-yet-implemented advanced tools (`extract_pdf`, `download_file`, …); calls fail with "Tool not found" |
-| `THALORA_EXPOSE_PASSWORDS` | `false` | **Unsafe.** Make `ai_memory_get_credentials` return stored secrets to the model |
 | `THALORA_STEALTH_DELAYS` | `false` | Add 1.5–5 s of random "human-like" delay to every navigation (anti-bot evasion) |
 | `THALORA_PAGE_SCRIPT_TIMEOUT_MS` | `3000` | Synchronous execution limit per page `<script>` |
 | `THALORA_EVENT_LOOP` | unset | `legacy` disables the event loop (timers never fire, promises only settle during module loading) — temporary escape hatch |
@@ -132,8 +105,8 @@ export THALORA_ENGINE=v8
 # Required for running security tests
 export THALORA_MASTER_PASSWORD="test_master_password_min_32chars_secure"
 
-# Run tests with AI memory enabled
-export THALORA_ENABLE_AI_MEMORY=1
+# Run tests with the credential vault enabled
+export THALORA_ENABLE_VAULT=1
 cargo test
 ```
 
@@ -150,7 +123,7 @@ Here's a complete example for running Thalora with all recommended settings:
 export THALORA_MASTER_PASSWORD="$(openssl rand -base64 48)"
 
 # Features (OPTIONAL - enable as needed)
-export THALORA_ENABLE_AI_MEMORY=1
+export THALORA_ENABLE_VAULT=1
 
 # Engine selection (OPTIONAL - defaults to boa)
 export THALORA_ENGINE=boa
@@ -165,13 +138,7 @@ cargo run --release
 
 When features are enabled, Thalora uses these directories:
 
-### Linux/macOS:
-- AI Memory: `~/.cache/thalora/ai_memory/`
-- Credentials: `~/.cache/thalora/ai_memory/heap.json` (encrypted)
-
-### Windows:
-- AI Memory: `%LOCALAPPDATA%\thalora\ai_memory\`
-- Credentials: `%LOCALAPPDATA%\thalora\ai_memory\heap.json` (encrypted)
+- Credential vault: `~/.thalora/credentials.json` (passwords encrypted), or `THALORA_VAULT_PATH`
 
 ---
 
@@ -182,14 +149,13 @@ When features are enabled, Thalora uses these directories:
    - Store in environment variables, not in code
    - Use different passwords for dev/staging/production
 
-2. **AI Memory**:
+2. **Credential vault**:
    - Only enable in trusted environments
-   - Encrypted credentials require master password
-   - Clear cache when changing environments: `rm -rf ~/.cache/thalora/`
+   - Storing credentials requires the master password
 
 3. **CI/CD**:
    - Use secrets management for `THALORA_MASTER_PASSWORD`
-   - Keep `THALORA_ENABLE_AI_MEMORY` disabled by default
+   - Keep `THALORA_ENABLE_VAULT` disabled by default, or point `THALORA_VAULT_PATH` at a temp file
    - Use ephemeral test passwords in CI
 
 ---
@@ -207,27 +173,14 @@ Error: Master password required. Set THALORA_MASTER_PASSWORD environment variabl
 export THALORA_MASTER_PASSWORD="your-secure-password-at-least-32-characters-long"
 ```
 
-### AI Memory not persisting
+### Credentials not persisting
 
-**Check**: Is `THALORA_ENABLE_AI_MEMORY` set?
-```bash
-echo $THALORA_ENABLE_AI_MEMORY
-# Should output: 1 (or any non-empty value)
-```
+The vault is in-memory unless `THALORA_ENABLE_VAULT=1` is set.
 
-**Solution**: Enable it:
-```bash
-export THALORA_ENABLE_AI_MEMORY=1
-```
+### "Failed to open credential vault"
 
-### "Failed to load AI memory heap"
-
-This is a warning, not an error. Thalora will create a new memory heap automatically.
-
-To clear corrupted memory:
-```bash
-rm -rf ~/.cache/thalora/ai_memory/
-```
+Thalora falls back to an in-memory vault. Check that the vault file
+(`~/.thalora/credentials.json` or `THALORA_VAULT_PATH`) is valid JSON.
 
 ---
 
@@ -235,4 +188,3 @@ rm -rf ~/.cache/thalora/ai_memory/
 
 - [SECURITY.md](SECURITY.md) - Security architecture and best practices
 - [SECURITY_REMEDIATION_SUMMARY.md](archive/SECURITY_REMEDIATION_SUMMARY.md) - Security fixes and verification
-- [FEATURES.md](FEATURES.md) - Complete feature list including AI Memory

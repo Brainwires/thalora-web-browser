@@ -12,7 +12,6 @@ use thalora_browser_apis::event_loop::{PumpBudget, PumpOutcome, ThaloraJobExecut
 #[allow(dead_code)]
 pub struct RustRenderer {
     pub(super) js_context: Option<Context>,
-    pub(super) v8_engine: Option<Box<dyn crate::engine::engine_trait::ThaloraBrowserEngine>>,
     pub(super) engine_type: EngineType,
     pub(super) web_apis: WebApis,
     pub(super) history_initialized: bool,
@@ -23,7 +22,7 @@ pub struct RustRenderer {
     // triggered additional document updates.
     pub(super) in_update: bool,
     /// Event loop driving timers, microtasks and async jobs for `js_context`
-    /// (`None` for V8, or when THALORA_EVENT_LOOP=legacy).
+    /// (`None` when THALORA_EVENT_LOOP=legacy).
     pub(super) executor: Option<Rc<ThaloraJobExecutor>>,
 }
 
@@ -75,7 +74,6 @@ impl RustRenderer {
 
                 Self {
                     js_context: Some(context),
-                    v8_engine: None,
                     engine_type: EngineType::Boa,
                     web_apis,
                     history_initialized: false,
@@ -83,28 +81,11 @@ impl RustRenderer {
                     executor,
                 }
             }
-            EngineType::V8 => {
-                let v8_engine =
-                    crate::engine::engine_trait::EngineFactory::create_engine(EngineType::V8)
-                        .expect("Failed to create V8 engine");
-
-                let web_apis = WebApis::new();
-
-                Self {
-                    js_context: None,
-                    v8_engine: Some(v8_engine),
-                    engine_type: EngineType::V8,
-                    web_apis,
-                    history_initialized: false,
-                    in_update: false,
-                    executor: None,
-                }
-            }
         }
     }
 
     /// Run the page's event loop (timers, microtasks, fetch/XHR) within
-    /// `budget`. Returns `None` when there is no event loop (V8 or legacy).
+    /// `budget`. Returns `None` when there is no event loop (legacy).
     pub fn pump_event_loop(&mut self, budget: PumpBudget) -> Option<PumpOutcome> {
         let executor = self.executor.clone()?;
         let context = self.js_context.as_mut()?;
@@ -247,13 +228,6 @@ impl RustRenderer {
                     Err(anyhow::Error::msg("Boa context not available"))
                 }
             }
-            EngineType::V8 => {
-                if let Some(engine) = &mut self.v8_engine {
-                    engine.execute(source)
-                } else {
-                    Err(anyhow::Error::msg("V8 engine not available"))
-                }
-            }
         }
     }
 
@@ -342,10 +316,6 @@ impl RustRenderer {
                             }
                         }
                     }
-                }
-                EngineType::V8 => {
-                    // V8 DOM handling - for now, just acknowledge the HTML content
-                    // TODO: Implement V8 DOM manipulation
                 }
             }
         }));

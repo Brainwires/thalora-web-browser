@@ -2,6 +2,7 @@
 mod content;
 mod form_management;
 mod interaction;
+mod javascript;
 mod navigation;
 mod session_management;
 mod snapshot;

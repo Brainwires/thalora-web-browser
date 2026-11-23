@@ -3,13 +3,13 @@ use lightningcss::rules::supports::SupportsCondition;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 /// Global flag tracking whether the host OS/application prefers dark color scheme.
-/// Set by `set_prefers_dark()` from the FFI layer at startup (and on theme change),
+/// Set by `set_prefers_dark()` by the embedding host (and on theme change),
 /// then read by `prefers-color-scheme` media query evaluation. Defaults to light
 /// (false) so headless/test paths get deterministic behavior.
 static PREFERS_DARK: AtomicBool = AtomicBool::new(false);
 
-/// Update the global `prefers-color-scheme` hint. The GUI calls this from
-/// `thalora_set_prefers_dark` to match the OS theme so pages that respond to
+/// Update the global `prefers-color-scheme` hint. A desktop host calls this to
+/// match the OS theme so pages that respond to
 /// `@media (prefers-color-scheme: dark)` render correctly.
 pub fn set_prefers_dark(dark: bool) {
     PREFERS_DARK.store(dark, Ordering::Relaxed);

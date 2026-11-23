@@ -1,0 +1,11 @@
+{
+  "known_failing": "Stale extraction after actions: the live DOM updates (checked with browser_eval) but browser_get_page_content and browser_snapshot both still read the HTML captured at page load",
+  "text": ["Lisbon", "Tangier", "6 of 6 ports shown"],
+  "min_refs": 1,
+  "steps": [
+    {"action": "type", "target": {"label": "Filter ports"}, "value": "po"},
+    {"expect": {"text": ["Porto", "Ponta Delgada", "2 of 6 ports shown"], "absent": ["Lisbon", "Tangier", "6 of 6 ports shown"]}},
+    {"action": "type", "target": {"label": "Filter ports"}, "value": "fun"},
+    {"expect": {"text": ["Funchal", "1 of 6 ports shown"], "absent": ["Porto"]}}
+  ]
+}

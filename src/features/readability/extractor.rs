@@ -187,11 +187,7 @@ impl ReadabilityExtractor {
 
         // Check minimum text length (reduced from 200 to be more permissive)
         let text_content = element.text().collect::<String>();
-        if text_content.trim().len() < 100 {
-            return false;
-        }
-
-        true
+        text_content.trim().len() >= 100
     }
 
     /// Extract the content area, potentially expanding to include surrounding content

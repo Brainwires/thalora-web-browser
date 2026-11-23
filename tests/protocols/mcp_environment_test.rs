@@ -18,10 +18,10 @@ fn test_all_tools_enabled_by_default() {
         .map(|name| name.to_string())
         .collect();
 
-    // AI Memory tools
+    // Vault tools
     assert!(
-        tool_names.iter().any(|name| name.starts_with("ai_memory_")),
-        "Should have AI memory tools enabled by default"
+        tool_names.iter().any(|name| name.starts_with("vault_")),
+        "Should have vault tools enabled by default"
     );
 
     // CDP tools
@@ -68,11 +68,11 @@ fn test_all_tools_enabled_by_default() {
     );
 }
 
-// Test disabling AI Memory tools
+// Test disabling Vault tools
 #[test]
-fn test_ai_memory_tools_disabled() {
-    let mut harness = create_harness_with_disabled_categories(&["THALORA_ENABLE_AI_MEMORY"])
-        .expect("Failed to create harness with disabled AI memory");
+fn test_vault_tools_disabled() {
+    let mut harness = create_harness_with_disabled_categories(&["THALORA_ENABLE_VAULT"])
+        .expect("Failed to create harness with disabled vault");
 
     let tools = harness.list_tools().expect("Should be able to list tools");
     let tool_names: Vec<String> = tools
@@ -81,10 +81,10 @@ fn test_ai_memory_tools_disabled() {
         .map(|name| name.to_string())
         .collect();
 
-    // AI Memory tools should not be available
+    // Vault tools should not be available
     assert!(
-        !tool_names.iter().any(|name| name.starts_with("ai_memory_")),
-        "AI memory tools should be disabled"
+        !tool_names.iter().any(|name| name.starts_with("vault_")),
+        "vault tools should be disabled"
     );
 
     // Other categories should still be available
@@ -100,7 +100,7 @@ fn test_ai_memory_tools_disabled() {
     );
 
     eprintln!(
-        "AI memory tools successfully disabled - {} tools remaining",
+        "vault tools successfully disabled - {} tools remaining",
         tools.len()
     );
 }
@@ -126,8 +126,8 @@ fn test_cdp_tools_disabled() {
 
     // Other categories should still be available
     assert!(
-        tool_names.iter().any(|name| name.starts_with("ai_memory_")),
-        "AI memory tools should still be enabled"
+        tool_names.iter().any(|name| name.starts_with("vault_")),
+        "vault tools should still be enabled"
     );
     assert!(
         tool_names
@@ -147,7 +147,7 @@ fn test_cdp_tools_disabled() {
 fn test_scraping_tools_disabled() {
     // Explicitly disable scraping (which is enabled by default)
     let mut env_vars = std::collections::HashMap::new();
-    env_vars.insert("THALORA_ENABLE_AI_MEMORY".to_string(), "true".to_string());
+    env_vars.insert("THALORA_ENABLE_VAULT".to_string(), "true".to_string());
     env_vars.insert("THALORA_ENABLE_CDP".to_string(), "true".to_string());
     env_vars.insert("THALORA_ENABLE_SCRAPING".to_string(), "false".to_string());
     env_vars.insert("THALORA_ENABLE_SEARCH".to_string(), "true".to_string());
@@ -173,8 +173,8 @@ fn test_scraping_tools_disabled() {
 
     // Other categories should still be available
     assert!(
-        tool_names.iter().any(|name| name.starts_with("ai_memory_")),
-        "AI memory tools should still be enabled"
+        tool_names.iter().any(|name| name.starts_with("vault_")),
+        "vault tools should still be enabled"
     );
     assert!(
         tool_names.iter().any(|name| name.starts_with("cdp_")),
@@ -210,8 +210,8 @@ fn test_search_tools_disabled() {
 
     // Other categories should still be available
     assert!(
-        tool_names.iter().any(|name| name.starts_with("ai_memory_")),
-        "AI memory tools should still be enabled"
+        tool_names.iter().any(|name| name.starts_with("vault_")),
+        "vault tools should still be enabled"
     );
     assert!(
         tool_names.iter().any(|name| name.starts_with("cdp_")),
@@ -261,8 +261,8 @@ fn test_sessions_tools_disabled() {
 
     // Other categories should still be available
     assert!(
-        tool_names.iter().any(|name| name.starts_with("ai_memory_")),
-        "AI memory tools should still be enabled"
+        tool_names.iter().any(|name| name.starts_with("vault_")),
+        "vault tools should still be enabled"
     );
     // Note: CDP is also disabled since it implies sessions
     assert!(
@@ -312,8 +312,8 @@ fn test_cdp_enables_sessions_automatically() {
 
     // Other categories should not be available
     assert!(
-        !tool_names.iter().any(|name| name.starts_with("ai_memory_")),
-        "AI memory tools should be disabled"
+        !tool_names.iter().any(|name| name.starts_with("vault_")),
+        "vault tools should be disabled"
     );
     assert!(
         !tool_names
@@ -332,7 +332,7 @@ fn test_cdp_enables_sessions_automatically() {
 #[test]
 fn test_multiple_categories_disabled() {
     let disabled_categories = [
-        "THALORA_ENABLE_AI_MEMORY",
+        "THALORA_ENABLE_VAULT",
         "THALORA_ENABLE_SCRAPING",
         "THALORA_ENABLE_SEARCH",
     ];
@@ -348,8 +348,8 @@ fn test_multiple_categories_disabled() {
 
     // Disabled categories should not be available
     assert!(
-        !tool_names.iter().any(|name| name.starts_with("ai_memory_")),
-        "AI memory tools should be disabled"
+        !tool_names.iter().any(|name| name.starts_with("vault_")),
+        "vault tools should be disabled"
     );
     assert!(
         !tool_names
@@ -383,7 +383,7 @@ fn test_multiple_categories_disabled() {
 // Test enabling only specific categories
 #[test]
 fn test_only_specific_categories_enabled() {
-    let enabled_categories = ["THALORA_ENABLE_AI_MEMORY", "THALORA_ENABLE_CDP"];
+    let enabled_categories = ["THALORA_ENABLE_VAULT", "THALORA_ENABLE_CDP"];
     let mut harness = create_harness_with_only_categories(&enabled_categories)
         .expect("Failed to create harness with only specific categories");
 
@@ -396,8 +396,8 @@ fn test_only_specific_categories_enabled() {
 
     // Only enabled categories should be available
     assert!(
-        tool_names.iter().any(|name| name.starts_with("ai_memory_")),
-        "AI memory tools should be enabled"
+        tool_names.iter().any(|name| name.starts_with("vault_")),
+        "vault tools should be enabled"
     );
     assert!(
         tool_names.iter().any(|name| name.starts_with("cdp_")),
@@ -432,19 +432,11 @@ fn test_only_specific_categories_enabled() {
 // Test that disabled tools return appropriate errors when called
 #[test]
 fn test_disabled_tools_return_errors() {
-    let mut harness = create_harness_with_disabled_categories(&["THALORA_ENABLE_AI_MEMORY"])
-        .expect("Failed to create harness with disabled AI memory");
+    let mut harness = create_harness_with_disabled_categories(&["THALORA_ENABLE_VAULT"])
+        .expect("Failed to create harness with disabled vault");
 
-    // Try to call a disabled AI memory tool
-    let response = harness.call_tool(
-        "ai_memory_store_research",
-        json!({
-            "key": "test_key",
-            "topic": "test topic",
-            "summary": "test summary",
-            "tags": ["test"]
-        }),
-    );
+    // Try to call a disabled vault tool
+    let response = harness.call_tool("vault_list_credentials", json!({}));
 
     // Should either fail during call or return an error response
     match response {
@@ -483,7 +475,7 @@ fn test_disabled_tools_return_errors() {
 fn test_all_categories_disabled() {
     // Explicitly disable all categories, including scraping (which is enabled by default)
     let mut env_vars = std::collections::HashMap::new();
-    env_vars.insert("THALORA_ENABLE_AI_MEMORY".to_string(), "false".to_string());
+    env_vars.insert("THALORA_ENABLE_VAULT".to_string(), "false".to_string());
     env_vars.insert("THALORA_ENABLE_CDP".to_string(), "false".to_string());
     env_vars.insert("THALORA_ENABLE_SCRAPING".to_string(), "false".to_string());
     env_vars.insert("THALORA_ENABLE_SEARCH".to_string(), "false".to_string());
@@ -540,10 +532,10 @@ fn test_default_behavior_no_env_vars() {
     );
 
     // In minimal mode (default), only scraping and search tools are available
-    // AI memory, CDP, and browser tools should be disabled
+    // vault, CDP, and browser tools should be disabled
     assert!(
-        !tool_names.iter().any(|name| name.starts_with("ai_memory_")),
-        "AI memory tools should be disabled by default"
+        !tool_names.iter().any(|name| name.starts_with("vault_")),
+        "vault tools should be disabled by default"
     );
     assert!(
         !tool_names.iter().any(|name| name.starts_with("cdp_")),
@@ -569,7 +561,7 @@ fn test_default_behavior_no_env_vars() {
 #[test]
 fn test_custom_environment_variables() {
     let mut env_vars = std::collections::HashMap::new();
-    env_vars.insert("THALORA_ENABLE_AI_MEMORY".to_string(), "true".to_string());
+    env_vars.insert("THALORA_ENABLE_VAULT".to_string(), "true".to_string());
     env_vars.insert("THALORA_ENABLE_CDP".to_string(), "false".to_string());
     env_vars.insert("THALORA_ENABLE_SCRAPING".to_string(), "true".to_string());
     env_vars.insert("THALORA_ENABLE_SEARCH".to_string(), "false".to_string());
@@ -587,8 +579,8 @@ fn test_custom_environment_variables() {
 
     // Enabled categories should be available
     assert!(
-        tool_names.iter().any(|name| name.starts_with("ai_memory_")),
-        "AI memory tools should be enabled"
+        tool_names.iter().any(|name| name.starts_with("vault_")),
+        "vault tools should be enabled"
     );
     assert!(
         tool_names
@@ -633,7 +625,7 @@ fn test_tool_filtering_performance() {
 
     // Test with minimal tools
     let start_minimal = std::time::Instant::now();
-    let mut harness_minimal = create_harness_with_only_categories(&["THALORA_ENABLE_AI_MEMORY"])
+    let mut harness_minimal = create_harness_with_only_categories(&["THALORA_ENABLE_VAULT"])
         .expect("Failed to create minimal harness");
     let tools_minimal = harness_minimal
         .list_tools()

@@ -6,8 +6,6 @@ use std::rc::Rc;
 use std::time::Instant;
 use thalora_browser_apis::boa_engine::{Context, JsValue, Source, js_string};
 
-use crate::apis::polyfills::syntax_transformer::SyntaxTransformer;
-
 #[allow(dead_code)]
 pub struct JavaScriptEngine {
     context: Context,
@@ -15,7 +13,6 @@ pub struct JavaScriptEngine {
     next_timer_id: Rc<RefCell<u32>>,
     promises: Vec<thalora_browser_apis::boa_engine::JsObject>,
     start_time: Instant,
-    syntax_transformer: SyntaxTransformer,
 }
 
 #[allow(dead_code)]
@@ -50,21 +47,13 @@ impl JavaScriptEngine {
             next_timer_id,
             promises: Vec::new(),
             start_time: Instant::now(),
-            syntax_transformer: SyntaxTransformer::new(),
         })
     }
 
     pub async fn execute_enhanced(&mut self, code: &str) -> Result<JsValue> {
-        // Pre-process the code with complete ES2025+ support
-        let processed_code = self.syntax_transformer.transform_latest(code)?;
-        let final_code = self
-            .syntax_transformer
-            .transform_modern_syntax(&processed_code)?;
-
-        // Execute the processed code
         let result = self
             .context
-            .eval(Source::from_bytes(&final_code))
+            .eval(Source::from_bytes(code))
             .map_err(|e| anyhow!("JavaScript execution error: {}", e))?;
 
         Ok(result)
@@ -95,15 +84,9 @@ impl JavaScriptEngine {
         Ok(())
     }
 
-    /// Execute JavaScript code with V8-compatible error handling
-    pub async fn execute_v8_compatible(&mut self, code: &str) -> Result<JsValue> {
-        // Use the enhanced ES2022 transformation pipeline
-        self.execute_enhanced(code).await
-    }
-
     /// Get engine version information
     pub fn version_info(&self) -> String {
-        "Enhanced JavaScript Engine v3.0 (ES2025+ Compatible)".to_string()
+        "Enhanced JavaScript Engine (Boa)".to_string()
     }
 
     /// Run pending microtasks / jobs on the engine's JS context. Useful in tests to

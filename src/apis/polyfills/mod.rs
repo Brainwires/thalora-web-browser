@@ -2,7 +2,6 @@
 // NOTE: All ES6-ES2023 language features are now natively handled by Boa engine
 // NOTE: Console is now handled by Boa's native console implementation
 pub mod console;
-pub mod syntax_transformer;
 pub mod web_apis;
 
 // Modular polyfill components

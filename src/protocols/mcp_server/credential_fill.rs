@@ -9,9 +9,9 @@
 use futures::FutureExt;
 use serde_json::{Value, json};
 
+use crate::protocols::credential_tools::normalize_origin;
 use crate::protocols::mcp::McpResponse;
 use crate::protocols::mcp_server::core::McpServer;
-use crate::protocols::memory_tools::credentials::normalize_origin;
 use crate::protocols::security::sanitize_session_id;
 
 impl McpServer {
@@ -31,7 +31,7 @@ impl McpServer {
             return McpResponse::error(-32602, format!("Session ID validation failed: {}", e));
         }
 
-        let (username, password, additional_data) = match self.ai_memory.get_credentials(service) {
+        let (username, password, additional_data) = match self.vault.get_credentials(service) {
             Ok(Some((_service, username, password, additional_data))) => {
                 (username, password, additional_data)
             }
@@ -50,7 +50,7 @@ impl McpServer {
                 -32602,
                 format!(
                     "Credential '{}' has no origin, so it can't be filled safely. Store it again \
-                     with ai_memory_store_credentials and an `origin` (e.g. https://example.com).",
+                     with vault_store_credential and an `origin` (e.g. https://example.com).",
                     service
                 ),
             );

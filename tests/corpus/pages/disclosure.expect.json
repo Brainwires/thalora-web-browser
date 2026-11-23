@@ -1,0 +1,12 @@
+{
+  "known_failing": "Stale extraction after actions: the live DOM updates (checked with browser_eval) but browser_get_page_content and browser_snapshot both still read the HTML captured at page load",
+  "text": ["Frequently asked questions", "Show shipping details"],
+  "absent": ["Orders ship within 3 business days"],
+  "min_refs": 2,
+  "steps": [
+    {"action": "click", "target": {"text": "Show shipping details"}},
+    {"expect": {"text": ["Orders ship within 3 business days from Lisbon.", "Hide shipping details"], "absent": ["Returns are free"]}},
+    {"action": "click", "target": {"text": "Hide shipping details"}},
+    {"expect": {"text": ["Show shipping details"], "absent": ["Orders ship within 3 business days"]}}
+  ]
+}

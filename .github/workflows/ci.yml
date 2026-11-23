@@ -11,8 +11,26 @@ env:
   RUSTFLAGS: -Dwarnings
 
 jobs:
+  runners:
+    name: pick runners
+    # Our self-hosted pools first, GitHub-hosted for the overflow: a job takes our pool only
+    # while it has a free slot, else its GitHub image at once (fork pull requests: GitHub only).
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
+    outputs:
+      plan: ${{ steps.pick.outputs.plan }}
+    steps:
+      - id: pick
+        uses: Brainwires/.github/actions/pick-runners@415ef1f9941d798b5760bf69f908be88789371a2 # pick-runners
+        with:
+          jobs: fmt=linux-x64
+          vars: ${{ toJSON(vars) }}
+
   check:
     name: Check
+    # Stays on GitHub-hosted: sudo apt-get install (sudo is inert on the self-hosted pool).
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,11 +42,10 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libssl-dev pkg-config clang libclang-dev libasound2-dev
       - name: Check workspace
         run: cargo check --workspace
-      - name: Check boa engine
-        run: cargo check --manifest-path engines/boa/Cargo.toml --workspace
 
   clippy:
     name: Clippy
+    # Stays on GitHub-hosted: sudo apt-get install (sudo is inert on the self-hosted pool).
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -42,12 +59,12 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libssl-dev pkg-config clang libclang-dev libasound2-dev
       - name: Clippy workspace
         run: cargo clippy --workspace
-      - name: Clippy boa engine
-        run: cargo clippy --manifest-path engines/boa/Cargo.toml --workspace
 
   fmt:
     name: Format
-    runs-on: ubuntu-latest
+    needs: runners
+    if: ${{ !cancelled() }}
+    runs-on: ${{ fromJSON(needs.runners.outputs.plan || '{}').fmt || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -57,11 +74,10 @@ jobs:
           components: rustfmt
       - name: Format workspace
         run: cargo fmt --all --check
-      - name: Format boa engine
-        run: cargo fmt --all --check --manifest-path engines/boa/Cargo.toml
 
   test:
     name: Test
+    # Stays on GitHub-hosted: sudo apt-get install (sudo is inert on the self-hosted pool).
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -77,11 +93,10 @@ jobs:
         run: cargo test --workspace -- --test-threads=1
         env:
           RUST_MIN_STACK: 16777216
-      - name: Test boa engine
-        run: cargo test --manifest-path engines/boa/Cargo.toml --workspace -- --test-threads=1
 
   doc:
     name: Documentation
+    # Stays on GitHub-hosted: sudo apt-get install (sudo is inert on the self-hosted pool).
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -93,5 +108,43 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libssl-dev pkg-config clang libclang-dev libasound2-dev
       - name: Doc workspace
         run: cargo doc --workspace --no-deps
-      - name: Doc boa engine
-        run: cargo doc --manifest-path engines/boa/Cargo.toml --workspace --no-deps
+
+  # Reporting-only measurement baselines (see docs/ARCHITECTURE.md). These do
+  # not gate merges yet; results are uploaded as artifacts to compare runs.
+  baselines:
+    name: Baselines (reporting)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libssl-dev pkg-config clang libclang-dev libasound2-dev
+      - name: Build binary
+        run: cargo build --release --bin thalora --features test-hooks
+      - name: Page corpus
+        # --features test-hooks: the harness runs the thalora binary Cargo
+        # builds for this test (CARGO_BIN_EXE_thalora), and release builds
+        # only honour THALORA_ALLOW_LOOPBACK with test-hooks. Without it every
+        # fixture page is blocked as localhost, and this rebuild would also
+        # replace the test-hooks binary the fingerprint and WPT steps reuse.
+        run: cargo test --release --features test-hooks --test mcp_tests corpus -- --nocapture
+        env:
+          THALORA_CORPUS_WRITE: "1"
+      - name: Fingerprint dump and diff
+        run: |
+          cargo xtask fingerprint-dump --bin target/release/thalora --out target/thalora-boa.json
+          cargo xtask fingerprint-diff tests/fingerprint/chrome-155.json target/thalora-boa.json
+      - name: WPT
+        run: cargo xtask wpt --release --no-build --compare --write
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: baselines
+          path: |
+            tests/corpus/scoreboard.json
+            target/thalora-boa.json
+            tests/wpt/results.json

@@ -32,7 +32,6 @@ pub use protocols::{
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::Duration;
 
     /// Meta-test to verify the test harness itself works
     #[test]
@@ -63,93 +62,10 @@ mod tests {
         );
     }
 
-    /// Integration test to verify end-to-end testing capability
-    #[test]
-    fn test_end_to_end_verification() {
-        let mut harness = create_initialized_harness().expect("Failed to create test harness");
-
-        // Test the complete flow: store, retrieve, search
-        let test_key = format!(
-            "verification_{}",
-            chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
-        );
-        let test_data = serde_json::json!({
-            "purpose": "end-to-end verification",
-            "timestamp": chrono::Utc::now().to_rfc3339(),
-            "test_suite": "mcp_tests"
-        });
-
-        // Store data
-        let store_response = harness.call_tool("ai_memory_store_research", serde_json::json!({
-            "key": &test_key,
-            "topic": "end-to-end verification testing",
-            "summary": format!("End-to-end verification test data: {}", serde_json::to_string(&test_data).unwrap_or_default()),
-            "tags": ["verification", "e2e"]
-        })).expect("Store should succeed");
-
-        assert!(!store_response.is_error, "Store should not return error");
-        assert!(
-            store_response.duration < Duration::from_secs(10),
-            "Store should be reasonably fast"
-        );
-
-        // Retrieve data
-        let get_response = harness
-            .call_tool(
-                "ai_memory_get_research",
-                serde_json::json!({
-                    "key": &test_key
-                }),
-            )
-            .expect("Get should succeed");
-
-        assert!(!get_response.is_error, "Get should not return error");
-        assert!(
-            get_response.duration < Duration::from_secs(10),
-            "Get should be reasonably fast"
-        );
-
-        // Verify content
-        let response_text = get_response.content[0]
-            .get("text")
-            .unwrap()
-            .as_str()
-            .unwrap();
-        assert!(
-            response_text.contains("verification"),
-            "Retrieved data should contain original content"
-        );
-
-        // Search for data
-        let search_response = harness
-            .call_tool(
-                "ai_memory_search_research",
-                serde_json::json!({
-                    "tags": ["verification"],
-                    "limit": 1
-                }),
-            )
-            .expect("Search should succeed");
-
-        assert!(!search_response.is_error, "Search should not return error");
-
-        eprintln!("End-to-end verification completed successfully");
-    }
-
     /// Quick smoke test for all major tool categories
     #[test]
     fn test_tool_categories_smoke() {
         let mut harness = create_initialized_harness().expect("Failed to create test harness");
-
-        // Memory tools
-        let memory_result = harness.call_tool(
-            "ai_memory_search_research",
-            serde_json::json!({
-                "query": "smoke_test",
-                "limit": 1
-            }),
-        );
-        assert!(memory_result.is_ok(), "Memory tools should be functional");
 
         // JavaScript evaluation
         let js_result = harness.call_tool(
@@ -171,15 +87,6 @@ mod tests {
                 );
             }
         }
-
-        // DOM tools
-        let dom_result = harness.call_tool(
-            "cdp_dom_get_document",
-            serde_json::json!({
-                "depth": 1
-            }),
-        );
-        assert!(dom_result.is_ok(), "DOM tools should be functional");
 
         eprintln!("All major tool categories passed smoke test");
     }

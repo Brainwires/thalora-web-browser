@@ -1,0 +1,13 @@
+{
+  "known_failing": "Stale extraction after actions: the live DOM updates (checked with browser_eval) but browser_get_page_content and browser_snapshot both still read the HTML captured at page load",
+  "text": ["Quantity: 1", "Total: 58 EUR"],
+  "absent": ["Quantity: 3"],
+  "min_refs": 2,
+  "steps": [
+    {"action": "click", "target": {"text": "Increase quantity"}},
+    {"action": "click", "target": {"text": "Increase quantity"}},
+    {"expect": {"text": ["Quantity: 3", "Total: 174 EUR"], "absent": ["Quantity: 1", "Total: 58 EUR"]}},
+    {"action": "click", "target": {"text": "Decrease quantity"}},
+    {"expect": {"text": ["Quantity: 2", "Total: 116 EUR"], "absent": ["Quantity: 3"]}}
+  ]
+}

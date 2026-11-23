@@ -1,0 +1,14 @@
+{
+  "known_failing": "Stale extraction after actions: the live DOM updates (checked with browser_eval) but browser_get_page_content and browser_snapshot both still read the HTML captured at page load",
+  "text": ["Departed Lisbon at dawn", "2 entries shown"],
+  "absent": ["Sighted the Azores", "End of log."],
+  "min_refs": 1,
+  "steps": [
+    {"action": "click", "target": {"text": "Load more entries"}},
+    {"action": "wait", "ms": 200},
+    {"expect": {"text": ["Departed Lisbon at dawn", "Sighted the Azores", "4 entries shown"], "absent": ["End of log."]}},
+    {"action": "click", "target": {"text": "Load more entries"}},
+    {"action": "wait", "ms": 200},
+    {"expect": {"text": ["Anchored off Ponta Delgada", "5 entries shown. End of log."], "absent": ["Load more entries"]}}
+  ]
+}
