@@ -380,14 +380,36 @@ fn ensure_checkout(dir: &Path, commit: &str, dirs: &[String]) -> Result<()> {
             "origin",
             commit,
         ];
-        let mut attempt = 1;
-        while let Err(e) = git(dir, &args) {
-            if attempt == 3 {
-                return Err(e);
-            }
-            eprintln!("── fetch attempt {attempt} failed, retrying");
-            std::thread::sleep(std::time::Duration::from_secs(5 * attempt));
-            attempt += 1;
+        if git(dir, &args).is_err() {
+            // Some environments (GitHub-hosted runners) answer fetch-by-SHA with
+            // "not our ref" even for a ref tip. The pinned commit is an epoch tag
+            // tip, so find a ref that points at it and fetch that by name.
+            let refs =
+                git_quiet(dir, &["ls-remote", "origin", "refs/tags/epochs/*"]).unwrap_or_default();
+            let name = refs
+                .lines()
+                .filter_map(|l| l.split_once('\t'))
+                .find(|(sha, _)| *sha == commit)
+                .map(|(_, r)| r.to_string())
+                .ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "WPT commit {commit} is not fetchable and no epoch tag points at it"
+                    )
+                })?;
+            println!("── fetch by SHA refused; fetching {name} instead");
+            let refspec = format!("+{name}:{name}");
+            git(
+                dir,
+                &[
+                    "fetch",
+                    "-q",
+                    "--depth",
+                    "1",
+                    "--filter=blob:none",
+                    "origin",
+                    &refspec,
+                ],
+            )?;
         }
     }
     let wanted = sparse_paths(dirs);
