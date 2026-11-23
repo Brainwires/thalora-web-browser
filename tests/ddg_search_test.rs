@@ -5,6 +5,10 @@
 // fail on network errors, rate-limiting or bot blocking from CI runners.
 // Run explicitly with: cargo test --test ddg_search_test -- --ignored
 
+// Each browser is only used from its own test's thread, so holding its
+// MutexGuard across .await cannot contend or deadlock.
+#![allow(clippy::await_holding_lock)]
+
 use thalora::HeadlessWebBrowser;
 
 #[tokio::test]

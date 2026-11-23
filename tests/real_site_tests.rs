@@ -3,6 +3,10 @@
 // without crashing (CSP and SRI handling, stylesheet fetching, etc.). Page
 // scripts are not executed: there is no JavaScript engine at the moment.
 
+// Each browser is only used from its own test's thread, so holding its
+// MutexGuard across .await cannot contend or deadlock.
+#![allow(clippy::await_holding_lock)]
+
 use thalora::HeadlessWebBrowser;
 
 /// Helper: navigate to a URL and return (content_length, has_errors)

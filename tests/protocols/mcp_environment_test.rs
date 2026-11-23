@@ -652,7 +652,7 @@ fn test_tool_filtering_performance() {
         tools_minimal.len()
     );
     assert!(
-        tools_minimal.len() > 0,
+        !tools_minimal.is_empty(),
         "Should have at least some tools in minimal configuration"
     );
 

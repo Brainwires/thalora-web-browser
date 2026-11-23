@@ -3430,7 +3430,7 @@ mod tests {
 
         let result = compute_styled_tree(html, 1024.0, 768.0).unwrap();
 
-        fn find_text<'a>(el: &'a StyledElement) -> Option<&'a StyledElement> {
+        fn find_text(el: &StyledElement) -> Option<&StyledElement> {
             if el.text_content.is_some() {
                 return Some(el);
             }
@@ -3676,7 +3676,7 @@ mod tests {
         let result = compute_styled_tree(html, 1280.0, 800.0).unwrap();
 
         // Find the grid container
-        fn find_grid<'a>(el: &'a StyledElement) -> Option<&'a StyledElement> {
+        fn find_grid(el: &StyledElement) -> Option<&StyledElement> {
             if el.styles.display.as_deref() == Some("grid") {
                 return Some(el);
             }

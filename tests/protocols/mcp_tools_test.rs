@@ -88,13 +88,13 @@ fn test_vault_store_list_delete_roundtrip() {
         !after_text.contains("roundtrip-user"),
         "Deleted credential should no longer be listed: {after_text}"
     );
-    if let Ok(v) = serde_json::from_str::<Value>(&after_text) {
-        if let Some(creds) = v.get("credentials").and_then(|c| c.as_array()) {
-            assert!(
-                creds.is_empty(),
-                "Credentials should be empty: {after_text}"
-            );
-        }
+    if let Ok(v) = serde_json::from_str::<Value>(&after_text)
+        && let Some(creds) = v.get("credentials").and_then(|c| c.as_array())
+    {
+        assert!(
+            creds.is_empty(),
+            "Credentials should be empty: {after_text}"
+        );
     }
 }
 

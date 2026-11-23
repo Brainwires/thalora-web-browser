@@ -583,7 +583,7 @@ mod tests {
         let rules = processor.get_rules();
         eprintln!("Only screen rules: {}", rules.len());
         assert!(
-            rules.len() >= 1,
+            !rules.is_empty(),
             "Expected rule from @media only screen and (min-width: 960px)"
         );
     }

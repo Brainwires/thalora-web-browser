@@ -340,7 +340,7 @@ fn test_server_stability_under_load() {
     let mut successful_requests = 0;
 
     for i in 0..num_requests {
-        if let Ok(_) = harness.list_tools() {
+        if harness.list_tools().is_ok() {
             successful_requests += 1;
         }
 

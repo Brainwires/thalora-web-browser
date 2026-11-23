@@ -278,7 +278,7 @@ mod cookie_security {
     #[test]
     fn test_samesite_attribute() {
         // Cookies should have SameSite attribute to prevent CSRF
-        let samesite_values = vec!["Strict", "Lax", "None"];
+        let samesite_values = ["Strict", "Lax", "None"];
         let cookie_samesite = "Lax";
 
         assert!(samesite_values.contains(&cookie_samesite));
@@ -318,7 +318,7 @@ mod additional_hardening {
     /// Test 30: X-Frame-Options prevents clickjacking
     #[test]
     fn test_xframe_options() {
-        let xframe_options = vec!["DENY", "SAMEORIGIN"];
+        let xframe_options = ["DENY", "SAMEORIGIN"];
         let current_setting = "SAMEORIGIN";
 
         assert!(xframe_options.contains(&current_setting));
@@ -355,5 +355,4 @@ fn test_security_remediation_complete() {
     // Verified by additional tests
 
     // All priorities have been addressed
-    assert!(true, "All security priorities have been implemented");
 }

@@ -140,14 +140,10 @@ mod session_secret_security {
         // The old hardcoded secret "thalora-dev-session-secret-do-not-use-in-production"
         // should no longer be used
 
-        let old_hardcoded = "thalora-dev-session-secret-do-not-use-in-production";
+        let _old_hardcoded = "thalora-dev-session-secret-do-not-use-in-production";
 
         // This string should NOT be the fallback anymore
         // The implementation now auto-generates a secure random secret
-        assert!(
-            !old_hardcoded.is_empty(),
-            "Old hardcoded secret should exist for this test"
-        );
         // The actual secret generation is tested by verifying secrets are unique
     }
 
@@ -221,5 +217,4 @@ fn test_security_audit_complete() {
     println!("✓ VFS: real_fs feature causes compile error");
 
     // All checks passed
-    assert!(true, "All security audit fixes verified");
 }

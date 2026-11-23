@@ -188,10 +188,10 @@ fn test_web_scraping_performance() {
         let duration = start.elapsed();
         total_duration += duration;
 
-        if let Ok(response) = result {
-            if !response.is_error {
-                successful += 1;
-            }
+        if let Ok(response) = result
+            && !response.is_error
+        {
+            successful += 1;
         }
 
         if i % 2 == 0 {
@@ -233,7 +233,7 @@ fn test_google_search_performance() {
     let mut harness = create_initialized_harness().expect("Failed to create harness");
     let iterations = 3; // Very few iterations for search operations
 
-    let queries = vec![
+    let queries = [
         "rust programming",
         "web browser automation",
         "javascript engine",
@@ -257,10 +257,10 @@ fn test_google_search_performance() {
         let duration = start.elapsed();
         total_duration += duration;
 
-        if let Ok(response) = result {
-            if !response.is_error {
-                successful += 1;
-            }
+        if let Ok(response) = result
+            && !response.is_error
+        {
+            successful += 1;
         }
 
         print!(".");

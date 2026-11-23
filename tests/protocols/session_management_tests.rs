@@ -584,14 +584,14 @@ async fn test_browser_refresh_page() {
     let response = browser_tools.handle_refresh_page(args).await;
 
     assert!(!response.content.is_empty(), "Response should have content");
-    if response.is_error {
-        if let Some(text) = extract_response_text(&response) {
-            assert!(
-                text.contains("No current URL") || text.contains("Failed to refresh"),
-                "Error should mention no current URL: {}",
-                text
-            );
-        }
+    if response.is_error
+        && let Some(text) = extract_response_text(&response)
+    {
+        assert!(
+            text.contains("No current URL") || text.contains("Failed to refresh"),
+            "Error should mention no current URL: {}",
+            text
+        );
     }
 }
 
@@ -646,10 +646,10 @@ async fn test_browser_navigation_workflow() {
         !refresh_response.content.is_empty(),
         "Refresh response should have content"
     );
-    if refresh_response.is_error {
-        if let Some(text) = extract_response_text(&refresh_response) {
-            eprintln!("INFO: Refresh test handled error: {}", text);
-        }
+    if refresh_response.is_error
+        && let Some(text) = extract_response_text(&refresh_response)
+    {
+        eprintln!("INFO: Refresh test handled error: {}", text);
     }
 
     // Step 4: Test back navigation (should report cannot go back since only one page)
