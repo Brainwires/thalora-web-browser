@@ -11,7 +11,7 @@ Status: draft, 2026-11-23. This replaces the October re-architecture's GUI decis
 | GPUI pin | Follow ParolNet (`parol-social/apps/desktop`): `gpui-pre =0.3.12`, `gpui-pre-platform =0.3.12`, `gpui-component =0.10.0`, exact pins, Cargo.lock committed, and an upgrade is its own train. |
 | Integration point | A new `desktop.backend: "gpui"`, next to `webview` and `cef`. The host is built like laufey: a prebuilt capi, SHA-pinned and downloaded by the fork. Packaging, permission baking, capabilities and the 5.0 kernel sandbox keep working. |
 | WebRTC | JS-facing: deno `ext/webrtc` (owned by the Denext session, now on brainwires.5). Native Rust in the host: the `rtc` crates plus `rtc-stream-driver`. Pin to the **`v0.22.0+brainwires.6`** tag once it is cut; never master or 0.21.1. The .5 → .6 API is heavily breaking, so plan against .6. |
-| Thalora's old deps | `Brainwires/webrtc-rs` (async), Boa, Avalonia and wasm all go away. |
+| Thalora's old deps | Avalonia and wasm are gone (A0, phase 0). Boa, `Brainwires/webrtc-rs` (async) and wasmtime go at A4. |
 
 ## Where the code lives (proposed, not decided)
 
@@ -112,9 +112,13 @@ The pieces:
 Starts after B1, so the host, the runtime embedding and the GPUI pin are already proven. This work lives in this repo.
 
 **A0, cleanup**
-- Remove: Avalonia `gui/`, `wasm/` and wasm bindings, wasmtime, the old `webrtc` dep, and the AI-memory extras (keep the vault).
-- Freeze Boa, then delete it at A4.
-- Note: the October Phase 1 branch (`phase1-live-dom`) is lost, and `phase0-cleanup` on origin is unmerged. Salvage the corpus and fingerprint tooling from it.
+- Done on `a0/drop-avalonia`, based on `phase0-cleanup`: the Avalonia `gui/`, `src/ffi/` (C ABI), `cdylib`, the GUI xtask commands and `scripts/ralph` are removed.
+- phase0-cleanup (#17) had already dropped wasm, reduced AI memory to the vault, and added the WPT, corpus and fingerprint tooling.
+- Boa, `thalora-browser-apis`, wasmtime and the old `webrtc` dep stay until A4, so nothing that works today breaks before V8 replaces it.
+- Leftovers for A1/A2:
+  - C#/Avalonia comments, and ARGB colour order, in `styled_tree.rs` / `page_layout.rs`.
+  - The `src/gui/fonts` path name.
+  - The `desktop` feature name.
 
 **A1, one live DOM and style**
 - html5ever builds a single mutable tree (evaluate blitz-dom vs our own `thalora-dom`).
