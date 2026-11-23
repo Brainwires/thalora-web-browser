@@ -14,7 +14,7 @@ pub mod engine;
 pub mod features;
 pub mod protocols;
 
-use engine::{EngineConfig, EngineFactory, EngineType};
+use engine::{EngineConfig, EngineFactory};
 use protocols::mcp_server::McpServer;
 
 /// Global flag to signal shutdown
@@ -69,13 +69,6 @@ fn install_panic_hook() {
 struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
-
-    /// Use V8 JavaScript engine instead of the default Boa engine
-    #[arg(
-        long = "use-v8-engine",
-        help = "Use V8 JavaScript engine for execution"
-    )]
-    use_v8_engine: bool,
 
     /// Enable BrainClaw preset when running without a subcommand.
     /// Enables scraping + search + sessions + CDP with agent-friendly aliases.
@@ -145,16 +138,7 @@ async fn main() -> Result<()> {
 
     let cli = Cli::parse();
 
-    // Determine which engine to use based on CLI flags or default
-    let use_v8 = if cli.use_v8_engine {
-        true // Override to use V8
-    } else {
-        // No flags specified, use the default from EngineFactory
-        EngineFactory::default_engine() == EngineType::V8
-    };
-
-    // Create engine configuration
-    let engine_config = EngineConfig::new(use_v8)?;
+    let engine_config = EngineConfig::default();
 
     // Log the selected engine
     if std::env::var("THALORA_SILENT").is_err() {

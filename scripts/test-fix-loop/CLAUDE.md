@@ -85,7 +85,6 @@ Use this to run targeted tests after fixing specific source files:
 - **NEVER** weaken assertions (e.g., changing `assert_eq!` to a weaker check)
 - **NEVER** add timeouts to `cargo build`, `cargo check`, or `cargo test` commands (wasmtime compilation is slow)
 - **NEVER** delete or disable tests
-- **NEVER** touch GUI/C# code (gui/ directory)
 - If a test is genuinely testing wrong behavior, explain WHY in the commit message and fix the test
 - If a failure is flaky (passes on rerun), add it to `known-failures.json` instead of "fixing" it
 - When fixing a test that uses `McpTestHarness`, the harness spawns a subprocess — errors may be in the server code, not the test

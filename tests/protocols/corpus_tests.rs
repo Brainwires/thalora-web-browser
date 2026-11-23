@@ -1,13 +1,16 @@
 // Real-world pattern corpus (tests/corpus): navigate each page with
-// JavaScript over MCP, check its expectations, and score it.
+// JavaScript over MCP, check its expectations, optionally drive it through
+// interactive `steps`, and score it.
 //
-// Bundled pages (tests/corpus/pages) must all pass. Pages saved under
-// tests/corpus/local (git-ignored) are scored but never fail the test.
-// THALORA_CORPUS_WRITE=1 rewrites tests/corpus/scoreboard.json.
+// Bundled pages (tests/corpus/pages) must all pass, except pages whose
+// expect file sets `known_failing` (scored and reported, never fail the
+// test). Pages saved under tests/corpus/local (git-ignored) are scored but
+// never fail the test. THALORA_CORPUS_WRITE=1 rewrites
+// tests/corpus/scoreboard.json. See tests/corpus/README.md for the schema.
 
 use super::fixture_server::{FixtureServer, corpus_root};
 use super::mcp_harness::{McpTestHarness, create_harness_with_raw_env};
-use serde_json::{Value, json};
+use serde_json::{Map, Value, json};
 use std::collections::HashMap;
 use std::path::Path;
 use std::time::Instant;
@@ -52,11 +55,262 @@ fn pages_in(dir: &str) -> Vec<(String, Value)> {
     pages
 }
 
+/// String array at `value[key]` (missing or malformed -> empty).
+fn strings(value: &Value, key: &str) -> Vec<String> {
+    value[key]
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// `(missing, unexpected)` for `expect`'s `text`/`absent` lists against `haystack`.
+fn check_text(expect: &Value, haystack: &str) -> (Vec<String>, Vec<String>) {
+    let missing = strings(expect, "text")
+        .into_iter()
+        .filter(|t| !haystack.contains(t.as_str()))
+        .collect();
+    let unexpected = strings(expect, "absent")
+        .into_iter()
+        .filter(|t| haystack.contains(t.as_str()))
+        .collect();
+    (missing, unexpected)
+}
+
+/// `known_failing` from an expect file: `true` or a reason string.
+fn known_failing(expect: &Value) -> Option<String> {
+    match &expect["known_failing"] {
+        Value::Bool(true) => Some("known failing".to_string()),
+        Value::String(reason) if !reason.is_empty() => Some(reason.clone()),
+        _ => None,
+    }
+}
+
+fn page_content(h: &mut McpTestHarness, session: &str) -> String {
+    h.call_tool("browser_get_page_content", json!({"session_id": session}))
+        .map(|r| text_of(&r.content))
+        .unwrap_or_default()
+}
+
+fn page_snapshot(h: &mut McpTestHarness, session: &str) -> String {
+    h.call_tool("browser_snapshot", json!({"session_id": session}))
+        .map(|r| text_of(&r.content))
+        .unwrap_or_default()
+}
+
+/// One element line of a `browser_snapshot` outline.
+struct SnapshotEntry {
+    role: String,
+    name: String,
+    reference: String,
+}
+
+/// Parse `- role "name" ... [ref=eN]` lines of a snapshot.
+fn snapshot_entries(snapshot: &str) -> Vec<SnapshotEntry> {
+    snapshot
+        .lines()
+        .filter_map(|line| {
+            let line = line.trim_start().strip_prefix("- ")?;
+            let ref_start = line.rfind("[ref=")?;
+            let reference = line[ref_start + 5..].split(']').next()?.to_string();
+            let role = line.split_whitespace().next()?.to_string();
+            let name = line[role.len()..]
+                .trim_start()
+                .strip_prefix('"')
+                .and_then(|rest| rest.split('"').next())
+                .unwrap_or("")
+                .to_string();
+            Some(SnapshotEntry {
+                role,
+                name,
+                reference,
+            })
+        })
+        .collect()
+}
+
+/// Resolve a step `target` to tool arguments (`ref` or `selector`).
+///
+/// `{"selector": "css"}` passes through. Otherwise a fresh snapshot is taken
+/// and the first element whose accessible name equals `text`/`label`/`name`
+/// (case-insensitive; falling back to a substring match) and, if given,
+/// whose role equals `role` supplies the ref.
+fn resolve_target(
+    h: &mut McpTestHarness,
+    session: &str,
+    target: &Value,
+) -> Result<Map<String, Value>, String> {
+    let mut args = Map::new();
+    if let Some(selector) = target["selector"].as_str() {
+        args.insert("selector".into(), json!(selector));
+        return Ok(args);
+    }
+    let wanted = ["text", "label", "name"]
+        .iter()
+        .find_map(|k| target[*k].as_str())
+        .map(|s| s.trim().to_lowercase());
+    let role = target["role"].as_str();
+    if wanted.is_none() && role.is_none() {
+        return Err(format!(
+            "target has no selector/text/label/name/role: {target}"
+        ));
+    }
+
+    let snapshot = page_snapshot(h, session);
+    let entries = snapshot_entries(&snapshot);
+    let role_ok = |e: &SnapshotEntry| role.is_none_or(|r| e.role == r);
+    let name = |e: &SnapshotEntry| e.name.trim().to_lowercase();
+    let found = match &wanted {
+        None => entries.iter().find(|e| role_ok(e)),
+        Some(w) => entries
+            .iter()
+            .find(|e| role_ok(e) && name(e) == *w)
+            .or_else(|| {
+                entries
+                    .iter()
+                    .find(|e| role_ok(e) && name(e).contains(w.as_str()))
+            }),
+    };
+    match found {
+        Some(e) => {
+            args.insert("ref".into(), json!(e.reference));
+            Ok(args)
+        }
+        None => Err(format!(
+            "no snapshot element matches {target} ({} refs in snapshot)",
+            entries.len()
+        )),
+    }
+}
+
+/// Run one `{"action": ...}` step. Returns the step record.
+fn run_action(h: &mut McpTestHarness, session: &str, index: usize, step: &Value) -> Value {
+    let action = step["action"].as_str().unwrap_or("");
+    let mut record = json!({"step": index, "action": action});
+    let value = step["value"].as_str().unwrap_or("");
+
+    let call: Result<(&str, Map<String, Value>), String> = (|| {
+        let mut args = match action {
+            "wait" => Map::new(),
+            "press" if step["target"].is_null() => Map::new(),
+            _ => resolve_target(h, session, &step["target"])?,
+        };
+        args.insert("session_id".into(), json!(session));
+        let tool = match action {
+            "click" => "browser_click",
+            "type" => {
+                args.insert("text".into(), json!(value));
+                args.insert("clear_first".into(), json!(true));
+                "browser_type_text"
+            }
+            "fill" => {
+                args.insert("value".into(), json!(value));
+                "browser_fill"
+            }
+            "select" => {
+                args.insert("value".into(), json!(value));
+                "browser_select_option"
+            }
+            "check" => {
+                let checked = step["checked"].as_bool().unwrap_or(true);
+                args.insert("checked".into(), json!(checked));
+                "browser_check"
+            }
+            "press" => {
+                args.insert("key".into(), json!(step["key"].as_str().unwrap_or(value)));
+                "browser_press_key"
+            }
+            "wait" => {
+                if let Some(text) = step["text"].as_str() {
+                    args.insert("text".into(), json!(text));
+                } else if let Some(selector) = step["selector"].as_str() {
+                    args.insert("selector".into(), json!(selector));
+                } else {
+                    // Plain delay: wait on a selector that never matches, which
+                    // runs page timers and network for `ms`.
+                    args.insert("selector".into(), json!("#corpus-wait-never-matches"));
+                }
+                let ms = step["ms"].as_u64().unwrap_or(1000);
+                args.insert("timeout_ms".into(), json!(ms));
+                "browser_wait"
+            }
+            other => return Err(format!("unknown action {other:?}")),
+        };
+        Ok((tool, args))
+    })();
+
+    let (tool, args) = match call {
+        Ok(call) => call,
+        Err(error) => {
+            record["ok"] = json!(false);
+            record["error"] = json!(error);
+            return record;
+        }
+    };
+    record["tool"] = json!(tool);
+    if let Some(r) = args.get("ref").or_else(|| args.get("selector")) {
+        record["target"] = r.clone();
+    }
+    match h.call_tool(tool, Value::Object(args)) {
+        Err(e) => {
+            record["ok"] = json!(false);
+            record["error"] = json!(e.to_string());
+        }
+        Ok(r) if r.is_error => {
+            record["ok"] = json!(false);
+            record["error"] = json!(text_of(&r.content));
+        }
+        Ok(_) => record["ok"] = json!(true),
+    }
+    record
+}
+
+/// Run one `{"expect": ...}` step against both page content and snapshot.
+fn run_expect(h: &mut McpTestHarness, session: &str, index: usize, expect: &Value) -> Value {
+    let content = page_content(h, session);
+    let snapshot = page_snapshot(h, session);
+    let (content_missing, content_unexpected) = check_text(expect, &content);
+    let (snapshot_missing, snapshot_unexpected) = check_text(expect, &snapshot);
+    let mut failed_in = Vec::new();
+    if !content_missing.is_empty() || !content_unexpected.is_empty() {
+        failed_in.push("page_content");
+    }
+    if !snapshot_missing.is_empty() || !snapshot_unexpected.is_empty() {
+        failed_in.push("snapshot");
+    }
+    json!({
+        "step": index,
+        "expect": true,
+        "ok": failed_in.is_empty(),
+        "failed_in": failed_in,
+        "page_content": {"missing_text": content_missing, "unexpected_text": content_unexpected},
+        "snapshot": {"missing_text": snapshot_missing, "unexpected_text": snapshot_unexpected},
+    })
+}
+
+fn run_steps(h: &mut McpTestHarness, session: &str, steps: &[Value]) -> Vec<Value> {
+    steps
+        .iter()
+        .enumerate()
+        .map(|(i, step)| {
+            if step.get("expect").is_some() {
+                run_expect(h, session, i, &step["expect"])
+            } else {
+                run_action(h, session, i, step)
+            }
+        })
+        .collect()
+}
+
 fn score_page(h: &mut McpTestHarness, site: &FixtureServer, path: &str, expect: &Value) -> Value {
     let session = format!(
         "corpus-{}",
         Path::new(path).file_stem().unwrap().to_string_lossy()
     );
+    let known = known_failing(expect);
     let start = Instant::now();
     let nav = h.call_tool(
         "browser_navigate_to",
@@ -69,52 +323,53 @@ fn score_page(h: &mut McpTestHarness, site: &FixtureServer, path: &str, expect: 
         Ok(_) => None,
     };
     if let Some(error) = nav_error {
-        return json!({"page": path, "ok": false, "nav_ms": nav_ms, "error": error});
+        let _ = h.call_tool(
+            "browser_session_management",
+            json!({"action": "close", "session_id": session}),
+        );
+        return json!({
+            "page": path, "ok": false, "nav_ms": nav_ms, "error": error, "known_failing": known,
+        });
     }
 
-    let content = h
-        .call_tool("browser_get_page_content", json!({"session_id": session}))
-        .map(|r| text_of(&r.content))
-        .unwrap_or_default();
-    let snapshot = h
-        .call_tool("browser_snapshot", json!({"session_id": session}))
-        .map(|r| text_of(&r.content))
-        .unwrap_or_default();
+    let content = page_content(h, &session);
+    let snapshot = page_snapshot(h, &session);
+    let (missing, unexpected) = check_text(expect, &content);
+    let refs = snapshot.matches("[ref=").count() as u64;
+    let min_refs = expect["min_refs"].as_u64().unwrap_or(0);
+    let load_ok = missing.is_empty() && unexpected.is_empty() && refs >= min_refs;
+
+    let steps = expect["steps"].as_array().cloned().unwrap_or_default();
+    let step_results = run_steps(h, &session, &steps);
     let _ = h.call_tool(
         "browser_session_management",
         json!({"action": "close", "session_id": session}),
     );
+    let steps_passed = step_results.iter().filter(|s| s["ok"] == true).count();
+    let first_failed_step = step_results
+        .iter()
+        .find(|s| s["ok"] != true)
+        .and_then(|s| s["step"].as_u64());
 
-    let strings = |key: &str| -> Vec<String> {
-        expect[key]
-            .as_array()
-            .map(|a| {
-                a.iter()
-                    .filter_map(|v| v.as_str().map(String::from))
-                    .collect()
-            })
-            .unwrap_or_default()
-    };
-    let missing: Vec<String> = strings("text")
-        .into_iter()
-        .filter(|t| !content.contains(t.as_str()))
-        .collect();
-    let unexpected: Vec<String> = strings("absent")
-        .into_iter()
-        .filter(|t| content.contains(t.as_str()))
-        .collect();
-    let refs = snapshot.matches("[ref=").count() as u64;
-    let min_refs = expect["min_refs"].as_u64().unwrap_or(0);
-    let ok = missing.is_empty() && unexpected.is_empty() && refs >= min_refs;
-    json!({
+    let mut result = json!({
         "page": path,
-        "ok": ok,
+        "ok": load_ok && first_failed_step.is_none(),
         "missing_text": missing,
         "unexpected_text": unexpected,
         "refs": refs,
         "min_refs": min_refs,
         "nav_ms": nav_ms,
-    })
+    });
+    if !steps.is_empty() {
+        result["steps_passed"] = json!(steps_passed);
+        result["steps_total"] = json!(step_results.len());
+        result["first_failed_step"] = json!(first_failed_step);
+        result["steps"] = json!(step_results);
+    }
+    if let Some(reason) = known {
+        result["known_failing"] = json!(reason);
+    }
+    result
 }
 
 #[test]
@@ -132,9 +387,14 @@ fn corpus_pages_meet_their_expectations() {
     }
 
     let passed = results.iter().filter(|r| r["ok"] == true).count();
+    let known_failing_count = results
+        .iter()
+        .filter(|r| r["known_failing"].is_string())
+        .count();
     let scoreboard = json!({
         "passed": passed,
         "total": results.len(),
+        "known_failing": known_failing_count,
         "pages": results,
     });
     if std::env::var("THALORA_CORPUS_WRITE").is_ok_and(|v| v == "1") {
@@ -150,10 +410,33 @@ fn corpus_pages_meet_their_expectations() {
         .expect("write scoreboard");
     }
 
-    let failed_bundled: Vec<&Value> = results
+    eprintln!(
+        "corpus: {passed}/{} pages passed ({known_failing_count} marked known_failing)",
+        results.len()
+    );
+    let bundled_results = &results[..bundled.len()];
+    for r in bundled_results
         .iter()
-        .take(bundled.len())
-        .filter(|r| r["ok"] != true)
+        .filter(|r| r["known_failing"].is_string())
+    {
+        if r["ok"] == true {
+            eprintln!(
+                "corpus: NOTICE {} now passes; remove \"known_failing\" from its expect file",
+                r["page"].as_str().unwrap_or("?")
+            );
+        } else {
+            eprintln!(
+                "corpus: known failing {} (first failed step: {}): {}",
+                r["page"].as_str().unwrap_or("?"),
+                r["first_failed_step"],
+                r["known_failing"].as_str().unwrap_or("")
+            );
+        }
+    }
+
+    let failed_bundled: Vec<&Value> = bundled_results
+        .iter()
+        .filter(|r| r["ok"] != true && !r["known_failing"].is_string())
         .collect();
     assert!(
         failed_bundled.is_empty(),

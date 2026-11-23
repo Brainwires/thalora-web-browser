@@ -95,3 +95,38 @@ jobs:
         run: cargo doc --workspace --no-deps
       - name: Doc boa engine
         run: cargo doc --manifest-path engines/boa/Cargo.toml --workspace --no-deps
+
+  # Reporting-only measurement baselines (see docs/ARCHITECTURE.md). These do
+  # not gate merges yet; results are uploaded as artifacts to compare runs.
+  baselines:
+    name: Baselines (reporting)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libssl-dev pkg-config clang libclang-dev libasound2-dev
+      - name: Build binary
+        run: cargo build --release --bin thalora --features test-hooks
+      - name: Page corpus
+        run: cargo test --release --test mcp_tests corpus -- --nocapture
+        env:
+          THALORA_CORPUS_WRITE: "1"
+      - name: Fingerprint dump and diff
+        run: |
+          cargo xtask fingerprint-dump --bin target/release/thalora --out target/thalora-boa.json
+          cargo xtask fingerprint-diff tests/fingerprint/chrome-155.json target/thalora-boa.json
+      - name: WPT
+        run: cargo xtask wpt --release --no-build --compare --write
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: baselines
+          path: |
+            tests/corpus/scoreboard.json
+            target/thalora-boa.json
+            tests/wpt/results.json

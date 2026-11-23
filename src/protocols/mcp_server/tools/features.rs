@@ -19,9 +19,19 @@ pub(super) fn is_sessions_enabled() -> bool {
         || env::var("THALORA_ENABLE_CDP").unwrap_or_else(|_| "false".to_string()) == "true"
 }
 
-/// Check if AI memory tools are enabled
-pub(super) fn is_ai_memory_enabled() -> bool {
-    env::var("THALORA_ENABLE_AI_MEMORY").unwrap_or_else(|_| "false".to_string()) == "true"
+/// Check if the credential vault tools are enabled (`THALORA_ENABLE_VAULT`;
+/// the retired `THALORA_ENABLE_AI_MEMORY` is still honoured).
+pub(crate) fn is_vault_enabled() -> bool {
+    ["THALORA_ENABLE_VAULT", "THALORA_ENABLE_AI_MEMORY"]
+        .iter()
+        .any(|name| {
+            env::var(name).is_ok_and(|v| {
+                matches!(
+                    v.trim().to_ascii_lowercase().as_str(),
+                    "1" | "true" | "yes" | "on"
+                )
+            })
+        })
 }
 
 /// Check if CDP tools are enabled
@@ -39,21 +49,6 @@ pub(super) fn is_scraping_enabled() -> bool {
 pub(super) fn is_search_enabled() -> bool {
     is_brainclaw_preset()
         || env::var("THALORA_ENABLE_SEARCH").unwrap_or_else(|_| "false".to_string()) == "true"
-}
-
-/// Check if experimental CDP tools are enabled.
-///
-/// Only `cdp_runtime_evaluate` is backed by a real browser session; the other
-/// CDP tools (DOM, network, console, page) currently return canned data from
-/// the in-process CDP server, so they are hidden unless explicitly requested.
-pub(super) fn is_cdp_experimental_enabled() -> bool {
-    env::var("THALORA_ENABLE_CDP_EXPERIMENTAL").unwrap_or_else(|_| "false".to_string()) == "true"
-}
-
-/// Check if advanced tools (PDF extraction, downloads, request interception)
-/// are enabled. They have no handlers yet, so they are off in every preset.
-pub(super) fn is_advanced_enabled() -> bool {
-    env::var("THALORA_ENABLE_ADVANCED").unwrap_or_else(|_| "false".to_string()) == "true"
 }
 
 /// Get MCP mode - minimal (default for MCP) or full (all features)

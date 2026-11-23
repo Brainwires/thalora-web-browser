@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Product</title></head>
+<body>
+  <h1>Brass Sextant</h1>
+  <div role="tablist" aria-label="Product information">
+    <button role="tab" id="tab-overview" aria-selected="true" aria-controls="panel-overview">Overview</button>
+    <button role="tab" id="tab-specs" aria-selected="false" aria-controls="panel-specs" tabindex="-1">Specifications</button>
+    <button role="tab" id="tab-reviews" aria-selected="false" aria-controls="panel-reviews" tabindex="-1">Reviews</button>
+  </div>
+  <div role="tabpanel" id="panel-overview" aria-labelledby="tab-overview"><p>A hand-finished navigation instrument.</p></div>
+  <div role="tabpanel" id="panel-specs" aria-labelledby="tab-specs" hidden><p>Arc radius 160 mm, weight 1.2 kg.</p></div>
+  <div role="tabpanel" id="panel-reviews" aria-labelledby="tab-reviews" hidden><p>4.8 out of 5 from 212 sailors.</p></div>
+  <script>
+    // Tab panel: selecting a tab shows its panel and hides the others
+    const tabs = Array.from(document.querySelectorAll('[role="tab"]'));
+    function select(tab) {
+      tabs.forEach(t => {
+        const selected = t === tab;
+        t.setAttribute('aria-selected', String(selected));
+        t.tabIndex = selected ? 0 : -1;
+        document.getElementById(t.getAttribute('aria-controls')).hidden = !selected;
+      });
+    }
+    tabs.forEach(tab => tab.addEventListener('click', () => select(tab)));
+  </script>
+</body>
+</html>

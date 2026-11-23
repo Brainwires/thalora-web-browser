@@ -2,7 +2,6 @@ use anyhow::Result;
 use futures::FutureExt;
 use std::collections::HashMap;
 use std::panic::AssertUnwindSafe;
-use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use tracing::{error, info};
 use vfs::VfsInstance;
@@ -11,11 +10,8 @@ use crate::engine::browser::HeadlessWebBrowser;
 // websocket API is now natively implemented in Boa engine
 // DOM is now natively handled by Boa engine
 use crate::engine::EngineConfig;
-use crate::features::ai_memory::AiMemoryHeap;
+use crate::features::credential_vault::CredentialVault;
 use crate::protocols::browser_tools::BrowserTools;
-use crate::protocols::cdp::CdpServer;
-use crate::protocols::cdp_tools::CdpTools;
-use crate::protocols::memory_tools::MemoryTools;
 use crate::protocols::rate_limiter::RateLimiter;
 use crate::protocols::security::sanitize_session_id;
 use crate::protocols::session_manager::SessionManager;
@@ -25,12 +21,8 @@ use crate::protocols::wasm_debug_tools::WasmDebugTools;
 #[allow(dead_code)]
 pub struct McpServer {
     // websocket API is now natively implemented in Boa engine
-    pub(super) ai_memory: AiMemoryHeap,
-    pub(super) cdp_server: CdpServer,
-    pub(super) memory_tools: MemoryTools,
-    pub(super) cdp_tools: CdpTools,
-    /// Shared browser tools - wrapped in Rc to share with CdpTools
-    pub(super) browser_tools: Rc<BrowserTools>,
+    pub(super) vault: CredentialVault,
+    pub(super) browser_tools: BrowserTools,
     pub(super) session_manager: SessionManager,
     /// Optional session-scoped persistent VFS instances. Keyed by session_id.
     pub(super) session_vfs: Arc<Mutex<HashMap<String, Arc<VfsInstance>>>>,
@@ -51,40 +43,17 @@ impl Default for McpServer {
 
 impl McpServer {
     pub fn new() -> Self {
-        // Default to Boa engine for backward compatibility
-        Self::new_with_engine(EngineConfig::new(false).unwrap_or(EngineConfig {
-            engine_type: crate::engine::EngineType::Boa,
-        }))
+        Self::new_with_engine(EngineConfig::default())
     }
 
     pub fn new_with_engine(engine_config: EngineConfig) -> Self {
-        // Only enable AI memory if THALORA_ENABLE_AI_MEMORY is set to a truthy value
-        // Accepts: "1", "true", "yes", "on" (case-insensitive)
-        // Rejects: "0", "false", "no", "off", "" (empty), or unset
-        let ai_memory_enabled = std::env::var("THALORA_ENABLE_AI_MEMORY")
-            .map(|v| {
-                let val = v.trim().to_lowercase();
-                !val.is_empty() && val != "0" && val != "false" && val != "no" && val != "off"
-            })
-            .unwrap_or(false);
-
-        let ai_memory = if ai_memory_enabled {
-            tracing::info!("AI memory enabled via THALORA_ENABLE_AI_MEMORY");
-            AiMemoryHeap::new_default().unwrap_or_else(|e| {
-                tracing::warn!("Failed to load AI memory heap: {}, creating new one", e);
-                AiMemoryHeap::new("/tmp/thalora_ai_memory.json")
-                    .expect("Failed to create AI memory heap")
+        let vault = if crate::protocols::mcp_server::tools::features::is_vault_enabled() {
+            CredentialVault::open_default().unwrap_or_else(|e| {
+                tracing::warn!("Failed to open credential vault: {e}; using an in-memory vault");
+                CredentialVault::in_memory()
             })
         } else {
-            // Create disabled AI memory (in-memory only, no persistence)
-            tracing::info!(
-                "AI memory disabled. Set THALORA_ENABLE_AI_MEMORY=1 to enable persistent storage"
-            );
-            AiMemoryHeap::new("/dev/null").unwrap_or_else(|_| {
-                // Fallback to temp file if /dev/null fails (Windows)
-                AiMemoryHeap::new(std::env::temp_dir().join("thalora_disabled.json"))
-                    .expect("Failed to create disabled AI memory")
-            })
+            CredentialVault::in_memory()
         };
 
         let session_manager = SessionManager::new().unwrap_or_else(|e| {
@@ -92,8 +61,7 @@ impl McpServer {
             panic!("Could not initialize session manager: {}", e);
         });
 
-        // Create shared BrowserTools instance
-        let browser_tools = Rc::new(BrowserTools::new());
+        let browser_tools = BrowserTools::new();
 
         #[cfg(feature = "wasm-debug")]
         let wasm_debug_tools = {
@@ -116,11 +84,7 @@ impl McpServer {
 
         Self {
             // websocket API is now natively implemented in Boa engine
-            ai_memory,
-            cdp_server: CdpServer::new(),
-            memory_tools: MemoryTools::new(),
-            // Share BrowserTools instance with CdpTools to avoid duplicate Drop calls
-            cdp_tools: CdpTools::with_browser_tools(browser_tools.clone()),
+            vault,
             browser_tools,
             session_manager,
             session_vfs: Arc::new(Mutex::new(HashMap::new())),

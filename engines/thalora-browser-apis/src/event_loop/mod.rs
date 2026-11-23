@@ -273,7 +273,6 @@ impl ThaloraJobExecutor {
         context: &mut Context,
         f: impl FnOnce(&mut Context) -> JsResult<T>,
     ) -> JsResult<T> {
-        #[cfg(not(target_arch = "wasm32"))]
         {
             context
                 .runtime_limits_mut()
@@ -281,10 +280,6 @@ impl ThaloraJobExecutor {
             let result = f(context);
             context.runtime_limits_mut().clear_execution_deadline();
             result
-        }
-        #[cfg(target_arch = "wasm32")]
-        {
-            f(context)
         }
     }
 
@@ -518,13 +513,7 @@ fn report_error(kind: &str, err: &JsError) {
 }
 
 /// Sleep for `duration`; returns false where blocking isn't possible.
-#[cfg(not(target_arch = "wasm32"))]
 fn sleep(duration: JsDuration) -> bool {
     std::thread::sleep(Duration::from_millis(duration.as_millis().max(1)));
     true
-}
-
-#[cfg(target_arch = "wasm32")]
-fn sleep(_duration: JsDuration) -> bool {
-    false
 }

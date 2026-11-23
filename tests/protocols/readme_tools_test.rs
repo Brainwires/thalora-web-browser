@@ -44,13 +44,7 @@ fn listed_tool_names(env: HashMap<String, String>, raw: bool) -> BTreeSet<String
 fn readme_documents_every_listed_tool() {
     let documented = readme_tool_names();
 
-    // Full mode without the opt-in experimental/advanced tools
-    let mut full = HashMap::new();
-    full.insert(
-        "THALORA_ENABLE_CDP_EXPERIMENTAL".to_string(),
-        "false".to_string(),
-    );
-    let mut listed = listed_tool_names(full, false);
+    let mut listed = listed_tool_names(HashMap::new(), false);
     let mut brainclaw = HashMap::new();
     brainclaw.insert("THALORA_PRESET".to_string(), "brainclaw".to_string());
     listed.extend(listed_tool_names(brainclaw, true));
