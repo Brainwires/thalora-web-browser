@@ -167,3 +167,48 @@ Subscribe via LISTEN using these mask bits: 1 press family, 2 layout, 4 scroll, 
 3. denext renderer: the denext session, or a draft for it.
 
 Steps 2 and 3 depend only on this spec and the props table, so all three run at once. Integration happens in one train across the three repos: a laufey train build plus a fork dev build with `LAUFEY_DEV_DIR`, running a sample denext app.
+
+## Implementation notes
+
+Folded back from the laufey implementation (`feat/native-tree-gpui`, fb3b310), 2026-11-23. Where these differ from the sections above, these win.
+
+### ABI
+
+- **API version.** The laufey API version goes from 60 to 61. Four entries are appended to `laufey_backend_api`:
+  - `native_tree_version`
+  - `native_tree_commit`
+  - `set_native_tree_event_handler`
+  - `native_tree_snapshot` (tree as JSON, for self-tests)
+- **Unsupported hosts.** C++ hosts zero the table, so they report unsupported with no code change. winit mirrors the struct and gets `None`.
+- **Return codes.**
+  - 0 ok.
+  - -1 unsupported.
+  - -2 decode fault (header, opcode or value encoding).
+  - **-3 no such window**.
+- **Tree-level faults.** Commit doesn't block, so faults that need the tree (unknown node, cycle, bad `before`) are found on the UI thread. The whole batch is rejected and reported as an event: `{"node":0,"type":"batchError","seq":N,"error":"…"}`.
+  - The fork must deliver `batchError` like any other native-tree event, and denext must surface it, at least in dev.
+
+### Op rules
+
+These are stricter than the batch format above:
+- Re-creating an id destroyed in the same batch is refused.
+- SET_ROOT takes 0 or a parentless node, and the root can't be inserted anywhere.
+- Children are allowed only under View, Text, ScrollView and Pressable.
+- SET_TEXT applies to RawText only; SET_IMAGE to Image only.
+- DESTROY of an attached node detaches it first.
+
+### Events and props
+
+- **Controlled inputs.** Send `eventCount` with or before `value` in the same batch. A `value` with no `eventCount` is always applied.
+- **ScrollView.** The host scrolls the node's direct children; there's no content container. `horizontal` picks the axis only, so denext sets `flexDirection`.
+- **Text events.** `selectionChange` offsets are UTF-16 code units. `selectionChange` and `submitEditing` are under LISTEN bit 16.
+- **Prestart.** The signature is `prestart(engine, *exit_code)`, called on the main thread before any other thread starts. `LAUFEY_ENGINE_GPUI = 3` is defined in the host until `kernel30/prestart` lands in `laufey.h`.
+
+### v1 gaps
+
+- **Windows:** `set_window_position` and `hide` aren't implemented, because GPUI 0.3 has no call for them. On Linux, the HIDDEN flag is ignored.
+- **Text inputs:** `multiline` inputs stay single-line.
+- **Borders:** one border colour per node.
+- **Unsupported styles:** `letterSpacing`, `textAlign: justify` and `resizeMode: repeat`.
+- **Nested Text** can't change size or family.
+- **Accessibility:** props are stored but not passed to the OS.
