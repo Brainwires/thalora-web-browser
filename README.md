@@ -42,14 +42,16 @@ Known gaps, which the re-architecture addresses:
   trusted pointer/keyboard sequences.
 - **Fingerprint.** Compared with Chrome, the global object is missing about a
   thousand interfaces (`cargo xtask fingerprint-diff`).
-- **GUI.** The Avalonia desktop app in `gui/` runs its own engine instance and
-  its own layout; it cannot yet attach to an agent's session.
+- **No desktop UI.** The Avalonia app that used to live in `gui/` has been
+  removed. The desktop UI moves to GPUI (a standalone browser shell over the
+  same engine); see [docs/GPUI_PLAN.md](docs/GPUI_PLAN.md).
 - Session persistence (`save_session`) is not implemented.
 
 The target is V8 (through deno_core, with bindings generated from WebIDL),
 Stylo + Taffy + Parley + Vello for style, layout and paint, one live DOM that
-every reader uses, and a GUI that shows frames painted by the same pipeline
-the agent sees. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+every reader uses, and a GPUI desktop shell that shows frames painted by the
+same pipeline the agent sees. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+and [docs/GPUI_PLAN.md](docs/GPUI_PLAN.md).
 
 ## Build
 
@@ -60,14 +62,14 @@ FFmpeg development libraries.
 ```bash
 git clone --recursive https://github.com/Brainwires/thalora-web-browser.git
 cd thalora-web-browser
-cargo build --release          # MCP server binary + FFI library
+cargo build --release          # MCP server binary + library
 ./target/release/thalora       # MCP over stdio
 ./target/release/thalora server --transport http --port 8080
 ```
 
 | Feature | Description |
 |---------|-------------|
-| `desktop` (default) | MCP server binary, HTTP transport and the FFI library used by the GUI |
+| `desktop` (default) | MCP server binary and HTTP transport |
 | `native` | Adds audio/video, WebRTC and page WebAssembly (wasmtime); may need FFmpeg |
 | `wasm-debug` | MCP tools for inspecting and running WebAssembly modules |
 
@@ -184,13 +186,12 @@ The vault file is `~/.thalora/credentials.json` (override with `THALORA_VAULT_PA
 
 | Path | Contents |
 |------|----------|
-| `src/` | Browser core (navigation, renderer, snapshot, extraction), MCP server, FFI for the GUI |
+| `src/` | Browser core (navigation, renderer, snapshot, extraction), MCP server |
 | `engines/boa` | Boa fork (git submodule). Frozen: build fixes only until V8 replaces it |
 | `engines/thalora-browser-apis` | Web APIs and the DOM arena, bound to Boa |
 | `vfs/` | Sandboxed in-memory filesystem used by page-facing storage |
-| `gui/` | Avalonia desktop browser (.NET); see [gui/README.md](gui/README.md) |
 | `tests/` | Unit, integration and MCP end-to-end tests; `tests/corpus` page corpus and scoreboard; `tests/fingerprint` global-object dumps |
-| `xtask/` | `cargo xtask` developer commands (CI, fingerprint dump/diff, GUI screenshots) |
+| `xtask/` | `cargo xtask` developer commands (CI, fingerprint dump/diff, WPT) |
 | `docs/archive/` | Old status reports, kept for history; not maintained |
 
 ## Testing

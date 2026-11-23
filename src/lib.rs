@@ -20,10 +20,6 @@ pub mod features;
 #[cfg(feature = "core")]
 pub mod web_search;
 
-// FFI layer for C-compatible bindings (requires tokio runtime from core)
-#[cfg(feature = "core")]
-pub mod ffi;
-
 // Communication protocols (requires tokio/networking from core)
 #[cfg(feature = "core")]
 pub mod protocols;

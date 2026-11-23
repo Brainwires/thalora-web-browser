@@ -20,10 +20,6 @@ fn main() -> ExitCode {
         // Conformance
         "wpt" => exit_from_result(cmd::wpt::run(&args[1..])),
 
-        // GUI visual testing tasks
-        "gui-screenshot" => exit_from_result(cmd::gui_screenshot::run(&args[1..])),
-        "gui-compare" => exit_from_result(cmd::gui_compare::run(&args[1..])),
-
         // Existing build/test tasks
         "test-mcp" => exit_from_result(cmd::test_mcp::run(
             args.get(1).map(String::as_str).unwrap_or(""),
@@ -90,19 +86,6 @@ fn print_help() {
     println!("    --verbose                  Print every test result");
     println!("    --log-dir PATH             Write each thalora process's stderr to PATH");
     println!("    --no-shims                 Disable the window.parent harness shim");
-    println!();
-    println!("GUI VISUAL TESTING:");
-    println!("  gui-screenshot [URL]         Build + launch browser, capture PNG screenshot");
-    println!("    --out PATH                 Output file (default: /tmp/thalora-screenshot.png)");
-    println!("    --port PORT                Control server port (default: 9222)");
-    println!("    --delay MS                 Wait before screenshot in ms (default: 2000)");
-    println!("    --no-build                 Skip dotnet build step");
-    println!("    --no-kill                  Leave browser running after screenshot");
-    println!("  gui-compare [URL]            Screenshot + open side-by-side with reference");
-    println!("    --ref PATH                 Reference image to compare against (e.g. chrome.png)");
-    println!(
-        "    --out PATH                 Thalora output path (default: /tmp/thalora-compare.png)"
-    );
     println!();
     println!("BUILD & TEST TASKS:");
     println!("  test-mcp         Run MCP test suite [--quick | --perf | --verbose]");

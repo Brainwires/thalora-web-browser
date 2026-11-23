@@ -22,7 +22,7 @@ keywords = ["headless-browser", "ai", "mcp", "web-scraping", "rust"]
 categories = ["web-programming", "parsing"]
 
 [lib]
-crate-type = ["cdylib", "rlib"]
+crate-type = ["rlib"]
 
 [dependencies]
 # Shared constants
@@ -184,7 +184,7 @@ _bin = ["dep:clap", "dep:tokio-util"]
 # Streamable HTTP MCP transport via rmcp + axum /health endpoint
 http-transport = ["dep:rmcp", "dep:axum"]
 
-# Core networking and browser engine — enables FFI, protocols, web search
+# Core networking and browser engine — enables protocols, web search
 core = [
     "dep:tokio",
     "dep:reqwest",
@@ -197,7 +197,7 @@ core = [
     "boa_engine/native",
 ]
 
-# Desktop build — MCP server binary + FFI library for .NET GUI
+# Desktop build — MCP server binary
 desktop = ["core", "_bin", "http-transport"]
 
 # Allow THALORA_ALLOW_LOOPBACK=1 to permit navigation to loopback addresses in

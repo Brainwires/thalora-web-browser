@@ -6,7 +6,7 @@ when a phase lands or a decision changes.
 
 ## Goals and non-goals
 
-- One browser that AI agents (over MCP, later CDP) and humans (the GUI) use
+- One browser that AI agents (over MCP, later CDP) and humans (a GPUI desktop shell) use
   together, on the same live sessions.
 - We own the engine end to end, so we decide what pages can observe. Nothing
   page-visible may reveal that an agent is driving.
@@ -26,7 +26,6 @@ MCP tool ─▶ BrowserThread (per session) ─▶ HeadlessWebBrowser
                                              └─ current_content: outerHTML string
                                                   captured once after load
 snapshot / page text / readability / a11y / screenshot ─▶ re-parse current_content
-GUI (Avalonia) ─▶ its own engine instance via FFI, own C# layout (ControlTreeBuilder)
 ```
 
 Main problems:
@@ -41,12 +40,12 @@ Main problems:
   directly against Boa internals (~940 references; ~200 intrinsics slots
   patched into our fork). Boa is an interpreter, so large bundles hit the
   per-evaluation time budget.
-- **Hand-rolled CSS and two layout engines.** The cascade in
-  `src/engine/renderer/css/` ignores `!important` and declaration order;
-  layout exists in Rust (Taffy) and again in the GUI's C#. Neither has
-  incremental relayout.
+- **Hand-rolled CSS.** The cascade in `src/engine/renderer/css/` ignores
+  `!important` and declaration order; layout (Taffy) has no incremental
+  relayout.
 - **Untrusted input.** Agent clicks are plain `Event`s, never `isTrusted`.
-- **Separate sessions.** The GUI and MCP run separate engines.
+- **No desktop UI.** The Avalonia GUI was removed; the desktop UI moves to
+  GPUI ([GPUI_PLAN.md](GPUI_PLAN.md)).
 
 ## Target
 
@@ -90,7 +89,7 @@ Principles:
 | 2 | Spikes: deno_core cleanliness; blitz-dom vs `DomTree`; wrapper lifetime; event loop | Written decisions here |
 | 3 | `thalora-render`: Stylo, Taffy + Parley, Vello; hit testing, geometry APIs, real `getComputedStyle`; screenshots from the real pipeline | Reftests above baseline |
 | 4 | `thalora-v8` + `thalora-webidl`, ported in tiers T0–T3; fingerprint profile; `THALORA_ENGINE=boa\|v8` side by side | V8 ≥ Boa on every tracked WPT directory, ≥98% corpus parity, clean fingerprint diff |
-| 5 | GUI becomes a thin shell over Rust-painted frames; one session host; humans can watch or take over agent sessions | Human sees the same pixels as `browser_screenshot` and can hand back |
+| 5 | GPUI desktop shell over Rust-painted frames ([GPUI_PLAN.md](GPUI_PLAN.md)); one session host; humans can watch or take over agent sessions | Human sees the same pixels as `browser_screenshot` and can hand back |
 | 6 | Trusted input through hit testing; incremental snapshot diffs; real CDP WebSocket endpoint; encrypted session persistence | Playwright can drive Thalora with no page-visible automation signal |
 | 7 | Delete Boa and `thalora-browser-apis`; long tail (WebGL/WebGPU on wgpu, Web Audio, media, WebRTC with an IP policy, service workers) | — |
 
@@ -107,7 +106,8 @@ Principles:
 - 2026-10-15: The mock CDP domains are removed; `cdp_runtime_evaluate` stays
   until the real CDP endpoint (phase 6) replaces it.
 - 2026-10-15: The GUI stays Avalonia, reduced to a shell that shows frames
-  painted by Rust.
+  painted by Rust. *Superseded 2026-11-23:* the Avalonia GUI is removed and
+  the desktop UI moves to GPUI; see [GPUI_PLAN.md](GPUI_PLAN.md).
 - Pending (phase 2): deno_core vs bare v8; `DomTree` vs blitz-dom as the
   tree type under `thalora-dom`.
 
@@ -118,7 +118,6 @@ Principles:
 | `cargo xtask wpt` | web-platform-tests testharness results per directory, against a pinned WPT commit |
 | `cargo test --test mcp_tests corpus` | Page corpus through the real MCP binary, including interactive `steps`; writes `tests/corpus/scoreboard.json` with `THALORA_CORPUS_WRITE=1` |
 | `cargo xtask fingerprint-dump` / `fingerprint-diff` | Global-object shape (descriptors, `toString`, enumeration order) against a Chrome reference dump |
-| `cargo xtask gui-compare` | Screenshot comparison against Chrome references (moves to headless reftests in phase 3) |
 
 Real-site recordings (HAR replay) are deferred: replaying HTTPS sites
 deterministically needs a local MITM proxy design first.
