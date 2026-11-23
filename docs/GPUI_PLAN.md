@@ -11,7 +11,7 @@ Status: draft, 2026-11-23. This replaces the October re-architecture's GUI decis
 | GPUI pin | Follow ParolNet (`parol-social/apps/desktop`): `gpui-pre =0.3.12`, `gpui-pre-platform =0.3.12`, `gpui-component =0.10.0`, exact pins, Cargo.lock committed, and an upgrade is its own train. |
 | Integration point | A new `desktop.backend: "gpui"`, next to `webview` and `cef`. The host is built like laufey: a prebuilt capi, SHA-pinned and downloaded by the fork. Packaging, permission baking, capabilities and the 5.0 kernel sandbox keep working. |
 | WebRTC | JS-facing: deno `ext/webrtc` (owned by the Denext session, now on brainwires.5). Native Rust in the host: the `rtc` crates plus `rtc-stream-driver`. Pin to the **`v0.22.0+brainwires.6`** tag once it is cut; never master or 0.21.1. The .5 → .6 API is heavily breaking, so plan against .6. |
-| Thalora's old deps | Avalonia and wasm are gone (A0, phase 0). Boa, `Brainwires/webrtc-rs` (async) and wasmtime go at A4. |
+| Thalora's old deps | Avalonia and wasm are gone (A0, phase 0). Boa, `thalora-browser-apis`, `Brainwires/webrtc-rs` (async) and wasmtime are deleted now (A-Boa, user decision 2026-11-23: V8 supersedes Boa; no parity gate). |
 
 ## Where the code lives (proposed, not decided)
 
@@ -23,7 +23,7 @@ Status: draft, 2026-11-23. This replaces the October re-architecture's GUI decis
 | A: the HTML/CSS engine | **This repo, repurposed** as a library (DOM, Stylo, layout, GPUI paint element), plus a standalone browser shell and headless/automation mode | The WPT, corpus and fingerprint tooling live here, and so does the original purpose (control over fingerprint and automation signals). laufey's "thalora" backend consumes the library. Keeping it here also keeps the deno fork from carrying a browser engine on its release cadence. |
 | Shared GPUI media (video sink, decoders) | Extract into a small shared crate **when B3 starts**, not before | ParolNet is still changing `parolnet-media`; extracting early adds churn for that team. |
 
-Not recommended: a separate "extract the APIs" step. `thalora-browser-apis` is bound to Boa, and the deno fork already covers fetch, streams, crypto, WebSocket, storage and webrtc. The rest (DOM, events, CSSOM, canvas, observers, web components) has to be rebuilt on the live DOM anyway. Port that logic during A3.
+Not recommended: a separate "extract the APIs" step. `thalora-browser-apis` is bound to Boa, and the deno fork already covers fetch, streams, crypto, WebSocket, storage and webrtc. The rest (DOM, events, CSSOM, canvas, observers, web components) has to be rebuilt on the live DOM anyway. Rebuild that logic during A3 (the Boa-bound originals are deleted; consult git history if useful).
 
 ## Precedent: ParolNet desktop (Brainwires/parol-social, `apps/desktop`)
 
@@ -129,11 +129,16 @@ Starts after B1, so the host, the runtime embedding and the GPUI pin are already
 **A0, cleanup**
 - Done on `a0/drop-avalonia`, based on `phase0-cleanup`: the Avalonia `gui/`, `src/ffi/` (C ABI), `cdylib`, the GUI xtask commands and `scripts/ralph` are removed.
 - phase0-cleanup (#17) had already dropped wasm, reduced AI memory to the vault, and added the WPT, corpus and fingerprint tooling.
-- Boa, `thalora-browser-apis`, wasmtime and the old `webrtc` dep stay until A4, so nothing that works today breaks before V8 replaces it.
 - Leftovers for A1/A2:
   - C#/Avalonia comments, and ARGB colour order, in `styled_tree.rs` / `page_layout.rs`.
   - The `src/gui/fonts` path name.
   - The `desktop` feature name.
+
+**A-Boa, delete the JS engine (now, branch `a4/drop-boa`)**
+- User decision 2026-11-23: V8 supersedes Boa, so Boa goes now rather than after a parity gate.
+- Deletes the `engines/boa` submodule, `engines/thalora-browser-apis`, wasmtime and the old async `webrtc` dep, plus the JS-binding code in `src/apis` and the JS paths in `src/engine`.
+- Until V8 lands, `thalora` fetches and parses pages without running scripts; JS-only MCP tools return a "JavaScript execution is unavailable" error.
+- CI's fingerprint and WPT baseline steps are dropped until V8 (they measure the JS engine).
 
 **A1, one live DOM and style**
 - html5ever builds a single mutable tree (evaluate blitz-dom vs our own `thalora-dom`).
@@ -144,14 +149,14 @@ Starts after B1, so the host, the runtime embedding and the GPUI pin are already
 - A custom GPUI `Element` paints it: quads, borders, text runs, images, clips and transforms.
 - Scrolling, hit-testing and input are mapped back to DOM events.
 
-**A3, JS**
-- V8 via the fork, reusing Deno's web extensions: fetch, streams, URL, crypto, WebSocket and webrtc.
-- DOM/CSSOM/HTML bindings are generated from WebIDL.
-- Port the logic (not the bindings) from `engines/thalora-browser-apis`, which has about 775 `boa_engine` references.
+**A3, JS (priority: start as soon as A1's DOM exists, in parallel with A2)**
+- V8 via the Brainwires deno fork (deno_core 0.413, the denext rusty_v8 pin), reusing Deno's web extensions: fetch, streams, URL, crypto, WebSocket and webrtc.
+- DOM/CSSOM/HTML bindings are generated from WebIDL against the live DOM.
+- Restores script execution and the JS-only MCP tools.
 
 **A4, conformance**
-- A WPT runner, the interactive corpus, HAR replay and the fingerprint diff.
-- Reach parity, then delete Boa and `thalora-browser-apis`.
+- The WPT runner, the interactive corpus, HAR replay and the fingerprint diff come back to CI on V8.
+- Gate merges on them once V8 is stable.
 
 **A5, laufey backend "thalora"**
 - The existing bridge (`bridgeOrigins`, `Deno.desktop.*`, WS relay) runs on Thalora pages.
