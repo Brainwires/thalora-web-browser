@@ -17,7 +17,7 @@ Status: draft, 2026-11-23. This replaces the October re-architecture's GUI decis
 
 | Piece | Home | Why |
 |---|---|---|
-| B host (GPUI window, isolate embedding, mutation ops consumer) | A `gpui` backend in **Brainwires/laufey**, or a separate repo implementing laufey's capi if laufey can't take it | laufey is already the seam for window/web-engine backends: capi, prebuilt + SHA pin, window APIs, `windowCapabilities()`, CI. A new backend there inherits all of it. |
+| B host (GPUI window, isolate embedding, mutation ops consumer) | **Brainwires/laufey, as its own workspace member** (`backends/gpui`) that builds its own `laufey-gpui-<triple>` archive. Not folded into the shared capi build. A separate repo only if GPUI's dependency tree makes laufey's lockfile or CI painful; decide after B0. | Agreed with the denext PM session. Backends are already separate prebuilt archives per backend per target (`cli/laufey_sums.lock` pins `laufey-webview-*` / `laufey-cef-*`), chosen by `--backend` / `desktop.backend`. A new archive needs a new backend value, pinned digests and a download URL. The URL currently points at littledivy/laufey releases, so publishing ours means pointing the fork at Brainwires/laufey releases (a fork change). To keep upstream merges clean: GPUI code goes in new files/dirs only, shared capi headers get additive changes only, and those are offered upstream. GPUI's toolchain (Rust 1.95+, Metal) stays isolated to that member's CI jobs. |
 | `denext/gpui` renderer | denext repo | That's where the React core and the RN compat layer live. |
 | Fork ops (mutation batch, events) | Brainwires/deno, as numbered DENEXT.md items | Runtime surface. |
 | A: the HTML/CSS engine | **This repo, repurposed** as a library (DOM, Stylo, layout, GPUI paint element), plus a standalone browser shell and headless/automation mode | The WPT, corpus and fingerprint tooling live here, and so does the original purpose (control over fingerprint and automation signals). laufey's "thalora" backend consumes the library. Keeping it here also keeps the deno fork from carrying a browser engine on its release cadence. |
@@ -73,6 +73,7 @@ The pieces:
   - Does gpui-pre link next to V8's custom libc++ (`std::__Cr`) in one binary, on all three OSes?
   - The main-thread split: the GPUI loop on main, the isolate on its own thread, or on main via a pump.
   - Build time and binary size.
+  - Packaging: the 5.0 kernel-sandbox desktop profile and the macOS signing/notarization path in denext's package scripts must allow what GPUI loads (the Metal shader cache, fonts).
 
 **B1, mutation protocol + core primitives**
 - Batch format: create, insert-before, remove, set-props, set-style, set-text and commit. Node ids are u32 and the layout is versioned.
