@@ -13,3 +13,8 @@ publish = false
 # the feature off. Only html5ever, selectors and what they strictly need.
 [dependencies]
 html5ever = "0.40.1"
+selectors = "0.43.0"
+# Same major as selectors 0.43 uses internally (ParserInput, ToCss).
+cssparser = "0.38"
+# Trait `selectors` requires on identifier / name types.
+precomputed-hash = "0.1"

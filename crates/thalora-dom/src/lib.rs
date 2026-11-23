@@ -8,6 +8,15 @@
 //! talks to it through [`NodeId`]s, [`Document::serial`] numbers and the
 //! mutation record log ([`Document::take_mutation_records`]).
 //!
+//! ```
+//! use thalora_dom::Document;
+//!
+//! let mut doc = Document::parse_html("<ul><li class=a>one</li></ul>");
+//! let li = doc.query_selector(doc.document(), "li.a").unwrap().unwrap();
+//! doc.set_attribute(li, "id", "first").unwrap();
+//! assert_eq!(doc.get_element_by_id("first"), Some(li));
+//! assert_eq!(doc.outer_html(li).unwrap(), r#"<li class="a" id="first">one</li>"#);
+//! ```
 //!
 //! # Model
 //!
@@ -38,12 +47,14 @@ mod mutation;
 mod names;
 mod node;
 mod parse;
+pub mod select;
 mod serialize;
 
 pub use document::{Ancestors, Children, Descendants, Document};
 pub use error::{DomError, DomResult};
 pub use mutation::{MutationKind, MutationRecord};
 pub use node::{Attr, ElementData, NodeData, NodeId, NodeType, QuirksMode};
+pub use select::Selector;
 
 /// Re-exported name types (namespaces, local names, qualified names) used
 /// in the public API.
