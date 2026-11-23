@@ -212,3 +212,19 @@ These are stricter than the batch format above:
 - **Unsupported styles:** `letterSpacing`, `textAlign: justify` and `resizeMode: repeat`.
 - **Nested Text** can't change size or family.
 - **Accessibility:** props are stored but not passed to the OS.
+
+### Gaps resolved after the denext renderer (`gpui/b1-renderer`)
+
+- **Event name.** JS listens for the `"nativetree"` CustomEvent, and `detail` is the JSON text. This matches the fork's `gpui/b1-native-tree`.
+- **Percent values.** Tag 2 is in the 0–100 range: `"50%"` is sent as 50. The host divides by 100.
+- **Versions.** The renderer accepts any host `nativeTree.version` ≥ 1. Every batch it sends is version 1, and a host rejects batch versions it doesn't know.
+- **Images.**
+  - `image_id` 0 means "no image".
+  - SET_IMAGE may name an image whose IMAGE_DATA hasn't arrived yet. The node draws nothing until the data arrives.
+  - Send `SET_IMAGE 0` before `IMAGE_FREE`.
+- **Press coordinates.** `x` and `y` are in logical pixels, relative to the pressed node.
+- **Long press.**
+  - After a long hold, the host suppresses `press` (`longPress` fires instead).
+  - The denext renderer runs its own pressability timing from `pressIn`/`pressOut`, and ignores the host's `longPress`.
+  - The host's `press` and `longPress` events are conveniences for renderers that have no pressability of their own.
+- **Generated table name.** On the denext side the generated table is `src/gpui/props.generated.ts`. The Rust table is generated into `OUT_DIR` from `backends/gpui/protocol/props.json`.
