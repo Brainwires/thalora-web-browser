@@ -10,38 +10,39 @@ observe about who is driving it. It does not use Chrome, Chromium or CEF.
 ## Status (October 2026)
 
 Thalora works today for reading pages and for scripted interaction with
-server-rendered and lightly scripted sites. It is **mid re-architecture**; read
+server-rendered sites. It is **mid re-architecture**; read
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) before contributing.
+
+> **There is currently no JavaScript engine.** The Boa engine (and the Web
+> APIs bound to it) has been removed. V8, through the Brainwires deno fork
+> (`deno_core`), replaces it and is in progress. Until it lands, pages are
+> fetched, parsed and laid out from their static HTML and CSS; page scripts do
+> not run, and every tool that needs script returns the error
+> `JavaScript execution is unavailable: the Boa engine was removed; V8 support is in progress`.
 
 What works now:
 
 - MCP server over stdio or streamable HTTP, with page reading (readable
   markdown, links, metadata), web search, named browser sessions, agent
-  snapshots with element refs, clicks, typing, forms, waits, console capture
-  and an accessibility tree.
-- JavaScript on the [Boa](https://github.com/boa-dev/boa) engine (our fork),
-  with an event loop for timers, microtasks and fetch/XHR settlement.
+  snapshots with element refs, form filling and submission, link and submit
+  button clicks, and an accessibility tree, all from the page's static HTML.
 - An encrypted credential vault whose secrets are filled into pages without
   ever being returned to the model.
-- SSRF protection, per-origin credential filling and a JS security policy for
-  agent-injected scripts.
+- SSRF protection and per-origin credential filling.
 
 Known gaps, which the re-architecture addresses:
 
-- **Stale reads after interaction.** Snapshots, page text and extraction read
-  the HTML captured at load time, not the live DOM, so changes made by page
-  JavaScript after a click usually do not appear. The interactive pages in
-  `tests/corpus` record this as `known_failing`.
-- **JavaScript performance and coverage.** Boa is an interpreter. Large SPA
-  bundles often hit the per-evaluation time budget, and many Web APIs are
-  partial or stubbed.
+- **No JavaScript.** Client-rendered pages (SPAs) show only their static
+  shell. `cdp_runtime_evaluate`, `browser_eval`, `browser_console_messages`,
+  `browser_hover`, `browser_scroll`, key presses other than Enter in a form
+  field and clicks on elements without a native default action return the
+  error above. Page-loaded WebAssembly and WebRTC are gone with the engine;
+  WebRTC returns through the deno fork's `ext/webrtc`.
 - **Rendering.** CSS cascade and layout are hand-rolled and incomplete
   (no `!important`, floats, inline formatting or tables), so screenshots are
-  approximate. `getComputedStyle` returns defaults.
-- **Input.** Clicks and key presses are dispatched as plain events, not
-  trusted pointer/keyboard sequences.
-- **Fingerprint.** Compared with Chrome, the global object is missing about a
-  thousand interfaces (`cargo xtask fingerprint-diff`).
+  approximate.
+- **Input.** Clicks and typing act on the static HTML (default actions and
+  submitted form values); no DOM events are dispatched.
 - **No desktop UI.** The Avalonia app that used to live in `gui/` has been
   removed. The desktop UI moves to GPUI (a standalone browser shell over the
   same engine); see [docs/GPUI_PLAN.md](docs/GPUI_PLAN.md).
@@ -56,11 +57,9 @@ and [docs/GPUI_PLAN.md](docs/GPUI_PLAN.md).
 ## Build
 
 Requires a recent stable Rust toolchain (edition 2024) and `pkg-config`.
-The optional `native` feature (media, WebRTC, page WebAssembly) also needs
-FFmpeg development libraries.
 
 ```bash
-git clone --recursive https://github.com/Brainwires/thalora-web-browser.git
+git clone https://github.com/Brainwires/thalora-web-browser.git
 cd thalora-web-browser
 cargo build --release          # MCP server binary + library
 ./target/release/thalora       # MCP over stdio
@@ -70,8 +69,8 @@ cargo build --release          # MCP server binary + library
 | Feature | Description |
 |---------|-------------|
 | `desktop` (default) | MCP server binary and HTTP transport |
-| `native` | Adds audio/video, WebRTC and page WebAssembly (wasmtime); may need FFmpeg |
-| `wasm-debug` | MCP tools for inspecting and running WebAssembly modules |
+| `native` | Alias of `desktop` (the audio/video, WebRTC and WebAssembly backends it used to add were removed with Boa) |
+| `test-hooks` | Test-only: lets release builds honour `THALORA_ALLOW_LOOPBACK=1` |
 
 ### Claude Desktop / MCP client configuration
 
@@ -105,7 +104,7 @@ registry by `tests/protocols/readme_tools_test.rs`.
 ### 🌐 Scraping & search (`THALORA_ENABLE_SCRAPING`, on by default; `THALORA_ENABLE_SEARCH`)
 | Tool | Description |
 |------|-------------|
-| `snapshot_url` | Load a page (optionally running its JS) and extract links, images, metadata, custom selectors, structured data and readable markdown, with output-size limits |
+| `snapshot_url` | Load a page and extract links, images, metadata, custom selectors, structured data and readable markdown, with output-size limits |
 | `web_search` | Web search returning title, URL and snippet per result |
 | `image_search` | Image search |
 
@@ -113,23 +112,23 @@ registry by `tests/protocols/readme_tools_test.rs`.
 | Tool | Description |
 |------|-------------|
 | `browser_session_management` | Create, list, inspect and close named browser sessions |
-| `browser_navigate_to` | Navigate a session to a URL, optionally running page JavaScript |
+| `browser_navigate_to` | Navigate a session to a URL (page JavaScript is not executed) |
 | `browser_navigate_back` / `browser_navigate_forward` | Move through session history |
 | `browser_refresh_page` | Reload the current page |
 | `browser_snapshot` | Compact page outline for agents: interactive elements with refs (`[ref=e12]`), headings, landmarks and text, within a token budget |
 | `browser_screenshot` | PNG screenshot from Thalora's current layout code (approximate; images as placeholders) |
 | `browser_get_page_content` | Current URL and content of a session |
-| `browser_click_element` | Click an element by snapshot ref or CSS selector; submit buttons submit their form and links navigate unless `preventDefault()` is called |
-| `browser_type_text` | Type into an input (fires `input`/`change`) |
+| `browser_click_element` | Click an element by snapshot ref or CSS selector; submit buttons submit their form, links navigate and checkboxes/radio buttons change state. Elements without such a default action need JavaScript (error) |
+| `browser_type_text` | Type into a named input or textarea; the value is sent when its form is submitted |
 | `browser_fill_form` | Fill named fields of a form and (by default) submit it, including hidden fields such as CSRF tokens |
 | `browser_select_option` | Choose a `<select>` option by value or visible text |
 | `browser_check` | Check or uncheck a checkbox or radio button |
-| `browser_press_key` | Press a key; Enter in a single-line field submits its form |
-| `browser_hover` | Hover an element (mouseover/mouseenter/mousemove) |
-| `browser_scroll` | Scroll an element into view or the page by a number of pixels |
-| `browser_console_messages` | Console output logged by the page |
-| `browser_wait` | Wait for a ref/selector, page text, URL substring or network idle while running timers and fetches |
-| `browser_wait_for_element` | Wait until a selector matches |
+| `browser_press_key` | Press a key; Enter in a single-line field submits its form. Other keys need JavaScript (error) |
+| `browser_hover` | Hover an element. Needs JavaScript: currently returns an error |
+| `browser_scroll` | Scroll an element into view or the page by a number of pixels. Needs JavaScript: currently returns an error |
+| `browser_console_messages` | Console output logged by the page. Needs JavaScript: currently returns an error |
+| `browser_wait` | Check for a ref/selector, page text, URL substring or network idle; answers immediately, since the page cannot change without JavaScript |
+| `browser_wait_for_element` | Check whether a selector matches (answers immediately) |
 | `browser_prepare_form_submission` | Create a session for a form that opens a new window |
 | `browser_validate_session` | Check that a session exists and has the expected content |
 | `get_accessibility_tree` | ARIA roles, accessible names and states for the current page (always listed in full mode) |
@@ -145,9 +144,10 @@ instead of silently creating a blank session; `"default"` always exists.
 ### JavaScript (`THALORA_ENABLE_CDP`)
 | Tool | Description |
 |------|-------------|
-| `cdp_runtime_evaluate` | Evaluate JavaScript in a session's page (default session `"default"`) |
+| `cdp_runtime_evaluate` | Evaluate JavaScript in a session's page (default session `"default"`). Currently returns the "JavaScript execution is unavailable" error |
 
-The name is historical. The earlier mock CDP domains were removed; a real CDP
+The tool stays registered so clients keep a stable tool list while V8 is wired
+in. The name is historical. The earlier mock CDP domains were removed; a real CDP
 endpoint over live engine state is planned (see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)).
 
 ### Credential vault (`THALORA_ENABLE_VAULT`, requires `THALORA_MASTER_PASSWORD`)
@@ -167,7 +167,7 @@ The vault file is `~/.thalora/credentials.json` (override with `THALORA_VAULT_PA
 | `browser_navigate` | Alias for `browser_navigate_to` |
 | `browser_click` | Alias for `browser_click_element` |
 | `browser_fill` | Fill one field by selector; `submit=true` also submits its form |
-| `browser_eval` | Alias for `cdp_runtime_evaluate` |
+| `browser_eval` | Alias for `cdp_runtime_evaluate` (currently returns the same error) |
 | `browser_extract` | Alias for `snapshot_url` |
 | `browser_search` | `web_search` with sensible defaults |
 <!-- tools:end -->
@@ -179,19 +179,17 @@ The vault file is `~/.thalora/credentials.json` (override with `THALORA_VAULT_PA
 {"method": "tools/call", "params": {"name": "browser_navigate_to", "arguments": {"url": "https://example.com/login", "session_id": "work"}}}
 {"method": "tools/call", "params": {"name": "browser_snapshot", "arguments": {"session_id": "work"}}}
 {"method": "tools/call", "params": {"name": "browser_fill_credential", "arguments": {"session_id": "work", "service": "example", "username_ref": "e3", "password_ref": "e4"}}}
-{"method": "tools/call", "params": {"name": "cdp_runtime_evaluate", "arguments": {"session_id": "work", "expression": "document.title"}}}
+{"method": "tools/call", "params": {"name": "browser_click", "arguments": {"session_id": "work", "ref": "e5"}}}
 ```
 
 ## Repository layout
 
 | Path | Contents |
 |------|----------|
-| `src/` | Browser core (navigation, renderer, snapshot, extraction), MCP server |
-| `engines/boa` | Boa fork (git submodule). Frozen: build fixes only until V8 replaces it |
-| `engines/thalora-browser-apis` | Web APIs and the DOM arena, bound to Boa |
-| `vfs/` | Sandboxed in-memory filesystem used by page-facing storage |
+| `src/` | Browser core (navigation, layout, snapshot, extraction), MCP server |
+| `vfs/` | Sandboxed in-memory filesystem used by MCP sessions |
 | `tests/` | Unit, integration and MCP end-to-end tests; `tests/corpus` page corpus and scoreboard; `tests/fingerprint` global-object dumps |
-| `xtask/` | `cargo xtask` developer commands (CI, fingerprint dump/diff, WPT) |
+| `xtask/` | `cargo xtask` developer commands (CI; fingerprint dump/diff and WPT, which need a JavaScript engine) |
 | `docs/archive/` | Old status reports, kept for history; not maintained |
 
 ## Testing
@@ -199,26 +197,28 @@ The vault file is `~/.thalora/credentials.json` (override with `THALORA_VAULT_PA
 ```bash
 cargo test --workspace                                  # everything
 cargo test --test mcp_tests                             # MCP end-to-end (spawns the binary)
-THALORA_CORPUS_WRITE=1 cargo test --test mcp_tests corpus   # page corpus + scoreboard
-cargo xtask fingerprint-dump && cargo xtask fingerprint-diff tests/fingerprint/chrome-155.json tests/fingerprint/thalora-boa.json
 ```
+
+The page corpus (`cargo test --test mcp_tests corpus -- --ignored`), the
+fingerprint dump/diff and the WPT runner (`cargo xtask fingerprint-dump`,
+`cargo xtask wpt`) measure the JavaScript engine. They are kept but do not run
+in CI until V8 is in; the committed results (`tests/corpus/scoreboard.json`,
+`tests/fingerprint/thalora-boa.json`, `tests/wpt/results.json`) are the last
+Boa baselines.
 
 See [docs/TESTING.md](docs/TESTING.md).
 
 ## Security
 
 See [docs/SECURITY.md](docs/SECURITY.md). Navigation to private and loopback
-addresses is blocked by default. Scripts injected by agents run under a
-stricter policy than page scripts. Vault secrets never leave the process
-except as keystrokes into a page of the credential's own origin.
+addresses is blocked by default. Vault secrets never leave the process
+except as form values submitted to a page of the credential's own origin.
 
 ## License
 
 MIT; see [LICENSE](LICENSE).
 
-Built on [Boa](https://github.com/boa-dev/boa), [Tokio](https://tokio.rs),
+Built on [Tokio](https://tokio.rs),
 [reqwest](https://github.com/seanmonstar/reqwest),
-[html5ever](https://github.com/servo/html5ever),
-[Taffy](https://github.com/DioxusLabs/taffy),
-[wasmtime](https://github.com/bytecodealliance/wasmtime) and
-[webrtc-rs](https://github.com/webrtc-rs/webrtc).
+[html5ever](https://github.com/servo/html5ever) and
+[Taffy](https://github.com/DioxusLabs/taffy).
