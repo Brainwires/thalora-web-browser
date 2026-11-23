@@ -136,7 +136,12 @@ jobs:
       - name: Build binary
         run: cargo build --release --bin thalora --features test-hooks
       - name: Page corpus
-        run: cargo test --release --test mcp_tests corpus -- --nocapture
+        # --features test-hooks: the harness runs the thalora binary Cargo
+        # builds for this test (CARGO_BIN_EXE_thalora), and release builds
+        # only honour THALORA_ALLOW_LOOPBACK with test-hooks. Without it every
+        # fixture page is blocked as localhost, and this rebuild would also
+        # replace the test-hooks binary the fingerprint and WPT steps reuse.
+        run: cargo test --release --features test-hooks --test mcp_tests corpus -- --nocapture
         env:
           THALORA_CORPUS_WRITE: "1"
       - name: Fingerprint dump and diff
