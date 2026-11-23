@@ -1,9 +1,14 @@
 // DuckDuckGo search submission test
 // Tests form interaction: navigate, type, submit, verify results
+//
+// These tests are #[ignore]d by default because they hit live DuckDuckGo and
+// fail on network errors, rate-limiting or bot blocking from CI runners.
+// Run explicitly with: cargo test --test ddg_search_test -- --ignored
 
 use thalora::HeadlessWebBrowser;
 
 #[tokio::test]
+#[ignore = "live network: run with --ignored"]
 async fn test_duckduckgo_search_via_url() {
     let browser = HeadlessWebBrowser::new();
     let mut guard = browser.lock().unwrap();
@@ -32,6 +37,7 @@ async fn test_duckduckgo_search_via_url() {
 }
 
 #[tokio::test]
+#[ignore = "live network: run with --ignored"]
 async fn test_duckduckgo_form_submit() {
     let browser = HeadlessWebBrowser::new();
     let mut guard = browser.lock().unwrap();
@@ -66,6 +72,7 @@ async fn test_duckduckgo_form_submit() {
 }
 
 #[tokio::test]
+#[ignore = "live network: run with --ignored"]
 async fn test_duckduckgo_type_into_search() {
     let browser = HeadlessWebBrowser::new();
     let mut guard = browser.lock().unwrap();
