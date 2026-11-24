@@ -1,11 +1,10 @@
 # A3 step 3: linking the fork's V8 — integration map
 
 Working notes for delivery step 3 of [A3_V8_DESIGN.md](A3_V8_DESIGN.md)
-("Thalora links the fork and restores the JS MCP tools"). Line numbers are
-against `origin/main` at 412eba2 (2026-11-24). The fork crate `deno_web_page`
-(`PageRuntime::new(options)`) has no pushed rev yet, so this change adds only
-the V8 fetch (`scripts/fetch_rusty_v8.py`, `scripts/rusty_v8.sha256`) and the
-CI step that runs it; the dependency itself comes later.
+("Thalora links the fork and restores the JS MCP tools"). Sections 1-8 are
+the map drawn before the link (line numbers against `origin/main` at 412eba2,
+2026-11-24) and are kept as written; **section 9 is what was done**, and
+where it differs from the proposals in sections 5 and 6 it wins.
 
 ## 1. Where JavaScript is refused today
 
@@ -226,3 +225,129 @@ Sections 1-2 describe `origin/main`; on this branch the page model changed:
 - Still on scraper (`TODO(a3)`): the layout engine (screenshot gets
   `to_html()`), readability, `browser_extract`/`snapshot_url` extraction,
   search-engine parsers, `web_search.rs`. They read serialized HTML.
+
+## 9. The link: what landed
+
+### Cargo
+
+```toml
+deno_web_page = { git = "https://github.com/Brainwires/deno", rev = "<scripts/deno-fork.rev>", optional = true }
+deno_core     = { git = …, rev = …, default-features = false,
+                  features = ["v8", "reactor-tokio", "v8_use_custom_libcxx"], optional = true }
+
+[patch.crates-io]
+v8         = { git = "https://github.com/Brainwires/rusty_v8", rev = "f72a5f53…" }
+sys_traits = { git = "https://github.com/Brainwires/deno", rev = "<same rev>" }
+
+[patch."https://github.com/Brainwires/thalora-web-browser"]
+thalora-dom = { path = "crates/thalora-dom" }
+```
+
+- Both are optional and enabled by the `core` feature. The rev appears three
+  times in `Cargo.toml` (deno_web_page, deno_core, sys_traits) and in
+  `scripts/deno-fork.rev`; bump them together.
+- **Features.** A git dependency's own `.workspace = true` dependencies are
+  resolved in the fork's workspace, so `deno_core` already arrives with
+  `reactor-tokio` + `v8_use_custom_libcxx` and `deno_v8` with `simdutf`
+  (`cargo tree -e features -i v8`). Thalora still names `deno_core` itself,
+  with those features spelled out: it calls `JsRuntime::init_platform` and
+  `v8::IsolateHandle`, and the custom-libc++ requirement of the prebuilt
+  archive should not depend on how the fork happens to declare its workspace.
+- **thalora-dom: the patch, one crate.** `deno_web_page` depends on
+  thalora-dom by git rev of this repository; the `[patch]` resolves it to the
+  workspace crate, so `Cargo.lock` has a single `thalora-dom` (no `source`)
+  and `deno_web_page::thalora_dom::Document` *is* `thalora_dom::Document`.
+  The workspace crate must stay source-compatible with what the pinned fork
+  rev uses (additive changes only until the fork is bumped).
+- **`sys_traits` is required**, not optional as section 5 guessed:
+  `deno_fs` is in the graph (through `deno_web`/`deno_fetch`/`deno_io`) and
+  calls `sys_traits::impls::dos_device_safe_path`, which only the fork's
+  vendored 0.1.28 has. Cargo finds the package by name inside the fork repo.
+- **`url`: crates.io 2.5.9** (`cargo update -p url`), the release with the
+  RUSTSEC-2026-0592 fix. The fork stays on a patched 2.5.7 only because
+  2.5.9's `^` percent-encoding breaks `deno_semver`/`deno_graph`; neither is
+  in Thalora's graph (`cargo tree -i deno_semver`, `-i deno_graph`: no
+  match), so the vendored copy is not needed. Page-visible effect: `new
+  URL()` in pages encodes `^` as the current URL standard does.
+- `denokv_sqlite`, `dprint-core`, `tokio-postgres`: not in the graph, not
+  patched.
+- **Cargo.lock.** The fork pins some crates exactly (`rand =0.8.6`, …), so
+  several of Thalora's locked versions moved. Crates the fork introduced were
+  then set to the versions in the fork's own `Cargo.lock` where the
+  requirements allow (59 of 76), so the page runtime runs on the dependency
+  versions the fork tests; among others this leaves one `aws-lc-sys` instead
+  of two.
+- **Toolchain.** The fork pins 1.99.1, which is the current stable; Thalora
+  builds on stable with no `rust-toolchain.toml`. The fork's
+  `--cfg tokio_unstable` and macOS linker flags are not needed. The
+  Dockerfile's builder moved from 1.91.0 to 1.99.1.
+
+### The V8 archive guard
+
+`.cargo/config.toml` now forces `RUSTY_V8_MIRROR` to a location that does not
+exist and `RUSTY_V8_MIRROR_FALLBACK=0`: a build that was not handed the
+verified archive fails. Locally: `eval "$(python3 scripts/fetch_rusty_v8.py
+--print-env)"`. CI's "Fetch prebuilt V8" step does the same with
+`--github-env`; the Dockerfile runs the script before `cargo build`.
+
+### Runtime shape
+
+| Piece | Where | Notes |
+|---|---|---|
+| `JsSettings`, V8 root thread, watchdog, `JsPage` | `src/engine/browser/page_js.rs` | see below |
+| Two-mode `PageDom` (JavaScript / static) | `page_dom.rs` | `with_doc` borrows the runtime's document; `static_doc_mut()` replaces `with_doc_mut` |
+| Script loading, settle, script navigations, evaluate | `navigation/scripts.rs` | CSP (incl. nonces), SRI, mixed content, SSRF guard, `nosniff`, `ResourceCache` |
+| Interaction through the runtime | `navigation/forms.rs` | click, set value, key/hover/scroll events |
+| Idle pump | `session_thread.rs` | between jobs, cancel-safe |
+
+- **V8 root thread.** V8 wants every thread that runs an isolate to descend
+  from the thread that initialized the platform (the JIT's memory protection
+  key is inherited at thread creation on x86-64 Linux). A library cannot
+  count on `main` (test threads are siblings), so `page_js` initializes the
+  platform on a dedicated thread and `BrowserThread`s are spawned *by* it. A
+  page loaded on any other thread is static (`JsPage::new` refuses).
+- **One `PageRuntime` per thread at a time**: V8 isolates must be dropped in
+  reverse order of creation, so `PageDom` drops the old page's runtime before
+  it creates the next.
+- **Options.** `net_allow = ["*"]`; `deny_addresses` is the fork's default
+  (loopback, private, link-local, metadata), minus `loopback` when the
+  `test-hooks` / debug override `THALORA_ALLOW_LOOPBACK=1` is on (the
+  override lifts loopback only, as for navigation). `storage_dir` is
+  `<THALORA_PROFILE_DIR or ~/.thalora/profile>/storage`, created with
+  `std::fs`. Heap limit 512 MiB.
+- **Watchdog.** One process-wide thread; every call into JavaScript is armed
+  with the script timeout (10 s), event-loop pumping with budget + timeout.
+  It calls `terminate_execution()`; the call fails with a timeout error and
+  the page stays usable.
+- **Loading.** Classic scripts only: inline and blocking external scripts in
+  document order, then `defer`, `DOMContentLoaded`, `async`, `load`, then the
+  event loop for up to 1 s (5 s with `wait_for_js`). External scripts get
+  `load`/`error` events. Scripts inserted by scripts are found by looking at
+  the document after scripts and tasks ran. `nomodule` scripts run (modules
+  do not, so Thalora is a non-module browser for now).
+- **Navigation stays in Rust.** Link and form activations come back from
+  `click()`; `location.*` and `form.submit()` requests from the queue. At most
+  five script navigations in a row are followed; fragment-only changes load
+  nothing.
+- **Secrets** (`browser_fill_credential`) stay in the side table in both
+  modes and are merged into a submission only for fields of the form whose
+  action is being submitted to. Page JavaScript never sees them, so
+  `browser_eval` cannot read them back; a login whose script reads the
+  password field itself gets an empty value.
+
+### What the fork should grow (requests, not done here)
+
+1. `evaluate_json_async` (await a returned promise) — `browser_eval` is
+   synchronous until the pinned rev has it.
+2. A host hook for inserted `<script>` elements (and `document.currentScript`,
+   `document.write`), so they run at insertion time and a script removed
+   right after insertion (JSONP) is not missed.
+3. Module scripts (a module loader fed by the host).
+4. Idle detail: pending requests vs timers, so `NetworkIdle` can ignore a
+   repeating timer.
+5. A way to tell the page its URL changed (fragment navigations,
+   `hashchange`), and to hand it cookies (`document.cookie`, `fetch`
+   credentials) from Thalora's cookie store.
+6. A startup snapshot: every navigation boots an isolate and evaluates the
+   extension JavaScript from source.
+7. `MouseEvent` coordinates / layout from the host, for hover and scroll.

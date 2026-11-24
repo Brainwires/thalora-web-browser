@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Page JavaScript on V8.** Thalora links the page runtime of the Brainwires deno fork (`deno_web_page`, pinned by git revision in `Cargo.toml` and `scripts/deno-fork.rev`): one V8 isolate per page on the browser's thread, web APIs only, bound to the live `thalora-dom` document. Navigation runs the page's classic scripts (inline and external, with the page's CSP, SRI, mixed-content and SSRF checks and the resource cache; `defer`/`async` ordering; scripts inserted by scripts), fires `DOMContentLoaded` and `load`, and lets timers and requests run (1 s, 5 s with `wait_for_js`). Navigations scripts ask for (`location.href = …`, `form.submit()`) are followed.
+- **The JavaScript tools work again:** `cdp_runtime_evaluate` / `browser_eval` (completion value as JSON; promises are not awaited yet), `browser_console_messages` (console output, uncaught errors, script load failures), `browser_click_element` (events, handlers, default action), `browser_type_text` / `browser_fill` (`input`/`change`; unnamed fields, selects, contenteditable), `browser_select_option`, `browser_check`, `browser_press_key` (key events and default actions), `browser_hover`, `browser_scroll` (events only: no layout in script yet), `browser_wait` / `browser_wait_for_element` (the page runs while waiting).
+- **A page keeps running between tool calls:** the browser thread pumps the current page's event loop while it has pending work (for 30 s after the last call).
+- **Limits:** a watchdog terminates a script, evaluation or event-loop task after `THALORA_JS_SCRIPT_TIMEOUT_MS` (10 s); `THALORA_JS_HEAP_LIMIT_MB` (512) caps a page's heap. `THALORA_JS=0` disables scripts; `THALORA_PROFILE_DIR` (default `~/.thalora/profile`) holds pages' `localStorage`.
+- `HeadlessWebBrowser::evaluate_javascript`, `set_javascript_enabled`, `js_settings[_mut]`, `console_messages`, `javascript_status`; `PageDom::has_js`, `js_note`, `static_doc_mut`, `live_form_states`.
+
+### Changed
+- **BREAKING (build): V8 is linked.** Builds need the verified prebuilt V8 archive: `eval "$(python3 scripts/fetch_rusty_v8.py --print-env)"` before `cargo build` (a build without it fails instead of downloading an unverified archive, see `.cargo/config.toml`). `[patch.crates-io]` pins `v8` to Brainwires/rusty_v8 and `sys_traits` to the fork's vendored copy; `url` is 2.5.9 (RUSTSEC-2026-0592).
+- **Navigation results:** the page URL is the response's final URL (after redirects), and when scripts ran the returned content is the document as they left it. Tool outputs gain a `javascript` field (`running`, or `static: <why>`).
+- **`thalora::engine::JS_UNAVAILABLE`** is now `JavaScript execution is unavailable: this page was loaded as static HTML`, returned (with the reason) only on static pages.
+- **`PageDom::with_doc_mut` is replaced by `static_doc_mut()`** (`None` on a page running JavaScript, whose document changes through the runtime).
+- **Search engine browsers do not run page scripts** (the result parsers read the served markup).
+- **Docker:** the builder image is `rust:1.99.1-bookworm` (the fork's toolchain) and fetches the V8 archive.
+
 ### Fixed
 - **Boa GC underflow panic** — `dec_ref_count()` in `boa_gc` had no guard against decrementing a zero ref count, causing `attempt to subtract with overflow` panics on complex pages (Wikipedia, Twitter, etc.). Fixed by saturating at zero.
 - **Boa debug assertions disabled in dev** — `debug_assert!` macros in `boa_gc`, `boa_engine`, `boa_parser` etc. were firing as panics on real-world JS (GitHub React bundle, Wikipedia MediaWiki scripts). Added `debug-assertions = false` per-package under `[profile.dev.package."boa_*"]` in `Cargo.toml`, matching Boa's own release behavior.
