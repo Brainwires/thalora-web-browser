@@ -23,32 +23,28 @@ impl super::super::HeadlessWebBrowser {
             .await
     }
 
-    /// Extract page title from HTML
-    pub(super) fn extract_title(&self, html: &str) -> Option<String> {
-        if let Ok(selector) = scraper::Selector::parse("title") {
-            let document = scraper::Html::parse_document(html);
-            document
-                .select(&selector)
-                .next()
-                .map(|el| el.text().collect::<Vec<_>>().join(" ").trim().to_string())
-                .filter(|t| !t.is_empty())
-        } else {
-            None
-        }
+    /// The current page's title (`<title>` text, trimmed; `None` if empty).
+    pub(super) fn page_title(&self) -> Option<String> {
+        self.page.with_doc(|doc| {
+            let title = doc.query_selector(doc.document(), "title").ok()??;
+            let text = crate::engine::browser::scraper::joined_text(doc, title);
+            Some(text.trim().to_string()).filter(|t| !t.is_empty())
+        })
     }
 
     /// Scrape the current page content
     pub async fn scrape_current_page(&mut self) -> Result<ScrapedData> {
         let current_url = self
-            .current_url
-            .as_ref()
+            .page
+            .url()
             .ok_or_else(|| anyhow!("No current page loaded"))?;
-        self.scraper.scrape_page(&self.current_content, current_url)
+        self.page
+            .with_doc(|doc| self.scraper.scrape_page(doc, current_url))
     }
 
     /// Reload the current page, clearing the resource cache to force re-fetching.
     pub async fn reload(&mut self) -> Result<String> {
-        if let Some(ref url) = self.current_url.clone() {
+        if let Some(ref url) = self.get_current_url() {
             self.resource_cache.clear();
             self.bypass_cache = true;
             let result = self.navigate_to_with_options(url, false).await;
@@ -62,14 +58,14 @@ impl super::super::HeadlessWebBrowser {
     /// Click a link on the current page
     pub async fn click_link(&mut self, link_text: &str) -> Result<InteractionResponse> {
         let current_url = self
-            .current_url
-            .as_ref()
+            .page
+            .url()
             .ok_or_else(|| anyhow!("No current page loaded"))?;
 
-        // Parse current page to find the link
+        // Scrape the current page to find the link
         let scraped_data = self
-            .scraper
-            .scrape_page(&self.current_content, current_url)?;
+            .page
+            .with_doc(|doc| self.scraper.scrape_page(doc, current_url))?;
 
         let target_link = scraped_data
             .links

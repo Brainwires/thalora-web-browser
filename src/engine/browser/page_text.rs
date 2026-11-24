@@ -2,7 +2,7 @@
 //! HTML: script/style/template contents and the head are dropped, block
 //! elements become line breaks, and whitespace is collapsed.
 
-use scraper::{Html, Node};
+use thalora_dom::{Document, NodeData};
 
 /// Elements whose contents are never visible text.
 fn is_hidden_container(tag: &str) -> bool {
@@ -55,16 +55,18 @@ fn is_block(tag: &str) -> bool {
     )
 }
 
-/// The visible text of `html`, one block per line.
-pub fn visible_text(html: &str) -> String {
-    let document = Html::parse_document(html);
+/// The visible text of a page's document, one block per line.
+pub fn visible_text(doc: &Document) -> String {
     let mut raw = String::new();
     // Iterative walk (deep pages must not overflow the stack)
-    let mut stack = vec![(document.tree.root(), false)];
+    let mut stack = vec![(doc.document(), false)];
     while let Some((node, closing)) = stack.pop() {
-        match node.value() {
-            Node::Element(element) => {
-                let tag = element.name();
+        let Ok(data) = doc.data(node) else {
+            continue;
+        };
+        match data {
+            NodeData::Element(element) => {
+                let tag = &**element.local_name();
                 if closing {
                     if is_block(tag) {
                         raw.push('\n');
@@ -74,7 +76,7 @@ pub fn visible_text(html: &str) -> String {
                     continue;
                 }
                 if is_hidden_container(tag)
-                    || element.attr("hidden").is_some()
+                    || element.has_attr("hidden")
                     || element.attr("aria-hidden") == Some("true")
                 {
                     continue;
@@ -84,14 +86,17 @@ pub fn visible_text(html: &str) -> String {
                 }
                 stack.push((node, true));
             }
-            Node::Text(text) => {
+            NodeData::Text(text) => {
                 raw.push_str(text);
                 continue;
             }
-            Node::Document | Node::Fragment => {}
+            NodeData::Document | NodeData::DocumentFragment => {}
             _ => continue,
         }
-        let children: Vec<_> = node.children().collect();
+        let Ok(children) = doc.children(node) else {
+            continue;
+        };
+        let children: Vec<_> = children.collect();
         stack.extend(children.into_iter().rev().map(|child| (child, false)));
     }
 
@@ -105,7 +110,11 @@ pub fn visible_text(html: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::visible_text;
+    use thalora_dom::Document;
+
+    fn visible_text(html: &str) -> String {
+        super::visible_text(&Document::parse_html(html))
+    }
 
     #[test]
     fn drops_scripts_styles_and_head_and_keeps_blocks() {

@@ -61,11 +61,12 @@ impl McpServer {
                         let mut guard = browser
                             .lock()
                             .map_err(|_| "Failed to acquire browser lock".to_string())?;
+                        // The response body as fetched (TODO(a3): read the
+                        // live document once scripts run)
                         guard
                             .navigate_to_with_options(&url_owned, wait_for_js)
                             .await
-                            .map_err(|e| format!("Failed to navigate to URL: {}", e))?;
-                        Ok::<String, String>(guard.get_current_content())
+                            .map_err(|e| format!("Failed to navigate to URL: {}", e))
                     }
                     .boxed_local()
                 })

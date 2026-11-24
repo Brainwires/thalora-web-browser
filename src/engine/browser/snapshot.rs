@@ -20,10 +20,11 @@
 //! error, never a wrong element) once the page navigates or its content is
 //! replaced.
 
-use super::accessibility::{compute_accessible_name, heading_level, implicit_role};
-use scraper::{ElementRef, Html, Selector};
+use super::accessibility::{
+    attr_map, compute_accessible_name, heading_level, implicit_role, text_of,
+};
 use std::collections::HashMap;
-use std::hash::{Hash, Hasher};
+use thalora_dom::{Document, NodeId};
 
 /// Tags whose subtree never appears in a snapshot.
 const SKIP_TAGS: &[&str] = &[
@@ -104,7 +105,7 @@ struct RefTarget {
 /// Refs issued for one version of a page.
 #[derive(Debug, Default, Clone)]
 pub struct RefTable {
-    /// Page version the refs belong to (URL + content hash).
+    /// Page version the refs belong to (see `PageDom::version_key`).
     page: Option<String>,
     by_path: HashMap<String, String>,
     by_ref: HashMap<String, RefTarget>,
@@ -139,10 +140,11 @@ impl RefTable {
         r
     }
 
-    /// Resolve `r` to a CSS selector for the page version `page` with HTML
-    /// `html`. Fails with a `stale_ref` message if the ref wasn't issued for
-    /// this page version or no longer matches an element of the same type.
-    pub fn resolve(&self, page: &str, r: &str, html: &str) -> Result<String, String> {
+    /// Resolve `r` to a CSS selector for the page version `page` with
+    /// document `doc`. Fails with a `stale_ref` message if the ref wasn't
+    /// issued for this page version or no longer matches an element of the
+    /// same type.
+    pub fn resolve(&self, page: &str, r: &str, doc: &Document) -> Result<String, String> {
         let stale = || {
             format!(
                 "stale_ref: '{r}' is not a ref on the current page (the page changed or the \
@@ -153,20 +155,14 @@ impl RefTable {
             return Err(stale());
         }
         let target = self.by_ref.get(r).ok_or_else(stale)?;
-        let selector = Selector::parse(&target.selector).map_err(|_| stale())?;
-        let doc = Html::parse_document(html);
-        match doc.select(&selector).next() {
-            Some(el) if el.value().name() == target.tag => Ok(target.selector.clone()),
+        let found = doc
+            .query_selector(doc.document(), &target.selector)
+            .map_err(|_| stale())?;
+        match found.and_then(|el| doc.as_element(el)) {
+            Some(el) if **el.local_name() == *target.tag => Ok(target.selector.clone()),
             _ => Err(stale()),
         }
     }
-}
-
-/// Identity of a page version: its URL plus a hash of its content.
-pub fn page_key(url: Option<&str>, html: &str) -> String {
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    html.hash(&mut hasher);
-    format!("{}#{:016x}", url.unwrap_or("about:blank"), hasher.finish())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -182,48 +178,50 @@ struct Line {
     text: String,
 }
 
-/// Build a snapshot of `html`, issuing refs in `table` for page `page`.
+/// Build a snapshot of `doc`, issuing refs in `table` for page `page`.
 /// With `focus`, only the subtree of the element matching that selector is
 /// rendered.
 pub fn build_snapshot(
-    html: &str,
+    doc: &Document,
     page: &str,
     table: &mut RefTable,
     options: SnapshotOptions,
     focus: Option<&str>,
 ) -> Result<Snapshot, String> {
     table.enter_page(page);
-    let doc = Html::parse_document(html);
 
     let root = match focus {
-        Some(selector) => {
-            let sel =
-                Selector::parse(selector).map_err(|_| "invalid focus selector".to_string())?;
-            doc.select(&sel)
-                .next()
-                .ok_or_else(|| "focus element not found".to_string())?
-        }
-        None => doc.root_element(),
+        Some(selector) => doc
+            .query_selector(doc.document(), selector)
+            .map_err(|_| "invalid focus selector".to_string())?
+            .ok_or_else(|| "focus element not found".to_string())?,
+        None => match doc.document_element() {
+            Some(root) => root,
+            None => return Ok(render(Vec::new(), options.max_tokens.saturating_mul(4))),
+        },
     };
 
     let mut lines = Vec::new();
-    walk(root, &doc, 0, table, options, &mut lines);
+    walk(root, doc, 0, table, options, &mut lines);
     Ok(render(lines, options.max_tokens.saturating_mul(4)))
 }
 
 fn walk(
-    el: ElementRef,
-    doc: &Html,
+    el: NodeId,
+    doc: &Document,
     depth: usize,
     table: &mut RefTable,
     options: SnapshotOptions,
     lines: &mut Vec<Line>,
 ) {
-    let tag = el.value().name();
-    if SKIP_TAGS.contains(&tag) || is_hidden(&el) {
+    let Some(data) = doc.as_element(el) else {
+        return;
+    };
+    let tag = &**data.local_name();
+    if SKIP_TAGS.contains(&tag) || is_hidden(doc, el) {
         return;
     }
-    let attrs: HashMap<&str, &str> = el.value().attrs().collect();
+    let attrs = attr_map(doc, el);
     let role = attrs
         .get("role")
         .copied()
@@ -237,17 +235,17 @@ fn walk(
     if interactive || structural {
         let role_label = role.unwrap_or(if interactive { "generic" } else { tag });
         let mut line = format!("- {role_label}");
-        let mut name = clean(&compute_accessible_name(&el, doc), MAX_NAME_CHARS);
+        let mut name = clean(&compute_accessible_name(doc, el), MAX_NAME_CHARS);
         if name.is_empty() && interactive && !matches!(tag, "input" | "select" | "textarea") {
             // e.g. <div role="button">Save</div>: fall back to the text content
-            name = clean(&el.text().collect::<String>(), MAX_NAME_CHARS);
+            name = clean(&text_of(doc, el), MAX_NAME_CHARS);
         }
         if !name.is_empty() {
             line.push_str(&format!(" \"{name}\""));
         }
-        line.push_str(&describe(tag, &attrs, &el));
+        line.push_str(&describe(tag, &attrs, doc, el));
         if interactive {
-            let r = table.ref_for(&css_path(el), tag);
+            let r = table.ref_for(&css_path(doc, el), tag);
             line.push_str(&format!(" [ref={r}]"));
         }
         lines.push(Line {
@@ -264,10 +262,7 @@ fn walk(
             return;
         }
     } else if !options.interactive_only && TEXT_TAGS.contains(&tag) {
-        let own_text: String = el
-            .children()
-            .filter_map(|c| c.value().as_text().map(|t| t.to_string()))
-            .collect();
+        let own_text = doc.child_text_content(el).unwrap_or_default();
         let text = clean(&own_text, MAX_TEXT_CHARS);
         if !text.is_empty() {
             lines.push(Line {
@@ -278,17 +273,23 @@ fn walk(
         }
     }
 
-    for child in el.children().filter_map(ElementRef::wrap) {
+    let children: Vec<NodeId> = match doc.element_children(el) {
+        Ok(children) => children.collect(),
+        Err(_) => return,
+    };
+    for child in children {
         walk(child, doc, child_depth, table, options, lines);
     }
 }
 
-fn is_hidden(el: &ElementRef) -> bool {
-    let v = el.value();
-    if v.attr("hidden").is_some() || v.attr("aria-hidden") == Some("true") {
+fn is_hidden(doc: &Document, el: NodeId) -> bool {
+    let Some(v) = doc.as_element(el) else {
+        return false;
+    };
+    if v.has_attr("hidden") || v.attr("aria-hidden") == Some("true") {
         return true;
     }
-    if v.name() == "input"
+    if &**v.local_name() == "input"
         && v.attr("type")
             .is_some_and(|t| t.eq_ignore_ascii_case("hidden"))
     {
@@ -346,7 +347,7 @@ fn is_interactive(tag: &str, attrs: &HashMap<&str, &str>, role: Option<&str>) ->
 }
 
 /// Extra state shown after the name: level, input type, value, checked, …
-fn describe(tag: &str, attrs: &HashMap<&str, &str>, el: &ElementRef) -> String {
+fn describe(tag: &str, attrs: &HashMap<&str, &str>, doc: &Document, el: NodeId) -> String {
     let mut out = String::new();
     if let Some(level) = heading_level(tag) {
         out.push_str(&format!(" [level={level}]"));
@@ -376,14 +377,22 @@ fn describe(tag: &str, attrs: &HashMap<&str, &str>, el: &ElementRef) -> String {
         }
     }
     if tag == "select" {
-        let option_selector = Selector::parse("option").expect("valid selector");
-        let options: Vec<_> = el.select(&option_selector).collect();
+        let options: Vec<NodeId> = doc
+            .descendant_elements(el)
+            .map(|it| {
+                it.filter(|&o| {
+                    doc.as_element(o)
+                        .is_some_and(|o| &**o.local_name() == "option")
+                })
+                .collect()
+            })
+            .unwrap_or_default();
         let chosen = options
             .iter()
-            .find(|o| o.value().attr("selected").is_some())
+            .find(|&&o| doc.as_element(o).is_some_and(|o| o.has_attr("selected")))
             .or(options.first());
-        if let Some(chosen) = chosen {
-            let text: String = chosen.text().collect();
+        if let Some(&chosen) = chosen {
+            let text = text_of(doc, chosen);
             out.push_str(&format!(" value=\"{}\"", clean(&text, 60)));
         }
         out.push_str(&format!(" ({} options)", options.len()));
@@ -429,18 +438,21 @@ fn clean(text: &str, max: usize) -> String {
 }
 
 /// Exact structural selector: `html > body:nth-child(2) > div:nth-child(1) …`.
-fn css_path(el: ElementRef) -> String {
+fn css_path(doc: &Document, el: NodeId) -> String {
     let mut parts = Vec::new();
     let mut current = Some(el);
     while let Some(e) = current {
-        let tag = e.value().name();
-        let parent = e.parent().and_then(ElementRef::wrap);
+        let Some(data) = doc.as_element(e) else {
+            break;
+        };
+        let tag = &**data.local_name();
+        let parent = doc.parent_element(e).ok().flatten();
         match parent {
             Some(p) => {
-                let index = p
-                    .children()
-                    .filter_map(ElementRef::wrap)
-                    .position(|c| c == e)
+                let index = doc
+                    .element_children(p)
+                    .ok()
+                    .and_then(|mut children| children.position(|c| c == e))
                     .map_or(1, |i| i + 1);
                 parts.push(format!("{tag}:nth-child({index})"));
             }
@@ -514,29 +526,25 @@ impl super::HeadlessWebBrowser {
         options: SnapshotOptions,
         focus_ref: Option<&str>,
     ) -> anyhow::Result<Snapshot> {
-        if self.current_content.is_empty() {
+        if self.page.is_empty() {
             return Err(anyhow::anyhow!("No page loaded. Navigate to a page first."));
         }
-        let page = page_key(self.current_url.as_deref(), &self.current_content);
+        let page = self.page.version_key();
         let focus = match focus_ref {
             Some(r) => Some(self.resolve_ref(r)?),
             None => None,
         };
-        build_snapshot(
-            &self.current_content,
-            &page,
-            &mut self.snapshot_refs,
-            options,
-            focus.as_deref(),
-        )
-        .map_err(|e| anyhow::anyhow!(e))
+        let refs = &mut self.snapshot_refs;
+        self.page
+            .with_doc(|doc| build_snapshot(doc, &page, refs, options, focus.as_deref()))
+            .map_err(|e| anyhow::anyhow!(e))
     }
 
     /// Resolve a ref from [`snapshot`](Self::snapshot) to a CSS selector.
     pub fn resolve_ref(&self, r: &str) -> anyhow::Result<String> {
-        let page = page_key(self.current_url.as_deref(), &self.current_content);
-        self.snapshot_refs
-            .resolve(&page, r, &self.current_content)
+        let page = self.page.version_key();
+        self.page
+            .with_doc(|doc| self.snapshot_refs.resolve(&page, r, doc))
             .map_err(|e| anyhow::anyhow!(e))
     }
 }
@@ -562,8 +570,12 @@ mod tests {
       <div role="button" tabindex="0">Custom</div>
     </body></html>"#;
 
+    fn page_doc() -> Document {
+        Document::parse_html(PAGE)
+    }
+
     fn snap(table: &mut RefTable, options: SnapshotOptions) -> Snapshot {
-        build_snapshot(PAGE, "page-1", table, options, None).unwrap()
+        build_snapshot(&page_doc(), "page-1", table, options, None).unwrap()
     }
 
     #[test]
@@ -617,22 +629,23 @@ mod tests {
             .find(|l| l.contains("button \"Sign in\""))
             .unwrap();
         let r = line.rsplit("[ref=").next().unwrap().trim_end_matches(']');
-        let selector = table.resolve("page-1", r, PAGE).unwrap();
-        let doc = Html::parse_document(PAGE);
+        let doc = page_doc();
+        let selector = table.resolve("page-1", r, &doc).unwrap();
         let el = doc
-            .select(&Selector::parse(&selector).unwrap())
-            .next()
+            .query_selector(doc.document(), &selector)
+            .unwrap()
             .unwrap();
-        assert_eq!(el.value().name(), "button");
+        assert_eq!(&**doc.as_element(el).unwrap().local_name(), "button");
     }
 
     #[test]
     fn refs_from_another_page_version_are_stale() {
         let mut table = RefTable::default();
         snap(&mut table, SnapshotOptions::default());
-        let err = table.resolve("page-2", "e1", PAGE).unwrap_err();
+        let doc = page_doc();
+        let err = table.resolve("page-2", "e1", &doc).unwrap_err();
         assert!(err.starts_with("stale_ref"), "{err}");
-        let err = table.resolve("page-1", "e999", PAGE).unwrap_err();
+        let err = table.resolve("page-1", "e999", &doc).unwrap_err();
         assert!(err.starts_with("stale_ref"), "{err}");
     }
 
@@ -667,12 +680,5 @@ mod tests {
         assert!(!s.text.contains("- heading"), "{}", s.text);
         assert!(s.text.contains("[ref=e1]"), "{}", s.text);
         assert!(s.text.len() <= 80 * 4 + 120, "{}", s.text);
-    }
-
-    #[test]
-    fn page_key_changes_with_content() {
-        assert_eq!(page_key(Some("u"), "a"), page_key(Some("u"), "a"));
-        assert_ne!(page_key(Some("u"), "a"), page_key(Some("u"), "b"));
-        assert_ne!(page_key(Some("u"), "a"), page_key(Some("v"), "a"));
     }
 }

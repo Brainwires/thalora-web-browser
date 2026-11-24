@@ -57,7 +57,7 @@ impl super::super::HeadlessWebBrowser {
 
     /// Get current page title
     pub fn get_current_title(&self) -> Option<String> {
-        self.extract_title(&self.current_content)
+        self.page_title()
     }
 
     /// Get the current position in history

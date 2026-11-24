@@ -5,9 +5,27 @@
 //! - HTML-AAM: https://www.w3.org/TR/html-aam-1.0/
 //! - Accessible Name Computation: https://www.w3.org/TR/accname-1.2/
 
-use scraper::{ElementRef, Html, Selector};
 use serde_json::{Value, json};
 use std::collections::HashMap;
+use thalora_dom::{Document, NodeId};
+
+/// The attributes of `element` (no-namespace ones by local name) as a map,
+/// the shape [`implicit_role`] takes.
+pub(crate) fn attr_map(doc: &Document, element: NodeId) -> HashMap<&str, &str> {
+    doc.as_element(element)
+        .map(|e| {
+            e.attrs()
+                .iter()
+                .map(|a| (&*a.name.local, a.value.as_str()))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// `textContent` of `node`, or empty.
+pub(crate) fn text_of(doc: &Document, node: NodeId) -> String {
+    doc.text_content(node).ok().flatten().unwrap_or_default()
+}
 
 /// Compute the implicit ARIA role for an HTML element based on its tag and attributes.
 pub(crate) fn implicit_role(tag: &str, attrs: &HashMap<&str, &str>) -> Option<&'static str> {
@@ -97,24 +115,24 @@ pub(crate) fn heading_level(tag: &str) -> Option<u8> {
 }
 
 /// Compute the accessible name for an element per the Accessible Name Computation spec.
-pub(crate) fn compute_accessible_name(element: &ElementRef, doc: &Html) -> String {
+pub(crate) fn compute_accessible_name(doc: &Document, element: NodeId) -> String {
+    let Some(el) = doc.as_element(element) else {
+        return String::new();
+    };
+
     // 1. aria-label takes highest priority
-    if let Some(label) = element.value().attr("aria-label")
+    if let Some(label) = el.attr("aria-label")
         && !label.trim().is_empty()
     {
         return label.trim().to_string();
     }
 
     // 2. aria-labelledby — resolve referenced element IDs
-    if let Some(labelledby) = element.value().attr("aria-labelledby") {
+    if let Some(labelledby) = el.attr("aria-labelledby") {
         let mut parts = Vec::new();
         for id in labelledby.split_whitespace() {
-            let selector_str = format!("#{}", id);
-            if let Ok(sel) = Selector::parse(&selector_str)
-                && let Some(referenced) = doc.select(&sel).next()
-            {
-                let text: String = referenced.text().collect();
-                let text = text.trim().to_string();
+            if let Some(referenced) = doc.get_element_by_id(id) {
+                let text = text_of(doc, referenced).trim().to_string();
                 if !text.is_empty() {
                     parts.push(text);
                 }
@@ -125,47 +143,52 @@ pub(crate) fn compute_accessible_name(element: &ElementRef, doc: &Html) -> Strin
         }
     }
 
-    let tag = element.value().name();
+    let tag = &**el.local_name();
 
     // 3. Element-specific fallbacks
     match tag {
         "img" | "area" => {
-            if let Some(alt) = element.value().attr("alt")
+            if let Some(alt) = el.attr("alt")
                 && !alt.is_empty()
             {
                 return alt.to_string();
             }
-            if let Some(title) = element.value().attr("title") {
+            if let Some(title) = el.attr("title") {
                 return title.to_string();
             }
         }
         "input" | "textarea" | "select" => {
             // Check for associated label
-            if let Some(id) = element.value().attr("id") {
-                let label_sel = format!("label[for=\"{}\"]", id);
-                if let Ok(sel) = Selector::parse(&label_sel)
-                    && let Some(label) = doc.select(&sel).next()
-                {
-                    let text: String = label.text().collect();
-                    let text = text.trim().to_string();
+            if let Some(id) = el.attr("id") {
+                let label = doc
+                    .descendant_elements(doc.document())
+                    .ok()
+                    .and_then(|mut it| {
+                        it.find(|&n| {
+                            doc.as_element(n).is_some_and(|l| {
+                                &**l.local_name() == "label" && l.attr("for") == Some(id)
+                            })
+                        })
+                    });
+                if let Some(label) = label {
+                    let text = text_of(doc, label).trim().to_string();
                     if !text.is_empty() {
                         return text;
                     }
                 }
             }
-            if let Some(placeholder) = element.value().attr("placeholder")
+            if let Some(placeholder) = el.attr("placeholder")
                 && !placeholder.is_empty()
             {
                 return placeholder.to_string();
             }
-            if let Some(title) = element.value().attr("title") {
+            if let Some(title) = el.attr("title") {
                 return title.to_string();
             }
         }
         "a" | "button" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "th" | "caption" | "legend"
         | "summary" | "option" | "label" | "li" | "td" => {
-            let text: String = element.text().collect();
-            let text = text.trim().to_string();
+            let text = text_of(doc, element).trim().to_string();
             if !text.is_empty() {
                 // Truncate long names
                 if text.chars().count() > 200 {
@@ -178,7 +201,7 @@ pub(crate) fn compute_accessible_name(element: &ElementRef, doc: &Html) -> Strin
     }
 
     // 4. title attribute as last resort
-    if let Some(title) = element.value().attr("title")
+    if let Some(title) = el.attr("title")
         && !title.is_empty()
     {
         return title.to_string();
@@ -187,20 +210,23 @@ pub(crate) fn compute_accessible_name(element: &ElementRef, doc: &Html) -> Strin
     String::new()
 }
 
-/// Build an accessibility tree from HTML source.
+/// Build an accessibility tree from a page's document.
 ///
 /// Returns a JSON value representing the tree structure with roles, names, and states.
-pub fn build_accessibility_tree(html: &str, max_depth: usize) -> Value {
-    let doc = Html::parse_document(html);
-    let all = Selector::parse("*").unwrap();
-
+pub fn build_accessibility_tree(doc: &Document, max_depth: usize) -> Value {
     let mut nodes = Vec::new();
 
-    for element in doc.select(&all) {
-        let tag = element.value().name();
+    let Ok(elements) = doc.descendant_elements(doc.document()) else {
+        return json!({ "nodeCount": 0, "nodes": nodes });
+    };
+    for element in elements {
+        let Some(el) = doc.as_element(element) else {
+            continue;
+        };
+        let tag = &**el.local_name();
 
         // Collect attributes
-        let attrs: HashMap<&str, &str> = element.value().attrs().collect();
+        let attrs = attr_map(doc, element);
 
         // Check for explicit role override
         let role = if let Some(explicit_role) = attrs.get("role") {
@@ -226,7 +252,7 @@ pub fn build_accessibility_tree(html: &str, max_depth: usize) -> Value {
             continue;
         }
 
-        let name = compute_accessible_name(&element, &doc);
+        let name = compute_accessible_name(doc, element);
 
         let mut node = json!({
             "role": role,
@@ -313,6 +339,10 @@ pub fn build_accessibility_tree(html: &str, max_depth: usize) -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn build_accessibility_tree(html: &str, max_depth: usize) -> Value {
+        super::build_accessibility_tree(&Document::parse_html(html), max_depth)
+    }
 
     #[test]
     fn test_button_role() {
