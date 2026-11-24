@@ -115,7 +115,7 @@ pub(crate) fn get_brainclaw_alias_tool_definitions() -> Vec<Value> {
         // ── CDP aliases ──────────────────────────────────────────────────────────
         serde_json::json!({
             "name": "browser_eval",
-            "description": "Execute JavaScript in the current page (V8) and return the completion value as JSON. Alias for `cdp_runtime_evaluate`: a promise is not awaited; an uncaught exception, a script timeout and a static page are errors.",
+            "description": "Execute JavaScript in the current page (V8) and return the completion value as JSON. Alias for `cdp_runtime_evaluate`: a returned promise or top-level `await` is awaited (up to 30 s); an uncaught exception, a script timeout and a static page are errors.",
             "inputSchema": {
                 "type": "object",
                 "properties": {

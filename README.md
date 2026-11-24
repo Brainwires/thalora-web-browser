@@ -164,7 +164,7 @@ instead of silently creating a blank session; `"default"` always exists.
 ### JavaScript (`THALORA_ENABLE_CDP`)
 | Tool | Description |
 |------|-------------|
-| `cdp_runtime_evaluate` | Evaluate JavaScript in a session's page (default session `"default"`) and return the completion value as JSON. Promises are not awaited; an uncaught exception or a script running past the timeout is an error |
+| `cdp_runtime_evaluate` | Evaluate JavaScript in a session's page (default session `"default"`) and return the completion value as JSON. A returned promise or top-level `await` is awaited (up to 30 s); an uncaught exception or a script running past the timeout is an error |
 
 On a static page (`THALORA_JS=0`, or a page whose runtime failed to start)
 tools that need script return `JavaScript execution is unavailable: this page

@@ -17,9 +17,8 @@ impl BrowserTools {
     /// The script runs in the page's global scope, on the session's browser
     /// thread, under the script timeout. The result is the completion value
     /// as JSON (`undefined` is `null`, a DOM node is its markup, a value
-    /// JSON cannot express is its string form). A promise is not awaited
-    /// (TODO(a3): the pinned page runtime has no asynchronous evaluation
-    /// yet). An uncaught exception, a timeout and a static page (JavaScript
+    /// JSON cannot express is its string form). A returned promise, or a
+    /// top-level `await`, is awaited for up to 30 s. An uncaught exception, a timeout and a static page (JavaScript
     /// disabled or not started) are errors.
     pub async fn handle_evaluate_javascript(&self, args: Value) -> McpResponse {
         let Some(expression) = args.get("expression").and_then(|v| v.as_str()) else {

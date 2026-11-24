@@ -570,7 +570,7 @@ async fn run_browser_session(
         }
 
         /// Evaluate JavaScript in the current page; the completion value as
-        /// JSON (a promise is not awaited)
+        /// JSON (a returned promise is awaited)
         async fn execute_javascript(&self, code: &str) -> Result<serde_json::Value> {
             let code = code.to_string();
             self.with_browser(move |browser| {

@@ -407,9 +407,23 @@ impl JsPage {
     }
 
     /// Evaluate a script and return its completion value as JSON. A promise
-    /// is not awaited.
+    /// is not awaited (see [`Self::evaluate_json_async`]).
     pub fn evaluate_json(&mut self, source: String) -> Result<serde_json::Value, JsError> {
         self.guarded(|runtime| runtime.evaluate_json(source))
+    }
+
+    /// Evaluate a script and return its completion value as JSON, awaiting
+    /// a returned promise (and a top-level `await`) while the page's event
+    /// loop runs, for at most `budget`.
+    pub async fn evaluate_json_async(
+        &mut self,
+        source: String,
+        budget: Duration,
+    ) -> Result<serde_json::Value, JsError> {
+        let armed = arm(self.isolate.clone(), budget + self.script_timeout);
+        let result = self.runtime.evaluate_json_async(source, budget).await;
+        let timed_out = armed.disarm();
+        result.map_err(|error| self.error(error, timed_out))
     }
 
     /// Click `node` as a user would (events, then the default action).

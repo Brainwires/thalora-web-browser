@@ -27,6 +27,8 @@ const LOAD_IDLE_BUDGET_WAIT_FOR_JS: Duration = Duration::from_millis(5000);
 /// How long the event loop is pumped after an interaction (click, typing,
 /// evaluation) so that handlers' follow-up work shows in the result.
 pub(super) const INTERACTION_SETTLE: Duration = Duration::from_millis(250);
+/// How long `evaluate_javascript` waits for a returned promise to settle.
+pub(super) const EVALUATE_AWAIT_BUDGET: Duration = Duration::from_secs(30);
 /// The slice the event loop is pumped for between two checks of a wait
 /// condition.
 pub(super) const WAIT_POLL: Duration = Duration::from_millis(50);
@@ -863,15 +865,21 @@ impl super::super::HeadlessWebBrowser {
     /// its string form; a DOM node is its markup). Afterwards the event loop
     /// is pumped briefly and navigations the script asked for are performed.
     ///
-    /// A promise is not awaited: the page runtime has no asynchronous
-    /// evaluation yet. TODO(a3): use `evaluate_json_async` once the pinned
-    /// fork revision has it. Until then, store the settled value in a
-    /// global and read it with a second evaluation.
+    /// A returned promise, or a top-level `await`, is awaited for up to
+    /// [`EVALUATE_AWAIT_BUDGET`] while the page's event loop runs.
     pub async fn evaluate_javascript(&mut self, source: &str) -> Result<serde_json::Value> {
         if self.page.is_empty() {
             return Err(anyhow!("No page loaded. Navigate to a page first."));
         }
-        let value = self.with_js(|js| js.evaluate_json(source.to_string()))?;
+        let unavailable = self.js_unavailable();
+        let Some(js) = self.page.js() else {
+            return Err(unavailable);
+        };
+        let result = js
+            .evaluate_json_async(source.to_string(), EVALUATE_AWAIT_BUDGET)
+            .await;
+        self.page.collect_js_output();
+        let value = result?;
         self.settle(INTERACTION_SETTLE).await;
         self.follow_script_navigations().await;
         Ok(value)
@@ -1154,6 +1162,30 @@ mod tests {
             .unwrap();
         thread.shutdown_blocking();
         assert!(html.contains("timer fired"), "{html}");
+    }
+
+    #[test]
+    fn evaluation_awaits_promises() {
+        let (returned, awaited) = on_browser_thread(|browser| {
+            async move {
+                load(&browser, r#"<p id="p">hello</p>"#).await;
+                let mut b = browser.lock().unwrap();
+                let returned = b
+                    .evaluate_javascript("new Promise((resolve) => setTimeout(() => resolve({ n: 7 }), 10))")
+                    .await
+                    .unwrap();
+                let awaited = b
+                    .evaluate_javascript(
+                        "await new Promise((resolve) => setTimeout(resolve, 10)); return document.getElementById('p').textContent",
+                    )
+                    .await
+                    .unwrap();
+                (returned, awaited)
+            }
+            .boxed_local()
+        });
+        assert_eq!(returned, serde_json::json!({ "n": 7 }));
+        assert_eq!(awaited, serde_json::json!("hello"));
     }
 
     #[test]
