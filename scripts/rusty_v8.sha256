@@ -1,0 +1,24 @@
+# Copied verbatim from Brainwires/deno (branch development-denext),
+# .github/denext-runtime/rusty_v8.sha256 at 216c1a6e8eb369acac0a4d350fd80e42aae10b5d.
+# Read by scripts/fetch_rusty_v8.py. When the fork bumps V8, copy the fork's
+# file again in the same Thalora commit that bumps [patch.crates-io] `v8`.
+# The prebuilt V8 for the `v8` crate (Cargo.toml's [patch.crates-io]), read by
+# fetch_rusty_v8.py (DENEXT.md item 162). One `<sha256>  <file>` line per
+# release asset: the static library archive and the bindgen output for each of
+# the six release targets. The lines are the release's own SHA256SUMS, checked
+# again with `gh attestation verify <file> -R Brainwires/rusty_v8`; a V8 bump
+# changes the tag and every line in the same commit as Cargo.toml's rev.
+# repo: Brainwires/rusty_v8
+# tag: v156.0.0-denext.6
+62777aade1446cd5add5b3b1d622e3c8140cb42b078e9bb7a18a614449b45fa3  librusty_v8_release_aarch64-apple-darwin.a.gz
+ab915dab032a58227fe411f057193e9b0615174075aa760cb2e9cf744e46084c  librusty_v8_release_aarch64-unknown-linux-gnu.a.gz
+d7b730548be4c4f4853d5961830beb8d8e431e8ca02fc78309157f05d8e39f43  librusty_v8_release_x86_64-apple-darwin.a.gz
+30d48b5979f0277e29ac2e7a6e4082a947406c28912b9840efb5ce7d0ec481a4  librusty_v8_release_x86_64-unknown-linux-gnu.a.gz
+a70cc5adcb2485e51902cc1d90e78dd2fd4831c69eb281c044a7a585d8dca7ab  rusty_v8_release_aarch64-pc-windows-msvc.lib.gz
+d1688802ca225f7ea80881d0a29f4d9c90992f99c84372f880378b24e99b011d  rusty_v8_release_x86_64-pc-windows-msvc.lib.gz
+4111dcffa08d6b7484bca2665264b65d16b6e8a220091e967ab86452e72d53ee  src_binding_release_aarch64-apple-darwin.rs
+890f8580a7919297998b18689bf679e9f3619302da00a139723a864b57839ac5  src_binding_release_aarch64-pc-windows-msvc.rs
+0ee4ca1d40ef2f9d42fe065542ea075bd0141ad024b91d7ded917aa9cf6d8b31  src_binding_release_aarch64-unknown-linux-gnu.rs
+4111dcffa08d6b7484bca2665264b65d16b6e8a220091e967ab86452e72d53ee  src_binding_release_x86_64-apple-darwin.rs
+890f8580a7919297998b18689bf679e9f3619302da00a139723a864b57839ac5  src_binding_release_x86_64-pc-windows-msvc.rs
+0ee4ca1d40ef2f9d42fe065542ea075bd0141ad024b91d7ded917aa9cf6d8b31  src_binding_release_x86_64-unknown-linux-gnu.rs

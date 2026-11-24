@@ -38,6 +38,13 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Install system dependencies
         run: sudo apt-get update && sudo apt-get install -y libssl-dev pkg-config clang libclang-dev
+      # Prebuilt V8 (Brainwires/rusty_v8) for the `v8` crate, verified against
+      # scripts/rusty_v8.sha256 and handed to its build script via $GITHUB_ENV.
+      # Runs ahead of the fork dependency (docs/A3_V8_LINK_NOTES.md): until
+      # Cargo.lock has a `v8` package it only downloads and verifies (~41 MB).
+      # The files go to RUNNER_TEMP so rust-cache does not store them.
+      - name: Fetch prebuilt V8
+        run: python3 scripts/fetch_rusty_v8.py --dest "$RUNNER_TEMP/rusty_v8" --seed-dir target/debug --github-env
       - name: Check workspace
         run: cargo check --workspace
       - name: Check workspace (test-hooks)
@@ -55,6 +62,13 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Install system dependencies
         run: sudo apt-get update && sudo apt-get install -y libssl-dev pkg-config clang libclang-dev
+      # Prebuilt V8 (Brainwires/rusty_v8) for the `v8` crate, verified against
+      # scripts/rusty_v8.sha256 and handed to its build script via $GITHUB_ENV.
+      # Runs ahead of the fork dependency (docs/A3_V8_LINK_NOTES.md): until
+      # Cargo.lock has a `v8` package it only downloads and verifies (~41 MB).
+      # The files go to RUNNER_TEMP so rust-cache does not store them.
+      - name: Fetch prebuilt V8
+        run: python3 scripts/fetch_rusty_v8.py --dest "$RUNNER_TEMP/rusty_v8" --seed-dir target/debug --github-env
       - name: Clippy workspace
         run: cargo clippy --workspace
 
@@ -81,6 +95,13 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Install system dependencies
         run: sudo apt-get update && sudo apt-get install -y libssl-dev pkg-config clang libclang-dev
+      # Prebuilt V8 (Brainwires/rusty_v8) for the `v8` crate, verified against
+      # scripts/rusty_v8.sha256 and handed to its build script via $GITHUB_ENV.
+      # Runs ahead of the fork dependency (docs/A3_V8_LINK_NOTES.md): until
+      # Cargo.lock has a `v8` package it only downloads and verifies (~41 MB).
+      # The files go to RUNNER_TEMP so rust-cache does not store them.
+      - name: Fetch prebuilt V8
+        run: python3 scripts/fetch_rusty_v8.py --dest "$RUNNER_TEMP/rusty_v8" --seed-dir target/debug --github-env
       - name: Build binary for MCP harness tests
         run: cargo build --bin thalora
       - name: Test workspace
@@ -98,6 +119,13 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Install system dependencies
         run: sudo apt-get update && sudo apt-get install -y libssl-dev pkg-config clang libclang-dev
+      # Prebuilt V8 (Brainwires/rusty_v8) for the `v8` crate, verified against
+      # scripts/rusty_v8.sha256 and handed to its build script via $GITHUB_ENV.
+      # Runs ahead of the fork dependency (docs/A3_V8_LINK_NOTES.md): until
+      # Cargo.lock has a `v8` package it only downloads and verifies (~41 MB).
+      # The files go to RUNNER_TEMP so rust-cache does not store them.
+      - name: Fetch prebuilt V8
+        run: python3 scripts/fetch_rusty_v8.py --dest "$RUNNER_TEMP/rusty_v8" --seed-dir target/debug --github-env
       - name: Doc workspace
         run: cargo doc --workspace --no-deps
 

@@ -33,12 +33,13 @@ pub(crate) async fn navigate_and_read(
                 let mut guard = browser
                     .lock()
                     .map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
+                // The response body as fetched (TODO(a3): read the live
+                // document once scripts run)
                 if full_load {
-                    guard.navigate_to_with_js_option(&url, true, true).await?;
+                    guard.navigate_to_with_js_option(&url, true, true).await
                 } else {
-                    guard.navigate_to_with_options(&url, true).await?;
+                    guard.navigate_to_with_options(&url, true).await
                 }
-                Ok::<String, anyhow::Error>(guard.get_current_content())
             }
             .boxed_local()
         })

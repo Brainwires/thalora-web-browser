@@ -2,7 +2,7 @@ use crate::engine::browser::scraper::WebScraper;
 use crate::engine::browser::types::{
     AuthContext, BrowserStorage, HistoryEntry, NavigationHistory, NavigationMode, ResourceCache,
 };
-use crate::engine::browser::{FormAnalyzer, FormInfo};
+use crate::engine::browser::{FormAnalyzer, FormInfo, PageDom};
 use anyhow::Result;
 use reqwest::header::{
     ACCEPT, ACCEPT_ENCODING, ACCEPT_LANGUAGE, HeaderMap, HeaderValue, REFERER,
@@ -18,8 +18,8 @@ use std::time::Instant;
 pub struct HeadlessWebBrowser {
     pub(super) client: reqwest::Client,
     pub(super) cookie_store: Arc<CookieStoreMutex>,
-    pub(super) current_url: Option<String>,
-    pub(super) current_content: String,
+    /// The current page: its live document and URL.
+    pub(super) page: PageDom,
     pub(super) auth_context: AuthContext,
     pub(super) storage: BrowserStorage,
     pub(super) history: NavigationHistory,
@@ -44,10 +44,6 @@ pub struct HeadlessWebBrowser {
     pub(super) referrer_policy: Option<String>,
     /// X-Content-Type-Options nosniff flag for the current page
     pub(super) nosniff: bool,
-    /// Field values typed via `type_text_into_element`, keyed by field name,
-    /// for the page at `filled_values_url`; merged into `submit_form`.
-    pub(super) filled_values: HashMap<String, String>,
-    pub(super) filled_values_url: Option<String>,
     /// Element refs issued by the last `snapshot()` of this page.
     pub(super) snapshot_refs: super::snapshot::RefTable,
 }
@@ -99,8 +95,7 @@ impl HeadlessWebBrowser {
         let browser = Self {
             client,
             cookie_store,
-            current_url: None,
-            current_content: String::new(),
+            page: PageDom::new(),
             auth_context,
             storage,
             history,
@@ -116,8 +111,6 @@ impl HeadlessWebBrowser {
             hsts_store: super::navigation::hsts::HstsStore::new(),
             referrer_policy: None,
             nosniff: false,
-            filled_values: HashMap::new(),
-            filled_values_url: None,
             snapshot_refs: Default::default(),
         };
 
@@ -125,11 +118,20 @@ impl HeadlessWebBrowser {
     }
 
     pub fn get_current_url(&self) -> Option<String> {
-        self.current_url.clone()
+        self.page.url().map(str::to_string)
     }
 
+    /// The current page serialized as HTML (empty if no page is loaded).
+    /// Reflects static form interaction (typed values, checked boxes,
+    /// selected options); never includes filled secrets.
     pub fn get_current_content(&self) -> String {
-        self.current_content.clone()
+        self.page.to_html()
+    }
+
+    /// The current page's live document. Read it on the browser thread with
+    /// [`PageDom::with_doc`] instead of serializing it where possible.
+    pub fn page(&self) -> &PageDom {
+        &self.page
     }
 
     pub fn get_history(&self) -> &NavigationHistory {
@@ -181,8 +183,11 @@ impl HeadlessWebBrowser {
 
     /// Find form information by submit button selector
     pub fn find_form_by_submit_button(&self, button_selector: &str) -> Option<FormInfo> {
-        self.form_analyzer
-            .find_form_by_submit_button(&self.current_content, button_selector)
+        self.page
+            .with_doc(|doc| {
+                self.form_analyzer
+                    .find_form_by_submit_button(doc, button_selector)
+            })
             .ok()
             .flatten()
     }
@@ -225,11 +230,13 @@ impl HeadlessWebBrowser {
         &mut self,
         options: crate::engine::renderer::paint::ScreenshotOptions,
     ) -> Result<Vec<u8>> {
-        if self.current_content.is_empty() {
+        if self.page.is_empty() {
             return Err(anyhow::anyhow!("No page loaded. Navigate to a page first."));
         }
+        // TODO(a3): the layout engine still parses HTML with scraper, so it
+        // gets the serialized live document.
         let layout = crate::engine::renderer::page_layout::compute_page_layout_with_css(
-            &self.current_content,
+            &self.page.to_html(),
             options.width as f32,
             options.height as f32,
             &self.external_stylesheets,
@@ -290,7 +297,7 @@ impl HeadlessWebBrowser {
         headers.insert("te", HeaderValue::from_static("trailers"));
 
         // Apply Referrer-Policy when setting Referer header
-        if let Some(ref current_url) = self.current_url {
+        if let Some(current_url) = self.page.url() {
             let referer = match self.referrer_policy.as_deref() {
                 Some("no-referrer") => None,
                 Some("origin") => {
@@ -311,7 +318,7 @@ impl HeadlessWebBrowser {
                         })
                         .unwrap_or(false);
                     if same_origin {
-                        Some(current_url.clone())
+                        Some(current_url.to_string())
                     } else {
                         None
                     }
@@ -348,7 +355,7 @@ impl HeadlessWebBrowser {
                             })
                             .unwrap_or(false);
                         if same_origin {
-                            Some(current_url.clone())
+                            Some(current_url.to_string())
                         } else {
                             url::Url::parse(current_url).ok().map(|u| {
                                 format!("{}://{}/", u.scheme(), u.host_str().unwrap_or(""))
@@ -356,7 +363,7 @@ impl HeadlessWebBrowser {
                         }
                     }
                 }
-                _ => Some(current_url.clone()), // unsafe-url or unknown: send full URL
+                _ => Some(current_url.to_string()), // unsafe-url or unknown: send full URL
             };
 
             if let Some(ref referer_value) = referer
@@ -373,7 +380,7 @@ impl HeadlessWebBrowser {
 impl Drop for HeadlessWebBrowser {
     fn drop(&mut self) {
         // Log cleanup for debugging
-        if let Some(url) = &self.current_url {
+        if let Some(url) = self.page.url() {
             eprintln!("🧹 Cleaning up browser for URL: {}", url);
         } else {
             eprintln!("🧹 Cleaning up unused browser instance");
@@ -392,8 +399,7 @@ impl Drop for HeadlessWebBrowser {
         self.auth_context.csrf_tokens.clear();
 
         // Clear content
-        self.current_content.clear();
-        self.current_url = None;
+        self.page.clear();
         self.external_stylesheets.clear();
         self.resource_cache.clear();
 

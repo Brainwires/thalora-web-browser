@@ -35,9 +35,11 @@ tokio = { version = "1", features = ["full"], optional = true }
 # HTTP client (native only)
 reqwest = { version = "0.12", features = ["json", "rustls-tls-native-roots", "gzip", "brotli", "deflate", "cookies", "http2", "stream", "multipart", "blocking"], default-features = false, optional = true }
 
-# HTML parsing
+# HTML parsing. The current page is a live `thalora-dom` document; scraper
+# is still used by the layout engine, readability and the search/extraction
+# parsers that read serialized HTML (TODO(a3): move them to thalora-dom).
+thalora-dom = { path = "crates/thalora-dom" }
 scraper = "0.24"
-html5ever = "0.27"
 kuchikiki = "0.8"
 
 # CSS parsing and layout

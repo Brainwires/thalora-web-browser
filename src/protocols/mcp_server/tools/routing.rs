@@ -121,20 +121,26 @@ impl McpServer {
                     Ok(browser) => browser,
                     Err(e) => return McpResponse::error(-32602, e),
                 };
-                match crate::protocols::browser_tools::core::page_state(&browser).await {
-                    Ok((page_url, content)) => {
-                        if content.is_empty() {
-                            McpResponse::error(
-                                -1,
-                                "No page content available. Navigate to a page first.".to_string(),
-                            )
-                        } else {
-                            let tree =
+                // Built from the live document on the browser thread
+                let tree =
+                    crate::protocols::browser_tools::core::with_page(&browser, move |page| {
+                        (!page.is_empty()).then(|| {
+                            let tree = page.with_doc(|doc| {
                                 crate::engine::browser::accessibility::build_accessibility_tree(
-                                    &content, max_depth,
-                                );
-                            McpResponse::page_content(page_url.as_deref(), tree)
-                        }
+                                    doc, max_depth,
+                                )
+                            });
+                            (page.url().map(str::to_string), tree)
+                        })
+                    })
+                    .await;
+                match tree {
+                    Ok(None) => McpResponse::error(
+                        -1,
+                        "No page content available. Navigate to a page first.".to_string(),
+                    ),
+                    Ok(Some((page_url, tree))) => {
+                        McpResponse::page_content(page_url.as_deref(), tree)
                     }
                     Err(e) => McpResponse::error(-1, e),
                 }

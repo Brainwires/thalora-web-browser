@@ -30,8 +30,17 @@ impl BrowserTools {
             .and_then(|v| v.as_u64())
             .map_or(DEFAULT_MAX_LENGTH, |n| n.clamp(500, 2_000_000) as usize);
 
-        match crate::protocols::browser_tools::core::page_state(&browser).await {
-            Ok((url, html)) => {
+        // Text and HTML are computed from the live document on the browser
+        // thread; only the strings come back.
+        let page = crate::protocols::browser_tools::core::with_page(&browser, move |page| {
+            let text = include_text
+                .then(|| page.with_doc(crate::engine::browser::page_text::visible_text));
+            let html = include_html.then(|| page.to_html());
+            (page.url().map(str::to_string), text, html)
+        })
+        .await;
+        match page {
+            Ok((url, text, html)) => {
                 let mut truncated = false;
                 let mut limit = |text: String| {
                     if text.len() > max_length {
@@ -44,12 +53,10 @@ impl BrowserTools {
                     }
                 };
                 let mut body = json!({"url": url, "session_id": session_id});
-                if include_text {
-                    body["text"] = json!(limit(crate::engine::browser::page_text::visible_text(
-                        &html
-                    )));
+                if let Some(text) = text {
+                    body["text"] = json!(limit(text));
                 }
-                if include_html {
+                if let Some(html) = html {
                     body["html"] = json!(limit(html));
                 }
                 body["truncated"] = json!(truncated);

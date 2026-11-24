@@ -587,6 +587,58 @@ impl Document {
         })
     }
 
+    /// The "child text content" of a node (DOM Standard): the concatenated
+    /// data of its `Text` children, in order. Unlike
+    /// [`text_content`](Self::text_content) it ignores text in descendant
+    /// elements. Empty for nodes without text children.
+    pub fn child_text_content(&self, id: NodeId) -> DomResult<String> {
+        let mut out = String::new();
+        for c in self.children(id)? {
+            if let NodeData::Text(s) = &self.node(c.index).data {
+                out.push_str(s);
+            }
+        }
+        Ok(out)
+    }
+
+    /// The data of the `Text` descendants of `id`, in tree order (the pieces
+    /// [`text_content`](Self::text_content) concatenates; template contents
+    /// excluded). Useful when the pieces should be joined with a separator.
+    pub fn descendant_texts(&self, id: NodeId) -> DomResult<impl Iterator<Item = &str> + '_> {
+        Ok(self
+            .descendants(id)?
+            .filter_map(|n| match &self.node(n.index).data {
+                NodeData::Text(s) => Some(s.as_str()),
+                _ => None,
+            }))
+    }
+
+    // ----- element conveniences ------------------------------------------------
+
+    /// The element data of `id` if it names a live element, `None`
+    /// otherwise (stale ids and non-element nodes alike). A non-failing
+    /// variant of [`element_data`](Self::element_data) for read-only walks.
+    pub fn as_element(&self, id: NodeId) -> Option<&ElementData> {
+        self.element_data(id).ok()
+    }
+
+    /// The descendant elements of `id` in tree order, excluding `id`
+    /// itself (template contents excluded, as for
+    /// [`descendants`](Self::descendants)).
+    pub fn descendant_elements(&self, id: NodeId) -> DomResult<impl Iterator<Item = NodeId> + '_> {
+        Ok(self
+            .descendants(id)?
+            .filter(|&n| self.node(n.index).data.is_element()))
+    }
+
+    /// The ancestor elements of `id`, nearest first, excluding `id` itself
+    /// (stops at the document or fragment root).
+    pub fn ancestor_elements(&self, id: NodeId) -> DomResult<impl Iterator<Item = NodeId> + '_> {
+        Ok(self
+            .ancestors(id)?
+            .take_while(|&n| self.node(n.index).data.is_element()))
+    }
+
     // ----- node creation ------------------------------------------------------
 
     /// `document.createElement`: an HTML element; the name is validated and

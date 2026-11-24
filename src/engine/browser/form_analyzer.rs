@@ -1,6 +1,6 @@
 use anyhow::Result;
-use scraper::{Html, Selector};
 use serde::{Deserialize, Serialize};
+use thalora_dom::{Document, NodeId};
 use url::Url;
 
 /// Information about a form that may open new windows
@@ -45,14 +45,16 @@ impl FormAnalyzer {
         self
     }
 
-    /// Analyze HTML content and extract form information
-    pub fn analyze_forms(&self, html_content: &str) -> Result<Vec<FormInfo>> {
-        let document = Html::parse_document(html_content);
-        let form_selector = Selector::parse("form").unwrap();
+    /// Analyze a page's document and extract form information
+    pub fn analyze_forms(&self, document: &Document) -> Result<Vec<FormInfo>> {
         let mut forms = Vec::new();
 
-        for (index, form_element) in document.select(&form_selector).enumerate() {
-            let form_info = self.extract_form_info(form_element, index, &document)?;
+        for (index, form_element) in document
+            .query_selector_all(document.document(), "form")?
+            .into_iter()
+            .enumerate()
+        {
+            let form_info = self.extract_form_info(document, form_element, index)?;
             forms.push(form_info);
         }
 
@@ -62,40 +64,30 @@ impl FormAnalyzer {
     /// Extract detailed information from a single form element
     fn extract_form_info(
         &self,
-        form_element: scraper::ElementRef,
+        document: &Document,
+        form_element: NodeId,
         form_index: usize,
-        document: &Html,
     ) -> Result<FormInfo> {
+        let form = document.element_data(form_element)?;
+
         // Extract form attributes
-        let action = form_element
-            .value()
-            .attr("action")
-            .unwrap_or("")
-            .to_string();
+        let action = form.attr("action").unwrap_or("").to_string();
 
-        let target = form_element
-            .value()
-            .attr("target")
-            .unwrap_or("_self")
-            .to_string();
+        let target = form.attr("target").unwrap_or("_self").to_string();
 
-        let method = form_element
-            .value()
-            .attr("method")
-            .unwrap_or("GET")
-            .to_uppercase();
+        let method = form.attr("method").unwrap_or("GET").to_uppercase();
 
         // Create a selector for this specific form
-        let selector = if let Some(id) = form_element.value().attr("id") {
+        let selector = if let Some(id) = form.attr("id") {
             format!("form#{}", id)
-        } else if let Some(name) = form_element.value().attr("name") {
+        } else if let Some(name) = form.attr("name") {
             format!("form[name='{}']", name)
         } else {
             format!("form:nth-of-type({})", form_index + 1)
         };
 
         // Find submit buttons within this form
-        let submit_buttons = self.find_submit_buttons(form_element)?;
+        let submit_buttons = self.find_submit_buttons(document, form_element)?;
 
         // Determine if this form opens a new window
         let opens_new_window = target == "_blank" || target == "_new";
@@ -119,21 +111,27 @@ impl FormAnalyzer {
     }
 
     /// Find all submit buttons within a form
-    fn find_submit_buttons(&self, form_element: scraper::ElementRef) -> Result<Vec<String>> {
-        let submit_selector =
-            Selector::parse(r#"input[type="submit"], button[type="submit"], button:not([type])"#)
-                .unwrap();
+    fn find_submit_buttons(
+        &self,
+        document: &Document,
+        form_element: NodeId,
+    ) -> Result<Vec<String>> {
         let mut buttons = Vec::new();
 
-        for (index, button_element) in form_element.select(&submit_selector).enumerate() {
-            let button_selector = if let Some(id) = button_element.value().attr("id") {
+        let submit_buttons = document.query_selector_all(
+            form_element,
+            r#"input[type="submit"], button[type="submit"], button:not([type])"#,
+        )?;
+        for (index, button) in submit_buttons.into_iter().enumerate() {
+            let button_element = document.element_data(button)?;
+            let button_selector = if let Some(id) = button_element.attr("id") {
                 format!("#{}", id)
-            } else if let Some(name) = button_element.value().attr("name") {
+            } else if let Some(name) = button_element.attr("name") {
                 format!(r#"input[name="{}"]"#, name)
             } else {
                 // Create a selector based on button position and type
-                let tag_name = button_element.value().name();
-                let type_attr = button_element.value().attr("type").unwrap_or("submit");
+                let tag_name = button_element.local_name();
+                let type_attr = button_element.attr("type").unwrap_or("submit");
                 format!(
                     r#"{}[type="{}"]:nth-of-type({})"#,
                     tag_name,
@@ -175,8 +173,8 @@ impl FormAnalyzer {
     }
 
     /// Get forms that will open new windows
-    pub fn get_new_window_forms(&self, html_content: &str) -> Result<Vec<FormInfo>> {
-        let all_forms = self.analyze_forms(html_content)?;
+    pub fn get_new_window_forms(&self, document: &Document) -> Result<Vec<FormInfo>> {
+        let all_forms = self.analyze_forms(document)?;
         Ok(all_forms
             .into_iter()
             .filter(|form| form.opens_new_window)
@@ -186,10 +184,10 @@ impl FormAnalyzer {
     /// Find form information by submit button selector
     pub fn find_form_by_submit_button(
         &self,
-        html_content: &str,
+        document: &Document,
         button_selector: &str,
     ) -> Result<Option<FormInfo>> {
-        let all_forms = self.analyze_forms(html_content)?;
+        let all_forms = self.analyze_forms(document)?;
 
         for form in all_forms {
             for submit_button in &form.submit_buttons {
@@ -224,7 +222,7 @@ mod tests {
 
         let analyzer = FormAnalyzer::new()
             .with_base_url("https://www.twologs.com/en/resources/formtest.asp".to_string());
-        let forms = analyzer.analyze_forms(html).unwrap();
+        let forms = analyzer.analyze_forms(&Document::parse_html(html)).unwrap();
 
         assert_eq!(forms.len(), 1);
         let form = &forms[0];
@@ -249,7 +247,7 @@ mod tests {
 
         let analyzer = FormAnalyzer::new();
         let form = analyzer
-            .find_form_by_submit_button(html, r#"input[name="continue"]"#)
+            .find_form_by_submit_button(&Document::parse_html(html), r#"input[name="continue"]"#)
             .unwrap();
 
         assert!(form.is_some());

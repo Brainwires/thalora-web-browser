@@ -30,7 +30,9 @@ where
         .unwrap_or_else(|e| McpResponse::error(-1, format!("Browser session failed: {}", e)))
 }
 
-/// Current URL and HTML content of a session's page.
+/// Current URL and HTML content (the live document, serialized on the
+/// browser thread) of a session's page, for callers that need the HTML
+/// itself or hand it to string-based parsers.
 pub(crate) async fn page_state(
     browser: &SessionBrowser,
 ) -> Result<(Option<String>, String), String> {
@@ -40,6 +42,31 @@ pub(crate) async fn page_state(
             async move {
                 match browser.lock() {
                     Ok(guard) => Ok((guard.get_current_url(), guard.get_current_content())),
+                    Err(_) => Err("Failed to acquire browser lock".to_string()),
+                }
+            }
+            .boxed_local()
+        })
+        .await
+        .map_err(|e| format!("Browser session failed: {}", e))?
+}
+
+/// Run `f` on the session's browser thread with the current page's live
+/// document and return what it computes. Prefer this over [`page_state`]
+/// when the caller only needs something derived from the page (text, a
+/// tree, a count): the document never leaves its thread and nothing is
+/// serialized.
+pub(crate) async fn with_page<R, F>(browser: &SessionBrowser, f: F) -> Result<R, String>
+where
+    R: Send + 'static,
+    F: FnOnce(&crate::engine::browser::PageDom) -> R + Send + 'static,
+{
+    use futures::FutureExt;
+    browser
+        .call(|browser| {
+            async move {
+                match browser.lock() {
+                    Ok(guard) => Ok(f(guard.page())),
                     Err(_) => Err("Failed to acquire browser lock".to_string()),
                 }
             }

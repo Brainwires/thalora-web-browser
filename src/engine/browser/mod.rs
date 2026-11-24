@@ -7,6 +7,7 @@ pub mod core;
 
 pub mod form_analyzer;
 pub mod navigation;
+pub mod page_dom;
 pub mod page_text;
 pub mod scraper;
 pub mod snapshot;
@@ -28,3 +29,4 @@ pub mod session_thread;
 pub use session_thread::BrowserThread;
 
 pub use form_analyzer::{FormAnalyzer, FormInfo};
+pub use page_dom::PageDom;

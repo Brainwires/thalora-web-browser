@@ -10,7 +10,8 @@ use crate::engine::security::SsrfProtection;
 impl super::super::HeadlessWebBrowser {
     /// Navigate to URL with full control over waiting behavior
     ///
-    /// The page is fetched and its static HTML becomes the current content.
+    /// The page is fetched and parsed into the live document of the current
+    /// page; the raw response body is returned.
     /// There is no JavaScript engine at the moment (Boa was removed, V8 is
     /// not wired in yet), so `wait_for_js` is accepted for compatibility but
     /// page scripts are never executed.
@@ -129,9 +130,8 @@ impl super::super::HeadlessWebBrowser {
 
         let content = response.text().await?;
 
-        // Store the current content and URL
-        self.current_content = content.clone();
-        self.current_url = Some(url.to_string());
+        // Replace the current page with the parsed response
+        self.page.load(Some(url.to_string()), &content);
 
         tracing::debug!("Content length: {} characters", content.len());
 
@@ -168,7 +168,10 @@ impl super::super::HeadlessWebBrowser {
 
         // Analyze forms for target="_blank" detection
         self.form_analyzer = self.form_analyzer.clone().with_base_url(url.to_string());
-        match self.form_analyzer.analyze_forms(&content) {
+        match self
+            .page
+            .with_doc(|doc| self.form_analyzer.analyze_forms(doc))
+        {
             Ok(forms) => {
                 self.analyzed_forms = forms;
                 tracing::debug!("Analyzed {} forms on page", self.analyzed_forms.len());
@@ -189,9 +192,7 @@ impl super::super::HeadlessWebBrowser {
         tracing::debug!("HTML content loaded");
 
         // Add to navigation history
-        let title = self
-            .extract_title(&content)
-            .unwrap_or_else(|| url.to_string());
+        let title = self.page_title().unwrap_or_else(|| url.to_string());
         self.add_to_history(url.to_string(), title);
 
         if wait_for_js && content.contains("<script") {
@@ -204,7 +205,7 @@ impl super::super::HeadlessWebBrowser {
         // Reset bypass_cache flag after navigation completes
         self.bypass_cache = false;
 
-        Ok(self.current_content.clone())
+        Ok(content)
     }
 
     /// Wait until `condition` holds.
@@ -224,10 +225,10 @@ impl super::super::HeadlessWebBrowser {
         match condition {
             WaitCondition::Selector(selector) => self.wait_for_element(selector, timeout_ms).await,
             WaitCondition::NetworkIdle => Ok(true),
-            WaitCondition::Text(text) => Ok(self.current_content.contains(text.as_str())),
+            WaitCondition::Text(text) => Ok(self.get_current_content().contains(text.as_str())),
             WaitCondition::UrlContains(fragment) => Ok(self
-                .current_url
-                .as_deref()
+                .page
+                .url()
                 .is_some_and(|url| url.contains(fragment.as_str()))),
         }
     }
@@ -238,10 +239,11 @@ impl super::super::HeadlessWebBrowser {
     /// Without a JavaScript engine the page cannot change on its own, so
     /// this answers immediately instead of polling until `timeout_ms`.
     pub async fn wait_for_element(&mut self, selector: &str, _timeout_ms: u64) -> Result<bool> {
-        let parsed = scraper::Selector::parse(selector)
-            .map_err(|_| anyhow!("Invalid CSS selector: {}", selector))?;
-        let document = scraper::Html::parse_document(&self.current_content);
-        let found = document.select(&parsed).next().is_some();
+        let found = self
+            .page
+            .with_doc(|doc| doc.query_selector(doc.document(), selector))
+            .map_err(|_| anyhow!("Invalid CSS selector: {}", selector))?
+            .is_some();
         tracing::debug!("wait_for_element - selector: {} found: {}", selector, found);
         Ok(found)
     }
@@ -264,9 +266,8 @@ impl super::super::HeadlessWebBrowser {
         let response = self.client.get(url).headers(headers).send().await?;
         let content = response.text().await?;
 
-        // Store the current content and URL
-        self.current_content = content.clone();
-        self.current_url = Some(url.to_string());
+        // Replace the current page with the parsed response
+        self.page.load(Some(url.to_string()), &content);
 
         // Fetch external stylesheets — required for correct CSS rendering.
         // Previously fetched stylesheets will be cache hits, so this is fast.
@@ -279,7 +280,10 @@ impl super::super::HeadlessWebBrowser {
 
         // Analyze forms for target="_blank" detection
         self.form_analyzer = self.form_analyzer.clone().with_base_url(url.to_string());
-        if let Ok(forms) = self.form_analyzer.analyze_forms(&content) {
+        if let Ok(forms) = self
+            .page
+            .with_doc(|doc| self.form_analyzer.analyze_forms(doc))
+        {
             self.analyzed_forms = forms;
         }
 
@@ -309,7 +313,7 @@ impl super::super::HeadlessWebBrowser {
 
         if let Some(ref csp) = self.csp_policy {
             csp_state::set_csp_state(CspState {
-                page_url: self.current_url.clone(),
+                page_url: self.get_current_url(),
                 has_policy: csp.has_policy(),
                 img_src: convert_sources(&csp.img_src),
                 style_src: convert_sources(&csp.style_src),
@@ -361,7 +365,7 @@ impl super::super::HeadlessWebBrowser {
 
         // CSP: Check if style-src allows this external stylesheet
         if let Some(ref csp) = self.csp_policy
-            && !csp.allows_style(url, self.current_url.as_deref())
+            && !csp.allows_style(url, self.page.url())
         {
             eprintln!("🔒 CSP: External stylesheet blocked by style-src: {}", url);
             return Err(anyhow!(
@@ -399,63 +403,70 @@ impl super::super::HeadlessWebBrowser {
     /// Uses the resource cache for previously fetched stylesheets, and fetches uncached
     /// ones concurrently using cloned HTTP clients.
     pub(super) async fn fetch_all_stylesheets(&mut self) -> Vec<String> {
-        let html = self.current_content.clone();
         let base_url = self
-            .current_url
-            .clone()
+            .get_current_url()
             .unwrap_or_else(|| "https://example.com".to_string());
 
-        let document = scraper::Html::parse_document(&html);
-        let link_selector = scraper::Selector::parse("link").unwrap();
+        // (href, integrity) of every <link rel="stylesheet">, in document order
+        let links: Vec<(String, Option<String>)> = self.page.with_doc(|doc| {
+            doc.query_selector_all(doc.document(), "link")
+                .unwrap_or_default()
+                .into_iter()
+                .filter_map(|link| {
+                    let link = doc.as_element(link)?;
+                    // Only process <link rel="stylesheet"> elements
+                    let rel = link.attr("rel").unwrap_or("");
+                    if !rel
+                        .split_whitespace()
+                        .any(|r| r.eq_ignore_ascii_case("stylesheet"))
+                    {
+                        return None;
+                    }
+                    Some((
+                        link.attr("href")?.to_string(),
+                        link.attr("integrity").map(str::to_string),
+                    ))
+                })
+                .collect()
+        });
 
         let mut stylesheet_urls = Vec::new();
 
         // Collect integrity attributes alongside URLs for SRI verification
         let mut integrity_map: HashMap<String, String> = HashMap::new();
 
-        for link_element in document.select(&link_selector) {
-            // Only process <link rel="stylesheet"> elements
-            let rel = link_element.value().attr("rel").unwrap_or("");
-            if !rel
-                .split_whitespace()
-                .any(|r| r.eq_ignore_ascii_case("stylesheet"))
-            {
-                continue;
-            }
-
-            if let Some(href) = link_element.value().attr("href") {
-                // Resolve relative URLs
-                match self.resolve_script_url(&base_url, href) {
-                    Ok(resolved_url) => {
-                        // Mixed content blocking: block HTTP stylesheets on HTTPS pages
-                        if super::mixed_content::should_block_mixed_content(
-                            &base_url,
-                            &resolved_url,
-                            super::mixed_content::ResourceType::Stylesheet,
-                        ) == super::mixed_content::MixedContentResult::Block
-                        {
-                            eprintln!(
-                                "🔒 BLOCKED: Mixed content stylesheet {} on HTTPS page",
-                                resolved_url
-                            );
-                            continue;
-                        }
-
-                        tracing::debug!("Found external stylesheet: {}", resolved_url);
-
-                        // Store integrity attribute for SRI verification after fetch
-                        if let Some(integrity) = link_element.value().attr("integrity") {
-                            integrity_map.insert(resolved_url.clone(), integrity.to_string());
-                        }
-
-                        stylesheet_urls.push(resolved_url);
-                    }
-                    Err(e) => {
+        for (href, integrity) in links {
+            // Resolve relative URLs
+            match self.resolve_script_url(&base_url, &href) {
+                Ok(resolved_url) => {
+                    // Mixed content blocking: block HTTP stylesheets on HTTPS pages
+                    if super::mixed_content::should_block_mixed_content(
+                        &base_url,
+                        &resolved_url,
+                        super::mixed_content::ResourceType::Stylesheet,
+                    ) == super::mixed_content::MixedContentResult::Block
+                    {
                         eprintln!(
-                            "⚠️  WARNING: Failed to resolve stylesheet URL '{}': {}",
-                            href, e
+                            "🔒 BLOCKED: Mixed content stylesheet {} on HTTPS page",
+                            resolved_url
                         );
+                        continue;
                     }
+
+                    tracing::debug!("Found external stylesheet: {}", resolved_url);
+
+                    // Store integrity attribute for SRI verification after fetch
+                    if let Some(integrity) = integrity.as_deref() {
+                        integrity_map.insert(resolved_url.clone(), integrity.to_string());
+                    }
+
+                    stylesheet_urls.push(resolved_url);
+                }
+                Err(e) => {
+                    eprintln!(
+                        "⚠️  WARNING: Failed to resolve stylesheet URL '{}': {}",
+                        href, e
+                    );
                 }
             }
         }
