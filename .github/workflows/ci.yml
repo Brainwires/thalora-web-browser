@@ -129,6 +129,44 @@ jobs:
       - name: Doc workspace
         run: cargo doc --workspace --no-deps
 
+  page-runtime:
+    name: Page runtime (fork)
+    # Builds and tests the Brainwires deno fork's `deno_web_page` crate
+    # (ext/web_page, the V8 page runtime Thalora links) at the revision in
+    # scripts/deno-fork.rev, in the fork's own workspace and toolchain.
+    # GitHub-hosted: no fork CI is involved and our pools are not loaded.
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read fork revision
+        id: rev
+        run: echo "rev=$(tr -d '[:space:]' < scripts/deno-fork.rev)" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          repository: Brainwires/deno
+          ref: ${{ steps.rev.outputs.rev }}
+          path: deno-fork
+          submodules: false
+      - name: Free disk space
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL && df -h /
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libssl-dev pkg-config clang libclang-dev protobuf-compiler
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: deno-fork
+          key: page-runtime
+      - name: Fetch prebuilt V8 (fork script)
+        working-directory: deno-fork
+        run: python3 .github/denext-runtime/fetch_rusty_v8.py --target x86_64-unknown-linux-gnu --dest "$RUNNER_TEMP/rusty_v8" --github-env
+      - name: Test deno_web_page
+        working-directory: deno-fork
+        # The fork's .cargo/config.toml carries its own rustflags; the
+        # workflow-level RUSTFLAGS would replace them.
+        run: |
+          unset RUSTFLAGS
+          cargo test -p deno_web_page -- --test-threads=1
+
   # The "Baselines (reporting)" job that used to run here (page corpus through
   # the MCP binary, `cargo xtask fingerprint-dump` / `fingerprint-diff` and
   # `cargo xtask wpt`, uploaded as the `baselines` artifact) measured the
