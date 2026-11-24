@@ -1,0 +1,20 @@
+[package]
+name = "thalora-dom"
+version = "0.1.0"
+edition = "2024"
+description = "Thalora's live, mutable, engine-neutral DOM: html5ever parsing, DOM-standard mutation, selector matching"
+authors = ["Brainwires Team"]
+license = "MIT"
+repository = "https://github.com/brainwires/thalora"
+publish = false
+
+# Keep this list lean: the Brainwires deno fork pulls this crate as an
+# optional git dependency, and cargo locks optional git deps' trees even with
+# the feature off. Only html5ever, selectors and what they strictly need.
+[dependencies]
+html5ever = "0.40.1"
+selectors = "0.43.0"
+# Same major as selectors 0.43 uses internally (ParserInput, ToCss).
+cssparser = "0.38"
+# Trait `selectors` requires on identifier / name types.
+precomputed-hash = "0.1"
