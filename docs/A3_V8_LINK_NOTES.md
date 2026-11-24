@@ -202,3 +202,27 @@ the two do not collide.
   rust-cache restore, with `--dest $RUNNER_TEMP/rusty_v8 --seed-dir
   target/debug --github-env`. Until the dependency lands it downloads and
   verifies ~41 MB per job and exports unused variables.
+
+## 8. Update: the current page is a live `thalora_dom::Document`
+
+Sections 1-2 describe `origin/main`; on this branch the page model changed:
+
+- `HeadlessWebBrowser::current_content` / `current_url` / `filled_values`
+  are gone. The page is `page: PageDom` (`src/engine/browser/page_dom.rs`):
+  `load(url, html)` on navigation / submit / history, `with_doc(|&Document|)`,
+  `with_doc_mut(|&mut Document|)`, `url()`, `is_empty()`, `version_key()`
+  (URL + source hash, keys snapshot refs), `to_html()` (serialization; what
+  `get_current_content()` returns), and a never-serialized secret-value side
+  table for `browser_fill_credential`. When `deno_web_page` lands, `PageDom`
+  wraps the `PageRuntime` (`with_doc` borrows its `Rc<RefCell<Document>>`,
+  `load` hands it the HTML); callers stay as they are.
+- Ported to the DOM: forms (`navigation/forms.rs`: fill/select/check/click
+  write `value`/`checked`/`selected` attributes and `<textarea>` text;
+  submission builds the entry list from the DOM), snapshot + ref resolution,
+  accessibility tree, visible text, `WebScraper`, `FormAnalyzer`, title,
+  `wait_for_element`, stylesheet discovery. `browser_get_page_content` and
+  `get_accessibility_tree` compute on the browser thread (`with_page` in
+  `protocols/browser_tools/core.rs`); only results cross threads.
+- Still on scraper (`TODO(a3)`): the layout engine (screenshot gets
+  `to_html()`), readability, `browser_extract`/`snapshot_url` extraction,
+  search-engine parsers, `web_search.rs`. They read serialized HTML.
