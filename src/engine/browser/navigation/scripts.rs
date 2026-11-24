@@ -1065,7 +1065,11 @@ mod tests {
             }
             .boxed_local()
         });
-        assert_eq!(html.matches("<li>inserted ran</li>").count(), 1, "{html}");
+        // The script sources hold the same text, so look at the list itself.
+        assert!(
+            html.contains(r#"<ul id="items"><li>inserted ran</li></ul>"#),
+            "{html}"
+        );
     }
 
     #[test]
