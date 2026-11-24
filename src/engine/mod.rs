@@ -1,8 +1,10 @@
 // Core browser engine components
 //
-// There is currently no JavaScript engine: Boa was removed and V8 (via the
-// Brainwires deno fork) is not wired in yet. Pages are fetched, parsed and
-// laid out from their static HTML/CSS; scripts are not executed.
+// Page JavaScript runs on V8, through the page runtime of the Brainwires deno
+// fork (`deno_web_page`, see `browser::page_js` and docs/A3_V8_DESIGN.md):
+// one isolate per page, on the browser's thread, with web APIs only. A page
+// is static (fetched, parsed and laid out from its HTML/CSS, no script run)
+// when JavaScript is disabled or the page runtime could not start.
 
 // Browser module - requires core networking (uses reqwest HTTP client)
 #[cfg(feature = "core")]
@@ -19,11 +21,15 @@ pub use browser::{
 };
 pub use renderer::{CssProcessor, LayoutEngine, LayoutResult};
 
-/// Message of every error returned where JavaScript execution would be needed.
+/// Message of the error returned where an operation needs page JavaScript
+/// and the page is static: JavaScript is disabled, the page runtime failed
+/// to start, or the page was loaded outside a browser thread. The reason,
+/// when known, follows in parentheses.
 pub const JS_UNAVAILABLE: &str =
-    "JavaScript execution is unavailable: the Boa engine was removed; V8 support is in progress";
+    "JavaScript execution is unavailable: this page was loaded as static HTML";
 
-/// The error returned by operations that need a JavaScript engine.
+/// The error returned by operations that need page JavaScript on a static
+/// page.
 pub fn js_unavailable() -> anyhow::Error {
     anyhow::anyhow!(JS_UNAVAILABLE)
 }

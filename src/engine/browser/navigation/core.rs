@@ -11,8 +11,8 @@ impl super::super::HeadlessWebBrowser {
     }
 
     /// Navigate to URL.
-    /// `wait_for_js` is accepted for compatibility; page scripts are not
-    /// executed (there is no JavaScript engine at the moment).
+    /// Page scripts run; `wait_for_js` lets the page's timers and requests
+    /// run for up to 5 s (instead of 1 s) before returning.
     /// `wait_for_load` is always true (we always want to wait for the HTTP response).
     pub async fn navigate_to_with_options(
         &mut self,

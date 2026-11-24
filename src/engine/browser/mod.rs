@@ -8,6 +8,9 @@ pub mod core;
 pub mod form_analyzer;
 pub mod navigation;
 pub mod page_dom;
+// Page JavaScript on V8 (the Brainwires deno fork's page runtime)
+#[cfg(feature = "core")]
+pub mod page_js;
 pub mod page_text;
 pub mod scraper;
 pub mod snapshot;

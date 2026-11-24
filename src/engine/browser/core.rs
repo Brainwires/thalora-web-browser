@@ -46,6 +46,8 @@ pub struct HeadlessWebBrowser {
     pub(super) nosniff: bool,
     /// Element refs issued by the last `snapshot()` of this page.
     pub(super) snapshot_refs: super::snapshot::RefTable,
+    /// Whether pages run JavaScript, and with which limits.
+    pub(super) js_settings: super::page_js::JsSettings,
 }
 
 impl HeadlessWebBrowser {
@@ -112,6 +114,7 @@ impl HeadlessWebBrowser {
             referrer_policy: None,
             nosniff: false,
             snapshot_refs: Default::default(),
+            js_settings: super::page_js::JsSettings::from_env(),
         };
 
         Rc::new(Mutex::new(browser))
@@ -122,8 +125,10 @@ impl HeadlessWebBrowser {
     }
 
     /// The current page serialized as HTML (empty if no page is loaded).
-    /// Reflects static form interaction (typed values, checked boxes,
-    /// selected options); never includes filled secrets.
+    /// Reflects what page scripts did to the document and, on a static
+    /// page, form interaction (typed values, checked boxes, selected
+    /// options); on a page running JavaScript, typed values are the
+    /// controls' live state, not markup. Never includes filled secrets.
     pub fn get_current_content(&self) -> String {
         self.page.to_html()
     }
@@ -215,13 +220,31 @@ impl HeadlessWebBrowser {
         self.history.current_index < self.history.entries.len().saturating_sub(1)
     }
 
-    /// Execute JavaScript in the page and return the raw string result.
-    ///
-    /// There is no JavaScript engine at the moment (Boa was removed, V8 is
-    /// not wired in yet), so this always fails with
-    /// [`JS_UNAVAILABLE`](crate::engine::JS_UNAVAILABLE).
-    pub async fn execute_javascript(&mut self, _js_code: &str) -> Result<String> {
-        Err(crate::engine::js_unavailable())
+    /// Whether pages run JavaScript, and with which limits (from the
+    /// environment by default, see [`JsSettings`](super::page_js::JsSettings)).
+    pub fn js_settings(&self) -> &super::page_js::JsSettings {
+        &self.js_settings
+    }
+
+    /// Change the JavaScript settings. They apply from the next page load.
+    pub fn js_settings_mut(&mut self) -> &mut super::page_js::JsSettings {
+        &mut self.js_settings
+    }
+
+    /// Run page scripts or not, from the next page load. Off, pages are the
+    /// static HTML the server sent.
+    pub fn set_javascript_enabled(&mut self, enabled: bool) {
+        self.js_settings.enabled = enabled;
+    }
+
+    /// Execute JavaScript in the page and return the result as a string: a
+    /// string result as it is, anything else as JSON text (see
+    /// [`evaluate_javascript`](Self::evaluate_javascript)).
+    pub async fn execute_javascript(&mut self, js_code: &str) -> Result<String> {
+        Ok(match self.evaluate_javascript(js_code).await? {
+            serde_json::Value::String(text) => text,
+            other => other.to_string(),
+        })
     }
 
     /// Render the current page to PNG with the built-in layout engine

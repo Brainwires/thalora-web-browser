@@ -10,6 +10,29 @@
 //!
 //! Jobs run one at a time, to completion (a job may hold the browser's
 //! `MutexGuard` across `.await`).
+//!
+//! # Page JavaScript
+//!
+//! The thread is started through the V8 root thread
+//! ([`spawn_js_thread`](super::page_js)), so the pages its browser loads may
+//! run JavaScript. Between jobs the thread keeps the current page's event
+//! loop running (timers, fetches, promise jobs), so a page goes on working
+//! between two tool calls as it does in a browser:
+//!
+//! - While the page has pending work, the loop alternates between waiting
+//!   for a job and pumping the page in slices; an arriving job interrupts
+//!   the slice between two page tasks.
+//! - A page with nothing pending costs nothing: the loop only waits for
+//!   jobs.
+//! - Pumping stops [`BACKGROUND_PUMP`] after the last job (a page with a
+//!   repeating timer would otherwise keep a core busy for as long as the
+//!   session exists). The next job resumes it.
+//! - A navigation the page asks for meanwhile (`location.href = …` from a
+//!   timer) is performed between jobs, to completion.
+
+// The browser is only touched on this thread, one job (or one pump slice) at
+// a time, so holding its MutexGuard across .await cannot contend or deadlock.
+#![allow(clippy::await_holding_lock)]
 
 use super::HeadlessWebBrowser;
 use anyhow::{Result, anyhow};
@@ -55,30 +78,39 @@ impl std::fmt::Debug for BrowserThread {
 /// Stack size for browser threads (deeply nested layout).
 const STACK_SIZE: usize = 16 * 1024 * 1024;
 
+/// How long after the last job the current page's event loop keeps being
+/// pumped in the background.
+const BACKGROUND_PUMP: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// One slice of background pumping. A job that arrives interrupts it, so
+/// this is not a latency; it bounds how often the loop re-arms.
+const PUMP_SLICE: std::time::Duration = std::time::Duration::from_millis(250);
+
 impl BrowserThread {
     /// Start a thread named `thalora-<name>` that creates and owns a browser.
     pub fn spawn(name: &str) -> Result<Self> {
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
         let (stopped_tx, stopped_rx) = tokio::sync::oneshot::channel();
-        let handle = std::thread::Builder::new()
+        let builder = std::thread::Builder::new()
             .name(format!("thalora-{name}"))
-            .stack_size(STACK_SIZE)
-            .spawn(move || {
-                let runtime = match tokio::runtime::Builder::new_current_thread()
-                    .enable_all()
-                    .build()
-                {
-                    Ok(runtime) => runtime,
-                    Err(e) => {
-                        eprintln!("⚠️ browser thread: failed to start runtime: {e}");
-                        return;
-                    }
-                };
-                let local = tokio::task::LocalSet::new();
-                local.block_on(&runtime, run_loop(rx));
-                let _ = stopped_tx.send(());
-            })
-            .map_err(|e| anyhow!("failed to spawn browser thread: {e}"))?;
+            .stack_size(STACK_SIZE);
+        // Started by the V8 root thread, so its pages may run JavaScript
+        let handle = super::page_js::spawn_js_thread(builder, move || {
+            let runtime = match tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+            {
+                Ok(runtime) => runtime,
+                Err(e) => {
+                    eprintln!("⚠️ browser thread: failed to start runtime: {e}");
+                    return;
+                }
+            };
+            let local = tokio::task::LocalSet::new();
+            local.block_on(&runtime, run_loop(rx));
+            let _ = stopped_tx.send(());
+        })
+        .map_err(|e| anyhow!("failed to spawn browser thread: {e}"))?;
         Ok(Self {
             inner: std::sync::Arc::new(Inner {
                 tx,
@@ -205,11 +237,58 @@ impl BrowserThread {
 
 async fn run_loop(mut rx: tokio::sync::mpsc::UnboundedReceiver<Message>) {
     let browser = HeadlessWebBrowser::new();
-    while let Some(Message::Run(job)) = rx.recv().await {
-        job(browser.clone()).await;
+    // Until when the current page is pumped between jobs (see the module
+    // docs); `None` while it has nothing pending.
+    let mut pump_until: Option<std::time::Instant> = None;
+    loop {
+        let pumping = pump_until.is_some_and(|until| std::time::Instant::now() < until);
+        let message = if pumping {
+            tokio::select! {
+                biased;
+                message = rx.recv() => Some(message),
+                pending = pump_slice(&browser) => {
+                    if !pending {
+                        pump_until = None;
+                    }
+                    None
+                }
+            }
+        } else {
+            Some(rx.recv().await)
+        };
+        match message {
+            // A pump slice ended. Not inside the `select!`: a navigation
+            // must not be dropped half-way when a job arrives.
+            None => follow_page_navigation(&browser).await,
+            Some(Some(Message::Run(job))) => {
+                job(browser.clone()).await;
+                pump_until = Some(std::time::Instant::now() + BACKGROUND_PUMP);
+            }
+            Some(Some(Message::Stop)) | Some(None) => break,
+        }
     }
     // Dropped here, on the thread that created it
     drop(browser);
+}
+
+/// Pump the current page's event loop for one slice. Returns whether the
+/// page still has pending work. Cancel-safe.
+async fn pump_slice(browser: &BrowserHandle) -> bool {
+    // A poisoned lock (a job panicked while holding it): leave the page alone
+    let Ok(mut guard) = browser.lock() else {
+        return false;
+    };
+    guard.pump_background(PUMP_SLICE).await || guard.has_script_navigation()
+}
+
+/// Perform the navigation the page asked for while it was pumped, if any.
+async fn follow_page_navigation(browser: &BrowserHandle) {
+    let Ok(mut guard) = browser.lock() else {
+        return;
+    };
+    if guard.has_script_navigation() {
+        guard.follow_script_navigations().await;
+    }
 }
 
 #[cfg(test)]

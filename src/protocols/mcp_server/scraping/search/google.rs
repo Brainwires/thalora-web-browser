@@ -18,8 +18,9 @@ pub async fn search(query: &str, num_results: usize) -> Result<SearchResults> {
     tracing::debug!("Google search URL: {}", search_url);
 
     // Temporary browser on its own thread for this stateless search.
-    // Google normally needs JavaScript to display search results; without a
-    // JavaScript engine this only works when Google serves static results.
+    // Google normally needs JavaScript to display search results; search
+    // browsers read the response body as served (see `navigate_and_read`),
+    // so this only works when Google serves static results.
     let temp_browser = super::temporary_browser("google")?;
     let html = super::navigate_and_read(&temp_browser, search_url.clone(), true).await?;
     tracing::debug!("Content retrieved");

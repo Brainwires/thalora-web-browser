@@ -20,8 +20,11 @@ pub(crate) fn temporary_browser(engine: &str) -> Result<BrowserThread> {
     BrowserThread::spawn(&format!("search-{engine}"))
 }
 
-/// Navigate `browser` to `url` and return the page's HTML (scripts are not
-/// executed). `full_load` uses the wait-for-load navigation path.
+/// Navigate `browser` to `url` and return the page's HTML as served.
+/// Search browsers do not run page scripts: the result parsers read the
+/// static markup the engines serve, and running an engine's scripts would
+/// add seconds to every search for nothing they use. `full_load` uses the
+/// wait-for-load navigation path.
 pub(crate) async fn navigate_and_read(
     browser: &BrowserThread,
     url: String,
@@ -33,8 +36,9 @@ pub(crate) async fn navigate_and_read(
                 let mut guard = browser
                     .lock()
                     .map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
-                // The response body as fetched (TODO(a3): read the live
-                // document once scripts run)
+                // The response body as fetched (TODO(a3): parse the live
+                // document, with scripts on, for engines that need them)
+                guard.set_javascript_enabled(false);
                 if full_load {
                     guard.navigate_to_with_js_option(&url, true, true).await
                 } else {
