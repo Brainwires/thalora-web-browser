@@ -1748,7 +1748,7 @@ dependencies = [
 [[package]]
 name = "deno_canvas"
 version = "0.122.0"
-source = "git+https://github.com/Brainwires/deno?rev=e25e8254872336eb3e72e0a7b71169b6d3350a8a#e25e8254872336eb3e72e0a7b71169b6d3350a8a"
+source = "git+https://github.com/Brainwires/deno?rev=ee5046fbebb4af31b09798478248c26da3ef945e#ee5046fbebb4af31b09798478248c26da3ef945e"
 dependencies = [
  "bytemuck",
  "deno_core",
@@ -1763,7 +1763,7 @@ dependencies = [
 [[package]]
 name = "deno_core"
 version = "0.413.0"
-source = "git+https://github.com/Brainwires/deno?rev=e25e8254872336eb3e72e0a7b71169b6d3350a8a#e25e8254872336eb3e72e0a7b71169b6d3350a8a"
+source = "git+https://github.com/Brainwires/deno?rev=ee5046fbebb4af31b09798478248c26da3ef945e#ee5046fbebb4af31b09798478248c26da3ef945e"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -1804,7 +1804,7 @@ dependencies = [
 [[package]]
 name = "deno_crypto"
 version = "0.274.0"
-source = "git+https://github.com/Brainwires/deno?rev=e25e8254872336eb3e72e0a7b71169b6d3350a8a#e25e8254872336eb3e72e0a7b71169b6d3350a8a"
+source = "git+https://github.com/Brainwires/deno?rev=ee5046fbebb4af31b09798478248c26da3ef945e#ee5046fbebb4af31b09798478248c26da3ef945e"
 dependencies = [
  "aes",
  "aes-gcm",
@@ -1857,7 +1857,7 @@ dependencies = [
 [[package]]
 name = "deno_crypto_provider"
 version = "0.54.0"
-source = "git+https://github.com/Brainwires/deno?rev=e25e8254872336eb3e72e0a7b71169b6d3350a8a#e25e8254872336eb3e72e0a7b71169b6d3350a8a"
+source = "git+https://github.com/Brainwires/deno?rev=ee5046fbebb4af31b09798478248c26da3ef945e#ee5046fbebb4af31b09798478248c26da3ef945e"
 dependencies = [
  "aws-lc-rs",
  "aws-lc-sys",
@@ -1892,7 +1892,7 @@ dependencies = [
 [[package]]
 name = "deno_features"
 version = "0.57.0"
-source = "git+https://github.com/Brainwires/deno?rev=e25e8254872336eb3e72e0a7b71169b6d3350a8a#e25e8254872336eb3e72e0a7b71169b6d3350a8a"
+source = "git+https://github.com/Brainwires/deno?rev=ee5046fbebb4af31b09798478248c26da3ef945e#ee5046fbebb4af31b09798478248c26da3ef945e"
 dependencies = [
  "deno_core",
 ]
@@ -1900,7 +1900,7 @@ dependencies = [
 [[package]]
 name = "deno_fetch"
 version = "0.284.0"
-source = "git+https://github.com/Brainwires/deno?rev=e25e8254872336eb3e72e0a7b71169b6d3350a8a#e25e8254872336eb3e72e0a7b71169b6d3350a8a"
+source = "git+https://github.com/Brainwires/deno?rev=ee5046fbebb4af31b09798478248c26da3ef945e#ee5046fbebb4af31b09798478248c26da3ef945e"
 dependencies = [
  "async-compression",
  "base64 0.22.1",
@@ -1942,7 +1942,7 @@ dependencies = [
 [[package]]
 name = "deno_fs"
 version = "0.170.0"
-source = "git+https://github.com/Brainwires/deno?rev=e25e8254872336eb3e72e0a7b71169b6d3350a8a#e25e8254872336eb3e72e0a7b71169b6d3350a8a"
+source = "git+https://github.com/Brainwires/deno?rev=ee5046fbebb4af31b09798478248c26da3ef945e#ee5046fbebb4af31b09798478248c26da3ef945e"
 dependencies = [
  "async-trait",
  "boxed_error",
@@ -1969,7 +1969,7 @@ dependencies = [
 [[package]]
 name = "deno_image"
 version = "0.36.0"
-source = "git+https://github.com/Brainwires/deno?rev=e25e8254872336eb3e72e0a7b71169b6d3350a8a#e25e8254872336eb3e72e0a7b71169b6d3350a8a"
+source = "git+https://github.com/Brainwires/deno?rev=ee5046fbebb4af31b09798478248c26da3ef945e#ee5046fbebb4af31b09798478248c26da3ef945e"
 dependencies = [
  "bytemuck",
  "deno_core",
@@ -1983,7 +1983,7 @@ dependencies = [
 [[package]]
 name = "deno_io"
 version = "0.170.0"
-source = "git+https://github.com/Brainwires/deno?rev=e25e8254872336eb3e72e0a7b71169b6d3350a8a#e25e8254872336eb3e72e0a7b71169b6d3350a8a"
+source = "git+https://github.com/Brainwires/deno?rev=ee5046fbebb4af31b09798478248c26da3ef945e#ee5046fbebb4af31b09798478248c26da3ef945e"
 dependencies = [
  "async-trait",
  "deno_core",
@@ -2006,7 +2006,7 @@ dependencies = [
 [[package]]
 name = "deno_maybe_sync"
 version = "0.47.0"
-source = "git+https://github.com/Brainwires/deno?rev=e25e8254872336eb3e72e0a7b71169b6d3350a8a#e25e8254872336eb3e72e0a7b71169b6d3350a8a"
+source = "git+https://github.com/Brainwires/deno?rev=ee5046fbebb4af31b09798478248c26da3ef945e#ee5046fbebb4af31b09798478248c26da3ef945e"
 dependencies = [
  "rustc-hash 2.1.2",
 ]
@@ -2027,7 +2027,7 @@ dependencies = [
 [[package]]
 name = "deno_net"
 version = "0.252.0"
-source = "git+https://github.com/Brainwires/deno?rev=e25e8254872336eb3e72e0a7b71169b6d3350a8a#e25e8254872336eb3e72e0a7b71169b6d3350a8a"
+source = "git+https://github.com/Brainwires/deno?rev=ee5046fbebb4af31b09798478248c26da3ef945e#ee5046fbebb4af31b09798478248c26da3ef945e"
 dependencies = [
  "deno_core",
  "deno_error",
@@ -2059,12 +2059,12 @@ dependencies = [
 [[package]]
 name = "deno_net_route"
 version = "0.1.0"
-source = "git+https://github.com/Brainwires/deno?rev=e25e8254872336eb3e72e0a7b71169b6d3350a8a#e25e8254872336eb3e72e0a7b71169b6d3350a8a"
+source = "git+https://github.com/Brainwires/deno?rev=ee5046fbebb4af31b09798478248c26da3ef945e#ee5046fbebb4af31b09798478248c26da3ef945e"
 
 [[package]]
 name = "deno_ops"
 version = "0.289.0"
-source = "git+https://github.com/Brainwires/deno?rev=e25e8254872336eb3e72e0a7b71169b6d3350a8a#e25e8254872336eb3e72e0a7b71169b6d3350a8a"
+source = "git+https://github.com/Brainwires/deno?rev=ee5046fbebb4af31b09798478248c26da3ef945e#ee5046fbebb4af31b09798478248c26da3ef945e"
 dependencies = [
  "indexmap 2.13.1",
  "proc-macro2",
@@ -2093,7 +2093,7 @@ dependencies = [
 [[package]]
 name = "deno_permissions"
 version = "0.119.0"
-source = "git+https://github.com/Brainwires/deno?rev=e25e8254872336eb3e72e0a7b71169b6d3350a8a#e25e8254872336eb3e72e0a7b71169b6d3350a8a"
+source = "git+https://github.com/Brainwires/deno?rev=ee5046fbebb4af31b09798478248c26da3ef945e#ee5046fbebb4af31b09798478248c26da3ef945e"
 dependencies = [
  "capacity_builder",
  "chrono",
@@ -2124,7 +2124,7 @@ dependencies = [
 [[package]]
 name = "deno_sandbox"
 version = "0.1.0"
-source = "git+https://github.com/Brainwires/deno?rev=e25e8254872336eb3e72e0a7b71169b6d3350a8a#e25e8254872336eb3e72e0a7b71169b6d3350a8a"
+source = "git+https://github.com/Brainwires/deno?rev=ee5046fbebb4af31b09798478248c26da3ef945e#ee5046fbebb4af31b09798478248c26da3ef945e"
 dependencies = [
  "deno_net_route",
  "libc",
@@ -2139,7 +2139,7 @@ dependencies = [
 [[package]]
 name = "deno_signals"
 version = "0.51.0"
-source = "git+https://github.com/Brainwires/deno?rev=e25e8254872336eb3e72e0a7b71169b6d3350a8a#e25e8254872336eb3e72e0a7b71169b6d3350a8a"
+source = "git+https://github.com/Brainwires/deno?rev=ee5046fbebb4af31b09798478248c26da3ef945e#ee5046fbebb4af31b09798478248c26da3ef945e"
 dependencies = [
  "deno_io",
  "libc",
@@ -2152,7 +2152,7 @@ dependencies = [
 [[package]]
 name = "deno_subprocess_windows"
 version = "0.55.0"
-source = "git+https://github.com/Brainwires/deno?rev=e25e8254872336eb3e72e0a7b71169b6d3350a8a#e25e8254872336eb3e72e0a7b71169b6d3350a8a"
+source = "git+https://github.com/Brainwires/deno?rev=ee5046fbebb4af31b09798478248c26da3ef945e#ee5046fbebb4af31b09798478248c26da3ef945e"
 dependencies = [
  "futures-channel",
  "libc",
@@ -2173,7 +2173,7 @@ dependencies = [
 [[package]]
 name = "deno_tls"
 version = "0.247.0"
-source = "git+https://github.com/Brainwires/deno?rev=e25e8254872336eb3e72e0a7b71169b6d3350a8a#e25e8254872336eb3e72e0a7b71169b6d3350a8a"
+source = "git+https://github.com/Brainwires/deno?rev=ee5046fbebb4af31b09798478248c26da3ef945e#ee5046fbebb4af31b09798478248c26da3ef945e"
 dependencies = [
  "deno_core",
  "deno_error",
@@ -2219,7 +2219,7 @@ dependencies = [
 [[package]]
 name = "deno_v8"
 version = "0.5.0"
-source = "git+https://github.com/Brainwires/deno?rev=e25e8254872336eb3e72e0a7b71169b6d3350a8a#e25e8254872336eb3e72e0a7b71169b6d3350a8a"
+source = "git+https://github.com/Brainwires/deno?rev=ee5046fbebb4af31b09798478248c26da3ef945e#ee5046fbebb4af31b09798478248c26da3ef945e"
 dependencies = [
  "v8",
  "v8x",
@@ -2228,7 +2228,7 @@ dependencies = [
 [[package]]
 name = "deno_web"
 version = "0.291.0"
-source = "git+https://github.com/Brainwires/deno?rev=e25e8254872336eb3e72e0a7b71169b6d3350a8a#e25e8254872336eb3e72e0a7b71169b6d3350a8a"
+source = "git+https://github.com/Brainwires/deno?rev=ee5046fbebb4af31b09798478248c26da3ef945e#ee5046fbebb4af31b09798478248c26da3ef945e"
 dependencies = [
  "async-trait",
  "brotli 9.1.1",
@@ -2250,7 +2250,7 @@ dependencies = [
 [[package]]
 name = "deno_web_page"
 version = "0.1.0"
-source = "git+https://github.com/Brainwires/deno?rev=e25e8254872336eb3e72e0a7b71169b6d3350a8a#e25e8254872336eb3e72e0a7b71169b6d3350a8a"
+source = "git+https://github.com/Brainwires/deno?rev=ee5046fbebb4af31b09798478248c26da3ef945e#ee5046fbebb4af31b09798478248c26da3ef945e"
 dependencies = [
  "deno_canvas",
  "deno_core",
@@ -2279,7 +2279,7 @@ dependencies = [
 [[package]]
 name = "deno_webgpu"
 version = "0.227.0"
-source = "git+https://github.com/Brainwires/deno?rev=e25e8254872336eb3e72e0a7b71169b6d3350a8a#e25e8254872336eb3e72e0a7b71169b6d3350a8a"
+source = "git+https://github.com/Brainwires/deno?rev=ee5046fbebb4af31b09798478248c26da3ef945e#ee5046fbebb4af31b09798478248c26da3ef945e"
 dependencies = [
  "deno_core",
  "deno_error",
@@ -2297,7 +2297,7 @@ dependencies = [
 [[package]]
 name = "deno_webidl"
 version = "0.260.0"
-source = "git+https://github.com/Brainwires/deno?rev=e25e8254872336eb3e72e0a7b71169b6d3350a8a#e25e8254872336eb3e72e0a7b71169b6d3350a8a"
+source = "git+https://github.com/Brainwires/deno?rev=ee5046fbebb4af31b09798478248c26da3ef945e#ee5046fbebb4af31b09798478248c26da3ef945e"
 dependencies = [
  "deno_core",
 ]
@@ -2305,7 +2305,7 @@ dependencies = [
 [[package]]
 name = "deno_webrtc"
 version = "0.1.0"
-source = "git+https://github.com/Brainwires/deno?rev=e25e8254872336eb3e72e0a7b71169b6d3350a8a#e25e8254872336eb3e72e0a7b71169b6d3350a8a"
+source = "git+https://github.com/Brainwires/deno?rev=ee5046fbebb4af31b09798478248c26da3ef945e#ee5046fbebb4af31b09798478248c26da3ef945e"
 dependencies = [
  "aws-lc-rs",
  "bytes",
@@ -2333,7 +2333,7 @@ dependencies = [
 [[package]]
 name = "deno_websocket"
 version = "0.265.0"
-source = "git+https://github.com/Brainwires/deno?rev=e25e8254872336eb3e72e0a7b71169b6d3350a8a#e25e8254872336eb3e72e0a7b71169b6d3350a8a"
+source = "git+https://github.com/Brainwires/deno?rev=ee5046fbebb4af31b09798478248c26da3ef945e#ee5046fbebb4af31b09798478248c26da3ef945e"
 dependencies = [
  "base64 0.22.1",
  "bytes",
@@ -2358,7 +2358,7 @@ dependencies = [
 [[package]]
 name = "deno_webstorage"
 version = "0.255.0"
-source = "git+https://github.com/Brainwires/deno?rev=e25e8254872336eb3e72e0a7b71169b6d3350a8a#e25e8254872336eb3e72e0a7b71169b6d3350a8a"
+source = "git+https://github.com/Brainwires/deno?rev=ee5046fbebb4af31b09798478248c26da3ef945e#ee5046fbebb4af31b09798478248c26da3ef945e"
 dependencies = [
  "deno_core",
  "deno_error",
@@ -7373,7 +7373,7 @@ dependencies = [
 [[package]]
 name = "serde_v8"
 version = "0.322.0"
-source = "git+https://github.com/Brainwires/deno?rev=e25e8254872336eb3e72e0a7b71169b6d3350a8a#e25e8254872336eb3e72e0a7b71169b6d3350a8a"
+source = "git+https://github.com/Brainwires/deno?rev=ee5046fbebb4af31b09798478248c26da3ef945e#ee5046fbebb4af31b09798478248c26da3ef945e"
 dependencies = [
  "deno_error",
  "deno_v8",
@@ -7991,7 +7991,7 @@ dependencies = [
 [[package]]
 name = "sys_traits"
 version = "0.1.28"
-source = "git+https://github.com/Brainwires/deno?rev=e25e8254872336eb3e72e0a7b71169b6d3350a8a#e25e8254872336eb3e72e0a7b71169b6d3350a8a"
+source = "git+https://github.com/Brainwires/deno?rev=ee5046fbebb4af31b09798478248c26da3ef945e#ee5046fbebb4af31b09798478248c26da3ef945e"
 dependencies = [
  "junction",
  "libc",
