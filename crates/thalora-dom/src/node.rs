@@ -193,6 +193,12 @@ impl ElementData {
             .map(|a| a.value.as_str())
     }
 
+    /// Whether the element has an attribute with no namespace and the given
+    /// local name (exact match, no case folding).
+    pub fn has_attr(&self, local: &str) -> bool {
+        self.attr(local).is_some()
+    }
+
     /// The element's ID (the `id` attribute in no namespace), if set.
     pub fn id(&self) -> Option<&str> {
         self.attr("id")
