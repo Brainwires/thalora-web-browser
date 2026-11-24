@@ -434,7 +434,7 @@ impl CommandHandler {
             )
             .await?;
 
-        // Send result (or the failure, e.g. no JavaScript engine) as console log
+        // Send result (or the failure, e.g. an uncaught exception) as console log
         let (level, message) = match response {
             BrowserResponse::Success { data } => ("info", format!("Script result: {:?}", data)),
             BrowserResponse::Error { message } => ("error", message),

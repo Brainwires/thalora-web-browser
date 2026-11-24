@@ -6,13 +6,13 @@ use serde_json::Value;
 pub(crate) fn get_cdp_tool_definitions() -> Vec<Value> {
     vec![serde_json::json!({
         "name": "cdp_runtime_evaluate",
-        "description": "Evaluate a JavaScript expression in a browser session's page and return the result. Currently unavailable (returns an error): the Boa JavaScript engine was removed and V8 support is in progress.",
+        "description": "Evaluate JavaScript in a browser session's page (V8) and return the completion value as JSON: undefined is null, a DOM node is its outerHTML, a value JSON cannot express is its string form. A promise is not awaited: store its result in a global and read it with a second call. Fails on an uncaught exception, when the script runs longer than the script timeout (10 s by default), and on a static page (JavaScript disabled).",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "expression": {
                     "type": "string",
-                    "description": "JavaScript expression to evaluate"
+                    "description": "JavaScript to evaluate (a script; the value of its last expression statement is the result)"
                 },
                 "session_id": {
                     "type": "string",

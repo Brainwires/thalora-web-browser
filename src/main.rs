@@ -145,7 +145,15 @@ async fn main() -> Result<()> {
             )
             .init();
 
-        tracing::info!("No JavaScript engine: {}", engine::JS_UNAVAILABLE);
+        let js = engine::browser::page_js::JsSettings::from_env();
+        if js.enabled {
+            tracing::info!(
+                "Page JavaScript: V8 (script timeout {} ms)",
+                js.script_timeout.as_millis()
+            );
+        } else {
+            tracing::info!("Page JavaScript: disabled (THALORA_JS=0); pages are static HTML");
+        }
     } else {
         // Still configure tracing but silent
         tracing_subscriber::fmt()
@@ -561,16 +569,14 @@ async fn run_browser_session(
             .await
         }
 
-        /// Execute JavaScript (always fails: there is no JavaScript engine,
-        /// see `engine::JS_UNAVAILABLE`)
+        /// Evaluate JavaScript in the current page; the completion value as
+        /// JSON (a promise is not awaited)
         async fn execute_javascript(&self, code: &str) -> Result<serde_json::Value> {
             let code = code.to_string();
-            let result = self
-                .with_browser(move |browser| {
-                    async move { browser.execute_javascript(&code).await }.boxed_local()
-                })
-                .await?;
-            Ok(serde_json::json!(result))
+            self.with_browser(move |browser| {
+                async move { browser.evaluate_javascript(&code).await }.boxed_local()
+            })
+            .await
         }
 
         /// Get page content

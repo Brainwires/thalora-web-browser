@@ -121,7 +121,7 @@ pub(crate) fn get_session_tool_definitions() -> Vec<Value> {
                     },
                     "wait_for_js": {
                         "type": "boolean",
-                        "description": "Accepted for compatibility; page JavaScript is currently not executed (no JavaScript engine)"
+                        "description": "Page scripts always run; true lets the page's timers and requests run for up to 5 s (instead of 1 s) before returning"
                     },
                     "session_id": {
                         "type": "string",

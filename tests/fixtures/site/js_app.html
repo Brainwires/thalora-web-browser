@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Fixture JS App</title>
+  <script src="/js_app.js" defer></script>
+</head>
+<body>
+  <h1>JS app</h1>
+  <div id="boot">not booted</div>
+  <div id="deferred">not run</div>
+
+  <button id="counter" type="button">Clicked 0 times</button>
+
+  <button id="load-more" type="button">Load more</button>
+  <div id="more-slot"></div>
+
+  <form id="js-form" action="/echo" method="post">
+    <input id="name" name="name">
+    <input type="hidden" name="token" value="">
+    <button id="send" type="submit">Send</button>
+  </form>
+  <button id="submit-by-script" type="button">Submit by script</button>
+  <button id="go-index" type="button">Go to index</button>
+
+  <input id="keys">
+  <div id="keylog"></div>
+  <div id="hover-target">pointer away</div>
+  <div id="scrolled">at top</div>
+
+  <script>
+    // Inline, in document order, before the deferred external script
+    document.getElementById('boot').textContent = 'booted inline';
+    console.log('js app inline script ran');
+  </script>
+</body>
+</html>
