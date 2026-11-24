@@ -39,6 +39,15 @@ reqwest = { version = "0.12", features = ["json", "rustls-tls-native-roots", "gz
 # is still used by the layout engine, readability and the search/extraction
 # parsers that read serialized HTML (TODO(a3): move them to thalora-dom).
 thalora-dom = { path = "crates/thalora-dom" }
+
+# Page JavaScript: the Brainwires deno fork's V8 page runtime (ext/web_page,
+# branch thalora/web-page). Keep the rev in sync with scripts/deno-fork.rev
+# (the CI job that tests the crate in the fork reads it). `deno_core` is the
+# same fork crate, named here to initialize the V8 platform and to turn on
+# the features the fork's workspace sets for its own members (the prebuilt V8
+# archive is built against the custom libc++). See docs/A3_V8_LINK_NOTES.md.
+deno_web_page = { git = "https://github.com/Brainwires/deno", rev = "c507c127e6726bc63f77b128812336396a32b78e", optional = true }
+deno_core = { git = "https://github.com/Brainwires/deno", rev = "c507c127e6726bc63f77b128812336396a32b78e", default-features = false, features = ["v8", "reactor-tokio", "v8_use_custom_libcxx"], optional = true }
 scraper = "0.24"
 kuchikiki = "0.8"
 
@@ -157,6 +166,8 @@ core = [
     "dep:tokio-tungstenite",
     "dep:tungstenite",
     "dep:dirs",
+    "dep:deno_web_page",
+    "dep:deno_core",
 ]
 
 # Desktop build — MCP server binary
@@ -181,6 +192,27 @@ wiremock = "0.6"
 opt-level = 3
 lto = true
 codegen-units = 1
+
+# The fork's `deno_v8` depends on the crates.io `v8`; it must be
+# Brainwires/rusty_v8 156.0.0+denext.6 (one V8 per process, custom libc++).
+# Cargo ignores the [patch] sections of a git dependency's workspace, so the
+# fork's patch is repeated here. scripts/fetch_rusty_v8.py provides the
+# verified prebuilt archive (see .cargo/config.toml).
+[patch.crates-io]
+v8 = { git = "https://github.com/Brainwires/rusty_v8", rev = "f72a5f53280688d3101ab6f82e4f7b5ccf528ecd" }
+# The fork vendors sys_traits 0.1.28 with an added API (`dos_device_safe_path`)
+# that its `deno_fs` calls; `deno_fs` is in the page runtime's graph (through
+# deno_web/deno_fetch), so the crates.io sys_traits does not compile there.
+# Cargo finds the package by name inside the fork repository
+# (libs/vendor/sys_traits). Keep the rev equal to the deno_web_page one.
+sys_traits = { git = "https://github.com/Brainwires/deno", rev = "c507c127e6726bc63f77b128812336396a32b78e" }
+
+# `deno_web_page` depends on thalora-dom by git revision of this repository.
+# Resolve it to the workspace crate instead, so there is one
+# `thalora_dom::Document` type in the build and Thalora can evolve the crate
+# (additively) without first pushing a revision for the fork to pin.
+[patch."https://github.com/Brainwires/thalora-web-browser"]
+thalora-dom = { path = "crates/thalora-dom" }
 
 # Resolver to handle dependency conflicts
 [package.metadata.docs.rs]

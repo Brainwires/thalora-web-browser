@@ -6,3 +6,22 @@
 [alias]
 build-full = "build --release --features native"
 xtask = "run --manifest-path xtask/Cargo.toml --"
+
+# The `v8` crate is Brainwires/rusty_v8 (Cargo.toml's [patch.crates-io]). Its
+# build script would otherwise download the prebuilt library and binding from
+# denoland's release `v<crate version>`, which nothing pins: a release of that
+# name upstream would be linked silently, without the fork's V8 patches. A
+# mirror that names no real location, with the upstream fallback forced off,
+# makes any build that was not handed a verified archive fail instead. The way
+# in is scripts/fetch_rusty_v8.py, which downloads the Brainwires release
+# files, checks them against scripts/rusty_v8.sha256 and prints
+# RUSTY_V8_ARCHIVE, RUSTY_V8_ARCHIVE_SHA256 and RUSTY_V8_SRC_BINDING_PATH; the
+# build script then never consults the mirror:
+#
+#   eval "$(python3 scripts/fetch_rusty_v8.py --print-env)"
+#
+# CI runs the same script (`--github-env`). V8_FROM_SOURCE=1 builds V8 itself
+# and is unaffected.
+[env]
+RUSTY_V8_MIRROR = { value = "thalora-refused-unverified-v8/run-scripts/fetch_rusty_v8.py-first/{file}", force = true }
+RUSTY_V8_MIRROR_FALLBACK = { value = "0", force = true }
