@@ -260,9 +260,9 @@ fn test_browser_click_element() {
 
 // CDP (Chrome DevTools Protocol) Tools Tests
 #[test]
-fn test_cdp_runtime_evaluate_reports_js_unavailable() {
-    // There is no JavaScript engine at the moment (Boa was removed, V8 is not
-    // wired in yet): the tool stays registered but must fail clearly.
+fn test_cdp_runtime_evaluate_needs_a_page() {
+    // Evaluation runs in the session's current page (V8); without one the
+    // tool must fail clearly instead of inventing a result.
     let mut harness = create_initialized_harness().expect("Failed to create harness");
 
     let response = match harness.call_tool(
@@ -283,8 +283,8 @@ fn test_cdp_runtime_evaluate_reports_js_unavailable() {
     assert!(response.is_error, "Evaluation must not appear to succeed");
     let response_text = response.content[0].get("text").unwrap().as_str().unwrap();
     assert!(
-        response_text.contains("JavaScript execution is unavailable"),
-        "Should explain that JavaScript is unavailable: {response_text}"
+        response_text.contains("No page loaded"),
+        "Should explain that there is no page: {response_text}"
     );
 }
 

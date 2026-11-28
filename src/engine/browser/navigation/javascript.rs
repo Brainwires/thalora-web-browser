@@ -4,17 +4,21 @@ use std::collections::HashMap;
 use std::error::Error;
 use tokio::time::{Duration, sleep};
 
+use super::scripts::{HistoryMode, WAIT_POLL};
 use crate::engine::browser::types::NavigationMode;
 use crate::engine::security::SsrfProtection;
 
 impl super::super::HeadlessWebBrowser {
     /// Navigate to URL with full control over waiting behavior
     ///
-    /// The page is fetched and parsed into the live document of the current
-    /// page; the raw response body is returned.
-    /// There is no JavaScript engine at the moment (Boa was removed, V8 is
-    /// not wired in yet), so `wait_for_js` is accepted for compatibility but
-    /// page scripts are never executed.
+    /// The page is fetched and loaded as the current page: its scripts run
+    /// (see [`load_page`](Self::load_page)), and navigations they ask for
+    /// (`location.href = …`) are followed. `wait_for_js` lets the page's
+    /// timers and requests run for up to 5 s instead of 1 s before
+    /// returning.
+    ///
+    /// Returns the response body when no script ran, otherwise the document
+    /// as the scripts left it, serialized.
     ///
     /// # Security
     /// This function validates URLs to prevent SSRF attacks (CWE-918).
@@ -31,7 +35,21 @@ impl super::super::HeadlessWebBrowser {
             wait_for_load,
             wait_for_js
         );
+        let content = self
+            .fetch_and_load(url, wait_for_js, HistoryMode::Push)
+            .await?;
+        Ok(self.follow_script_navigations().await.unwrap_or(content))
+    }
 
+    /// Fetch `url` and make it the current page (headers, scripts,
+    /// stylesheets, forms, history). Navigations the page's scripts ask for
+    /// are left queued.
+    pub(super) async fn fetch_and_load(
+        &mut self,
+        url: &str,
+        wait_for_js: bool,
+        history: HistoryMode,
+    ) -> Result<String> {
         // SECURITY: Validate URL to prevent SSRF attacks
         // Block access to private IPs, localhost, and cloud metadata endpoints
         SsrfProtection::new().is_safe_url(url)?;
@@ -128,10 +146,16 @@ impl super::super::HeadlessWebBrowser {
             .map(|v| v.eq_ignore_ascii_case("nosniff"))
             .unwrap_or(false);
 
+        // The document's URL is where the response came from (after
+        // redirects): `location`, relative URLs and the page's origin
+        let final_url = response.url().to_string();
+        let url = final_url.as_str();
+
         let content = response.text().await?;
 
-        // Replace the current page with the parsed response
-        self.page.load(Some(url.to_string()), &content);
+        // Replace the current page with the parsed response and run its
+        // scripts
+        let scripts_ran = self.load_page(url, &content, wait_for_js).await;
 
         tracing::debug!("Content length: {} characters", content.len());
 
@@ -193,28 +217,45 @@ impl super::super::HeadlessWebBrowser {
 
         // Add to navigation history
         let title = self.page_title().unwrap_or_else(|| url.to_string());
-        self.add_to_history(url.to_string(), title);
-
-        if wait_for_js && content.contains("<script") {
-            tracing::debug!(
-                "wait_for_js requested but page scripts are not executed: {}",
-                crate::engine::JS_UNAVAILABLE
-            );
+        match history {
+            HistoryMode::Push => self.add_to_history(url.to_string(), title),
+            HistoryMode::Replace => {
+                let index = self.history.current_index;
+                match self.history.entries.get_mut(index) {
+                    Some(entry) => {
+                        entry.url = url.to_string();
+                        entry.title = title;
+                    }
+                    None => self.add_to_history(url.to_string(), title),
+                }
+            }
+            HistoryMode::Keep => {}
         }
 
         // Reset bypass_cache flag after navigation completes
         self.bypass_cache = false;
 
-        Ok(content)
+        // What the scripts made of the page, if any ran
+        Ok(if scripts_ran {
+            self.page.to_html()
+        } else {
+            content
+        })
     }
 
     /// Wait until `condition` holds.
     /// Returns Ok(true) if it held within `timeout_ms`, Ok(false) otherwise.
     ///
-    /// Without a JavaScript engine the page cannot change on its own, so the
-    /// condition is checked once against the loaded page and the result is
-    /// returned immediately. `NetworkIdle` always holds: nothing on the page
-    /// can start a request.
+    /// The condition is checked, the page's event loop is pumped for a short
+    /// slice (timers, fetches; navigations the page asks for are followed)
+    /// and the condition is checked again, until it holds or the timeout has
+    /// passed. A page with nothing pending (and every static page) cannot
+    /// change any more, so the answer is returned without waiting for the
+    /// timeout.
+    ///
+    /// `NetworkIdle` holds when nothing is pending on the page at all: no
+    /// request, timer or task. The page runtime does not tell requests and
+    /// timers apart, so a page with a repeating timer never counts as idle.
     pub async fn wait_for_condition(
         &mut self,
         condition: &crate::engine::browser::types::WaitCondition,
@@ -222,28 +263,82 @@ impl super::super::HeadlessWebBrowser {
     ) -> Result<bool> {
         use crate::engine::browser::types::WaitCondition;
 
-        match condition {
-            WaitCondition::Selector(selector) => self.wait_for_element(selector, timeout_ms).await,
-            WaitCondition::NetworkIdle => Ok(true),
-            WaitCondition::Text(text) => Ok(self.get_current_content().contains(text.as_str())),
-            WaitCondition::UrlContains(fragment) => Ok(self
-                .page
-                .url()
-                .is_some_and(|url| url.contains(fragment.as_str()))),
+        let deadline = std::time::Instant::now() + Duration::from_millis(timeout_ms);
+        loop {
+            let (met, idle_if_unmet) = match condition {
+                WaitCondition::Selector(selector) => (self.element_exists(selector)?, false),
+                WaitCondition::Text(text) => {
+                    (self.get_current_content().contains(text.as_str()), false)
+                }
+                WaitCondition::UrlContains(fragment) => (
+                    self.page
+                        .url()
+                        .is_some_and(|url| url.contains(fragment.as_str())),
+                    false,
+                ),
+                // Idle is what the pumping below reports
+                WaitCondition::NetworkIdle => (!self.page.has_js(), true),
+            };
+            if met {
+                return Ok(true);
+            }
+            let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+            if !self.page.has_js() || remaining.is_zero() {
+                return Ok(false);
+            }
+            let idle = self.settle(remaining.min(WAIT_POLL)).await;
+            let navigated = self.follow_script_navigations().await.is_some();
+            if idle && !navigated {
+                // Nothing is pending: the page cannot change by itself
+                return Ok(if idle_if_unmet {
+                    true
+                } else {
+                    self.condition_holds_now(condition)?
+                });
+            }
         }
     }
 
-    /// Check whether an element matching `selector` is present in the loaded
-    /// page. Returns true if found, false otherwise.
-    ///
-    /// Without a JavaScript engine the page cannot change on its own, so
-    /// this answers immediately instead of polling until `timeout_ms`.
-    pub async fn wait_for_element(&mut self, selector: &str, _timeout_ms: u64) -> Result<bool> {
-        let found = self
+    /// One check of a wait condition against the page as it is.
+    fn condition_holds_now(
+        &self,
+        condition: &crate::engine::browser::types::WaitCondition,
+    ) -> Result<bool> {
+        use crate::engine::browser::types::WaitCondition;
+        Ok(match condition {
+            WaitCondition::Selector(selector) => self.element_exists(selector)?,
+            WaitCondition::Text(text) => self.get_current_content().contains(text.as_str()),
+            WaitCondition::UrlContains(fragment) => self
+                .page
+                .url()
+                .is_some_and(|url| url.contains(fragment.as_str())),
+            WaitCondition::NetworkIdle => true,
+        })
+    }
+
+    /// Whether an element matching `selector` is in the page right now.
+    pub(super) fn element_exists(&self, selector: &str) -> Result<bool> {
+        Ok(self
             .page
             .with_doc(|doc| doc.query_selector(doc.document(), selector))
             .map_err(|_| anyhow!("Invalid CSS selector: {}", selector))?
-            .is_some();
+            .is_some())
+    }
+
+    /// Wait until an element matching `selector` is in the page, for up to
+    /// `timeout_ms`. Returns true if found, false otherwise.
+    ///
+    /// The page's event loop runs while waiting, so elements added by
+    /// timers, requests or promise jobs are found. When the page has nothing
+    /// pending (and on a static page) the answer is returned at once: the
+    /// element cannot appear any more.
+    pub async fn wait_for_element(&mut self, selector: &str, timeout_ms: u64) -> Result<bool> {
+        let found = self
+            .wait_for_condition(
+                &crate::engine::browser::types::WaitCondition::Selector(selector.to_string()),
+                timeout_ms,
+            )
+            .await?;
         tracing::debug!("wait_for_element - selector: {} found: {}", selector, found);
         Ok(found)
     }
@@ -266,8 +361,9 @@ impl super::super::HeadlessWebBrowser {
         let response = self.client.get(url).headers(headers).send().await?;
         let content = response.text().await?;
 
-        // Replace the current page with the parsed response
-        self.page.load(Some(url.to_string()), &content);
+        // Replace the current page with the parsed response and run its
+        // scripts
+        let scripts_ran = self.load_page(url, &content, false).await;
 
         // Fetch external stylesheets — required for correct CSS rendering.
         // Previously fetched stylesheets will be cache hits, so this is fast.
@@ -287,7 +383,12 @@ impl super::super::HeadlessWebBrowser {
             self.analyzed_forms = forms;
         }
 
-        Ok(content)
+        let content = if scripts_ran {
+            self.page.to_html()
+        } else {
+            content
+        };
+        Ok(self.follow_script_navigations().await.unwrap_or(content))
     }
 
     /// Publish the parts of the page's CSP that apply to static resources

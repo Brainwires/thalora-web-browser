@@ -5,7 +5,7 @@ pub(crate) fn get_browser_automation_tool_definitions() -> Vec<Value> {
     vec![
         serde_json::json!({
             "name": "browser_click_element",
-            "description": "Click an element (by ref from browser_snapshot or CSS selector). Submit buttons submit their form, links navigate and checkboxes/radio buttons change state. Click handlers do not run (no JavaScript engine): clicking an element without such a default action returns an error.",
+            "description": "Click an element (by ref from browser_snapshot or CSS selector). Submit buttons submit their form, links navigate and checkboxes/radio buttons change state. The click dispatches pointer, mouse and click events, so page handlers run and can prevent the default action; a navigation a handler starts is followed. On a static page (JavaScript disabled) only default actions work.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -139,7 +139,7 @@ pub(crate) fn get_browser_automation_tool_definitions() -> Vec<Value> {
         }),
         serde_json::json!({
             "name": "browser_press_key",
-            "description": "Press a key. Enter in a single-line form field submits its form. Any other key press only matters to page JavaScript, which is currently unavailable (returns an error): the Boa JavaScript engine was removed and V8 support is in progress.",
+            "description": "Press a key on an element (ref/selector) or on the focused element: keydown, keypress and keyup are dispatched, then the key's default action unless a page handler prevents it (a printable key or Backspace edits a text field, Enter in a single-line field submits its form, Enter/Space activates a button or link). On a static page (JavaScript disabled) only Enter in a form field works.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -165,7 +165,7 @@ pub(crate) fn get_browser_automation_tool_definitions() -> Vec<Value> {
         }),
         serde_json::json!({
             "name": "browser_hover",
-            "description": "Move the pointer over an element (mouseover/mouseenter/mousemove), e.g. to open hover menus. Currently unavailable (returns an error): the Boa JavaScript engine was removed and V8 support is in progress.",
+            "description": "Move the pointer over an element (pointerover/pointerenter/mouseover/mouseenter/mousemove are dispatched), e.g. to open script-driven hover menus. CSS :hover is not applied. Fails on a static page (JavaScript disabled).",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -187,7 +187,7 @@ pub(crate) fn get_browser_automation_tool_definitions() -> Vec<Value> {
         }),
         serde_json::json!({
             "name": "browser_scroll",
-            "description": "Scroll an element into view (ref/selector) or scroll the page by delta_y pixels, firing scroll events (e.g. to trigger lazy loading). Currently unavailable (returns an error): the Boa JavaScript engine was removed and V8 support is in progress.",
+            "description": "Dispatch a scroll event, as scrolling an element into view (ref/selector) or the page by delta_y pixels would, e.g. to trigger scroll-driven lazy loading. The page has no layout, so scroll positions do not change and loaders that measure positions may not react. Fails on a static page (JavaScript disabled).",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -213,7 +213,7 @@ pub(crate) fn get_browser_automation_tool_definitions() -> Vec<Value> {
         }),
         serde_json::json!({
             "name": "browser_console_messages",
-            "description": "Console messages (log/info/warn/error/debug) logged by the current page, oldest first (up to 500). Currently unavailable (returns an error): the Boa JavaScript engine was removed and V8 support is in progress.",
+            "description": "Console output of the current page, oldest first (the newest 1000): console.* calls (level debug/log/warning/error), uncaught errors, and the browser's notes about the page's scripts (blocked by CSP, failed to load, timed out). The `javascript` field says whether the page runs JavaScript.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -230,7 +230,7 @@ pub(crate) fn get_browser_automation_tool_definitions() -> Vec<Value> {
         }),
         serde_json::json!({
             "name": "browser_wait",
-            "description": "Check a condition on the loaded page: an element by ref or selector exists, the page contains a string, the URL contains a string, or the network is idle. Give exactly one condition. Page JavaScript is currently not executed, so the page cannot change while waiting and the result (met=true/false) is returned immediately.",
+            "description": "Wait for a condition on the current page: an element by ref or selector exists, the page contains a string, the URL contains a string, or the page is idle. Give exactly one condition. The page's timers and requests run while waiting. Returns met=true as soon as the condition holds, and met=false at the timeout or as soon as the page has nothing pending that could change it (always at once on a static page).",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -252,7 +252,7 @@ pub(crate) fn get_browser_automation_tool_definitions() -> Vec<Value> {
                     },
                     "network_idle": {
                         "type": "boolean",
-                        "description": "Wait until no requests for 500 ms"
+                        "description": "Wait until the page has nothing pending: no request, timer or task (a page with a repeating timer never becomes idle)"
                     },
                     "timeout_ms": {
                         "type": "integer",
@@ -267,7 +267,7 @@ pub(crate) fn get_browser_automation_tool_definitions() -> Vec<Value> {
         }),
         serde_json::json!({
             "name": "browser_wait_for_element",
-            "description": "Check whether an element is present on the loaded page (answers immediately: page JavaScript is currently not executed, so the page cannot change while waiting)",
+            "description": "Wait until an element is present on the current page; the page's timers and requests run while waiting. Answers found=false at the timeout, or as soon as the page has nothing pending that could add the element (at once on a static page).",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -281,7 +281,7 @@ pub(crate) fn get_browser_automation_tool_definitions() -> Vec<Value> {
                     },
                     "timeout": {
                         "type": "number",
-                        "description": "Timeout in milliseconds (default: 10000)"
+                        "description": "Timeout in milliseconds (default: 10000, max 60000)"
                     },
                     "visible": {
                         "type": "boolean",

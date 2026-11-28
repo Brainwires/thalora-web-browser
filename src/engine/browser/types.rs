@@ -214,6 +214,18 @@ impl Default for ResourceCache {
     }
 }
 
+/// One entry of a page's console: a `console.*` call, an error nothing
+/// caught, or a note from the browser about the page's scripts.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ConsoleEntry {
+    /// `debug`, `log`, `warning` or `error`.
+    pub level: &'static str,
+    /// The formatted text.
+    pub text: String,
+    /// When the browser received it (milliseconds since the Unix epoch).
+    pub timestamp_ms: u64,
+}
+
 /// Condition for [`HeadlessWebBrowser::wait_for_condition`](crate::engine::browser::HeadlessWebBrowser).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WaitCondition {

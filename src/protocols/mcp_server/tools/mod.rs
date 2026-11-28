@@ -26,8 +26,7 @@ use features::*;
 
     Tools are grouped into categories:
         - Credential Vault Tools: Store credentials and fill them into pages without revealing them.
-        - JavaScript Tools: Evaluate JavaScript in a session's page (`cdp_runtime_evaluate`).
-          Registered, but returns an error until a JavaScript engine (V8) is wired in.
+        - JavaScript Tools: Evaluate JavaScript in a session's page (`cdp_runtime_evaluate`), on V8.
         - Web Scraping Tools: Scrape web pages and extract content.
         - Web Search Tools: Perform web searches using various search engines.
         - Browser Automation Tools: Interact with web pages by clicking elements and filling forms.

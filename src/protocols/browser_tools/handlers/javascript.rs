@@ -1,4 +1,10 @@
-use serde_json::Value;
+// Browser jobs run one at a time on the session's own BrowserThread
+// (single-threaded), so holding the browser's MutexGuard across .await
+// cannot contend or deadlock.
+#![allow(clippy::await_holding_lock)]
+
+use futures::FutureExt;
+use serde_json::{Value, json};
 
 use crate::protocols::browser_tools::core::BrowserTools;
 use crate::protocols::mcp::McpResponse;
@@ -8,9 +14,12 @@ impl BrowserTools {
     /// Evaluate a JavaScript expression in a session's page
     /// (`cdp_runtime_evaluate` / `browser_eval`).
     ///
-    /// There is no JavaScript engine at the moment (Boa was removed, V8 is
-    /// not wired in yet): after validating its arguments this always returns
-    /// the [`JS_UNAVAILABLE`](crate::engine::JS_UNAVAILABLE) error.
+    /// The script runs in the page's global scope, on the session's browser
+    /// thread, under the script timeout. The result is the completion value
+    /// as JSON (`undefined` is `null`, a DOM node is its markup, a value
+    /// JSON cannot express is its string form). A returned promise, or a
+    /// top-level `await`, is awaited for up to 30 s. An uncaught exception, a timeout and a static page (JavaScript
+    /// disabled or not started) are errors.
     pub async fn handle_evaluate_javascript(&self, args: Value) -> McpResponse {
         let Some(expression) = args.get("expression").and_then(|v| v.as_str()) else {
             return McpResponse::error(-1, "Missing required parameter: expression".to_string());
@@ -29,6 +38,35 @@ impl BrowserTools {
             return McpResponse::error(-1, format!("Session ID validation failed: {}", e));
         }
 
-        McpResponse::error(-1, crate::engine::JS_UNAVAILABLE.to_string())
+        let browser = match self.get_session(session_id) {
+            Ok(browser) => browser,
+            Err(e) => return McpResponse::error(-32602, e),
+        };
+        let expression = expression.to_string();
+        crate::protocols::browser_tools::core::run_in(&browser, move |browser| {
+            async move {
+                let Ok(mut guard) = browser.lock() else {
+                    return McpResponse::error(-1, "Failed to acquire browser lock".to_string());
+                };
+                let url_before = guard.get_current_url();
+                match guard.evaluate_javascript(&expression).await {
+                    Ok(value) => {
+                        let url = guard.get_current_url();
+                        let mut out = json!({ "result": value, "url": url });
+                        if url != url_before {
+                            // The script navigated; the result is from the
+                            // page it ran in
+                            out["navigated"] = json!(true);
+                        }
+                        // What a page computes is page content: data, not
+                        // instructions
+                        McpResponse::page_content(out["url"].as_str(), out.clone())
+                    }
+                    Err(e) => McpResponse::error(-1, format!("Evaluation failed: {}", e)),
+                }
+            }
+            .boxed_local()
+        })
+        .await
     }
 }

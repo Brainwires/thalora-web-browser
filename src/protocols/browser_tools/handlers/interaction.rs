@@ -518,12 +518,14 @@ async move {
         .await
     }
 
-    /// `browser_console_messages`: console output logged by the page.
+    /// `browser_console_messages`: what the current page logged
+    /// (`console.*`), the errors nothing caught, and the browser's notes
+    /// about the page's scripts (blocked, failed to load, timed out), oldest
+    /// first. The buffer holds the newest 1000 entries of the current page;
+    /// `clear: true` empties it after reading.
     ///
-    /// Only page scripts write to the console, and there is no JavaScript
-    /// engine at the moment, so this returns the
-    /// [`JS_UNAVAILABLE`](crate::engine::JS_UNAVAILABLE) error instead of an
-    /// empty list.
+    /// On a static page (JavaScript disabled or not started) the list is
+    /// empty and `javascript` says why.
     pub async fn handle_console_messages(&self, params: Value) -> McpResponse {
         let session_id = params
             .get("session_id")
@@ -532,7 +534,35 @@ async move {
         if let Err(e) = sanitize_session_id(session_id) {
             return McpResponse::error(-32602, format!("Session ID validation failed: {}", e));
         }
-        McpResponse::error(-1, crate::engine::JS_UNAVAILABLE.to_string())
+        let clear = params
+            .get("clear")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        let browser = match self.get_session(session_id) {
+            Ok(browser) => browser,
+            Err(e) => return McpResponse::error(-32602, e),
+        };
+        crate::protocols::browser_tools::core::run_in(&browser, move |browser| {
+            async move {
+                let Ok(mut guard) = browser.lock() else {
+                    return McpResponse::error(-1, "Failed to acquire browser lock".to_string());
+                };
+                let (messages, javascript) = guard.console_messages(clear);
+                let url = guard.get_current_url();
+                // What a page logs is page content: data, not instructions
+                McpResponse::page_content(
+                    url.as_deref(),
+                    json!({
+                        "count": messages.len(),
+                        "messages": messages,
+                        "javascript": javascript,
+                        "url": url,
+                    }),
+                )
+            }
+            .boxed_local()
+        })
+        .await
     }
 
     /// `browser_wait`: wait for a selector/ref, text, URL fragment or network idle.
@@ -607,6 +637,7 @@ async move {
                         "condition": format!("{:?}", condition),
                         "waited_ms": started.elapsed().as_millis() as u64,
                         "url": guard.get_current_url(),
+                        "javascript": guard.javascript_status(),
                     })),
                     Err(e) => McpResponse::error(-1, format!("Wait failed: {}", e)),
                 }
@@ -652,19 +683,28 @@ async move {
         crate::protocols::browser_tools::core::run_in(&browser, move |browser| {
             async move {
                 if let Ok(mut guard) = browser.lock() {
-                    match guard.wait_for_element(&selector_owned, timeout).await {
+                    match guard
+                        .wait_for_element(&selector_owned, timeout.min(60_000))
+                        .await
+                    {
                         Ok(found) => McpResponse::success(json!({
                             "found": found,
                             "selector": selector_owned,
                             "timeout_ms": timeout,
                             "message": if found {
                                 format!("Element found: {}", selector_owned)
-                            } else {
-                                // Nothing can add it later: scripts don't run
+                            } else if guard.page().has_js() {
                                 format!(
-                                    "Element not found: {} (page scripts are not executed: {})",
+                                    "Element not found: {} (the timeout passed, or the page \
+                                     has nothing pending that could add it)",
+                                    selector_owned
+                                )
+                            } else {
+                                // Nothing can add it later: no script runs
+                                format!(
+                                    "Element not found: {} ({})",
                                     selector_owned,
-                                    crate::engine::JS_UNAVAILABLE
+                                    guard.javascript_status()
                                 )
                             }
                         })),

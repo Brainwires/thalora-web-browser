@@ -188,6 +188,25 @@ pub fn build_snapshot(
     options: SnapshotOptions,
     focus: Option<&str>,
 ) -> Result<Snapshot, String> {
+    build_snapshot_with_state(doc, page, table, options, focus, &LiveForms::new())
+}
+
+/// The live value and checkedness of form controls, by node, on a page
+/// running JavaScript (see `PageDom::live_form_states`). A control that is
+/// not in the map is described from its attributes.
+pub type LiveForms = HashMap<NodeId, (String, bool)>;
+
+/// [`build_snapshot`], describing form controls by their live state where
+/// `live` has it (what the user typed, checked or chose, and what page
+/// scripts set) instead of their markup.
+pub fn build_snapshot_with_state(
+    doc: &Document,
+    page: &str,
+    table: &mut RefTable,
+    options: SnapshotOptions,
+    focus: Option<&str>,
+    live: &LiveForms,
+) -> Result<Snapshot, String> {
     table.enter_page(page);
 
     let root = match focus {
@@ -202,7 +221,7 @@ pub fn build_snapshot(
     };
 
     let mut lines = Vec::new();
-    walk(root, doc, 0, table, options, &mut lines);
+    walk(root, doc, 0, table, options, live, &mut lines);
     Ok(render(lines, options.max_tokens.saturating_mul(4)))
 }
 
@@ -212,6 +231,7 @@ fn walk(
     depth: usize,
     table: &mut RefTable,
     options: SnapshotOptions,
+    live: &LiveForms,
     lines: &mut Vec<Line>,
 ) {
     let Some(data) = doc.as_element(el) else {
@@ -243,7 +263,7 @@ fn walk(
         if !name.is_empty() {
             line.push_str(&format!(" \"{name}\""));
         }
-        line.push_str(&describe(tag, &attrs, doc, el));
+        line.push_str(&describe(tag, &attrs, doc, el, live));
         if interactive {
             let r = table.ref_for(&css_path(doc, el), tag);
             line.push_str(&format!(" [ref={r}]"));
@@ -278,7 +298,7 @@ fn walk(
         Err(_) => return,
     };
     for child in children {
-        walk(child, doc, child_depth, table, options, lines);
+        walk(child, doc, child_depth, table, options, live, lines);
     }
 }
 
@@ -347,7 +367,13 @@ fn is_interactive(tag: &str, attrs: &HashMap<&str, &str>, role: Option<&str>) ->
 }
 
 /// Extra state shown after the name: level, input type, value, checked, …
-fn describe(tag: &str, attrs: &HashMap<&str, &str>, doc: &Document, el: NodeId) -> String {
+fn describe(
+    tag: &str,
+    attrs: &HashMap<&str, &str>,
+    doc: &Document,
+    el: NodeId,
+    live: &LiveForms,
+) -> String {
     let mut out = String::new();
     if let Some(level) = heading_level(tag) {
         out.push_str(&format!(" [level={level}]"));
@@ -363,7 +389,11 @@ fn describe(tag: &str, attrs: &HashMap<&str, &str>, doc: &Document, el: NodeId) 
         {
             out.push_str(&format!(" ({t})"));
         }
-        if let Some(value) = attrs.get("value").filter(|v| !v.is_empty())
+        let value = match live.get(&el) {
+            Some((value, _)) => Some(value.as_str()),
+            None => attrs.get("value").copied(),
+        };
+        if let Some(value) = value.filter(|v| !v.is_empty())
             && !matches!(
                 input_type.as_deref(),
                 Some("checkbox" | "radio" | "submit" | "button" | "image" | "reset")
@@ -389,7 +419,10 @@ fn describe(tag: &str, attrs: &HashMap<&str, &str>, doc: &Document, el: NodeId) 
             .unwrap_or_default();
         let chosen = options
             .iter()
-            .find(|&&o| doc.as_element(o).is_some_and(|o| o.has_attr("selected")))
+            .find(|&&o| match live.get(&o) {
+                Some((_, selected)) => *selected,
+                None => doc.as_element(o).is_some_and(|o| o.has_attr("selected")),
+            })
             .or(options.first());
         if let Some(&chosen) = chosen {
             let text = text_of(doc, chosen);
@@ -408,7 +441,11 @@ fn describe(tag: &str, attrs: &HashMap<&str, &str>, doc: &Document, el: NodeId) 
         ("required", "required"),
         ("readonly", "readonly"),
     ] {
-        if attrs.contains_key(attr) {
+        let set = match live.get(&el) {
+            Some((_, checked)) if attr == "checked" => *checked,
+            _ => attrs.contains_key(attr),
+        };
+        if set {
             out.push_str(&format!(" [{label}]"));
         }
     }
@@ -534,9 +571,14 @@ impl super::HeadlessWebBrowser {
             Some(r) => Some(self.resolve_ref(r)?),
             None => None,
         };
+        // On a page running JavaScript, values and checkedness are state of
+        // the controls, not markup
+        let live = self.page.live_form_states();
         let refs = &mut self.snapshot_refs;
         self.page
-            .with_doc(|doc| build_snapshot(doc, &page, refs, options, focus.as_deref()))
+            .with_doc(|doc| {
+                build_snapshot_with_state(doc, &page, refs, options, focus.as_deref(), &live)
+            })
             .map_err(|e| anyhow::anyhow!(e))
     }
 
@@ -647,6 +689,39 @@ mod tests {
         assert!(err.starts_with("stale_ref"), "{err}");
         let err = table.resolve("page-1", "e999", &doc).unwrap_err();
         assert!(err.starts_with("stale_ref"), "{err}");
+    }
+
+    #[test]
+    fn live_form_state_wins_over_markup() {
+        let doc = Document::parse_html(
+            r#"<input id="t" value="markup"><input id="c" type="checkbox" checked>
+               <input id="p" type="password">
+               <select id="s"><option id="a" selected>A</option><option id="b">B</option></select>"#,
+        );
+        let id = |name: &str| doc.get_element_by_id(name).unwrap();
+        let mut live = LiveForms::new();
+        live.insert(id("t"), ("typed".to_string(), false));
+        live.insert(id("c"), ("on".to_string(), false));
+        live.insert(id("p"), ("hunter2".to_string(), false));
+        live.insert(id("a"), ("A".to_string(), false));
+        live.insert(id("b"), ("B".to_string(), true));
+        let mut table = RefTable::default();
+        let text = build_snapshot_with_state(
+            &doc,
+            "page-1",
+            &mut table,
+            SnapshotOptions::default(),
+            None,
+            &live,
+        )
+        .unwrap()
+        .text;
+        assert!(text.contains(r#"value="typed""#), "{text}");
+        assert!(!text.contains("markup"), "{text}");
+        assert!(!text.contains("[checked]"), "{text}");
+        assert!(text.contains(r#"value="•••""#), "{text}");
+        assert!(!text.contains("hunter2"), "{text}");
+        assert!(text.contains(r#"value="B" (2 options)"#), "{text}");
     }
 
     #[test]

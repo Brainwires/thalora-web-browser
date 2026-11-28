@@ -62,10 +62,10 @@ mod tests {
         );
     }
 
-    /// Tools that need a JavaScript engine stay registered but fail with a
-    /// clear error (Boa was removed; V8 is not wired in yet)
+    /// Evaluating JavaScript before any page is loaded fails with a clear
+    /// error rather than appearing to succeed
     #[test]
-    fn test_javascript_tools_report_unavailable() {
+    fn test_javascript_evaluation_needs_a_page() {
         let mut harness = create_initialized_harness().expect("Failed to create test harness");
 
         let js_result = harness.call_tool(
@@ -83,10 +83,7 @@ mod tests {
             Ok(response) => {
                 let text = response.content[0]["text"].as_str().unwrap_or_default();
                 assert!(response.is_error, "evaluation must not appear to succeed");
-                assert!(
-                    text.contains("JavaScript execution is unavailable"),
-                    "unexpected error: {text}"
-                );
+                assert!(text.contains("No page loaded"), "unexpected error: {text}");
             }
         }
     }

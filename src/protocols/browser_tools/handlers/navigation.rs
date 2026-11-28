@@ -71,6 +71,7 @@ impl BrowserTools {
                                     "success": true,
                                     "content": content,
                                     "url": current_url,
+                                    "javascript": guard.javascript_status(),
                                     "message": format!("Successfully navigated to {}", url_owned)
                                 }),
                             )

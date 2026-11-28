@@ -153,6 +153,18 @@ impl CspPolicy {
         false
     }
 
+    /// Whether `nonce` (a script element's `nonce` attribute) matches a
+    /// nonce source of the effective script-src directive. A matching nonce
+    /// allows an external script whatever its URL.
+    pub fn script_nonce_matches(&self, nonce: Option<&str>) -> bool {
+        let Some(nonce) = nonce else {
+            return false;
+        };
+        self.effective_script_src()
+            .iter()
+            .any(|source| matches!(source, SourceExpression::Nonce(expected) if expected == nonce))
+    }
+
     /// Check if an external script URL is allowed.
     pub fn allows_external_script(&self, script_url: &str, page_url: Option<&str>) -> bool {
         let sources = self.effective_script_src();

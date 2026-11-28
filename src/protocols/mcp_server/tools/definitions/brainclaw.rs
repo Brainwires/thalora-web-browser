@@ -22,7 +22,7 @@ pub(crate) fn get_brainclaw_alias_tool_definitions() -> Vec<Value> {
                     },
                     "wait_for_js": {
                         "type": "boolean",
-                        "description": "Accepted for compatibility; page JavaScript is currently not executed (no JavaScript engine)"
+                        "description": "Page scripts always run; true lets the page's timers and requests run for up to 5 s (instead of 1 s) before returning"
                     },
                     "include_images": {
                         "type": "boolean",
@@ -53,7 +53,7 @@ pub(crate) fn get_brainclaw_alias_tool_definitions() -> Vec<Value> {
                     },
                     "wait_for_js": {
                         "type": "boolean",
-                        "description": "Accepted for compatibility; page JavaScript is currently not executed (no JavaScript engine)"
+                        "description": "Page scripts always run; true lets the page's timers and requests run for up to 5 s (instead of 1 s) before returning"
                     }
                 },
                 "required": ["url", "session_id"]
@@ -115,7 +115,7 @@ pub(crate) fn get_brainclaw_alias_tool_definitions() -> Vec<Value> {
         // ── CDP aliases ──────────────────────────────────────────────────────────
         serde_json::json!({
             "name": "browser_eval",
-            "description": "Execute JavaScript in the browser and return the result. Alias for `cdp_runtime_evaluate`. Currently unavailable (returns an error): the Boa JavaScript engine was removed and V8 support is in progress.",
+            "description": "Execute JavaScript in the current page (V8) and return the completion value as JSON. Alias for `cdp_runtime_evaluate`: a returned promise or top-level `await` is awaited (up to 30 s); an uncaught exception, a script timeout and a static page are errors.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
