@@ -27,6 +27,7 @@
 
 use std::cell::Cell;
 use std::collections::HashMap;
+use std::future::Future;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, OnceLock};
@@ -420,9 +421,26 @@ impl JsPage {
         source: String,
         budget: Duration,
     ) -> Result<serde_json::Value, JsError> {
-        let armed = arm(self.isolate.clone(), budget + self.script_timeout);
-        let result = self.runtime.evaluate_json_async(source, budget).await;
-        let timed_out = armed.disarm();
+        // The watchdog covers each poll, not the whole wait: a poll is the
+        // script (or a task of the event loop) actually running, so a
+        // runaway loop ends after `script_timeout`, while waiting for a
+        // promise between polls is bounded by `budget` in the runtime. The
+        // isolate is never left armed while idle, where a late firing
+        // would end the next, innocent call.
+        let isolate = self.isolate.clone();
+        let timeout = self.script_timeout;
+        let mut timed_out = false;
+        let result = {
+            let call = self.runtime.evaluate_json_async(source, budget);
+            let mut call = std::pin::pin!(call);
+            std::future::poll_fn(|cx| {
+                let armed = arm(isolate.clone(), timeout);
+                let poll = call.as_mut().poll(cx);
+                timed_out |= armed.disarm();
+                poll
+            })
+            .await
+        };
         result.map_err(|error| self.error(error, timed_out))
     }
 
