@@ -46,8 +46,8 @@ thalora-dom = { path = "crates/thalora-dom" }
 # same fork crate, named here to initialize the V8 platform and to turn on
 # the features the fork's workspace sets for its own members (the prebuilt V8
 # archive is built against the custom libc++). See docs/A3_V8_LINK_NOTES.md.
-deno_web_page = { git = "https://github.com/Brainwires/deno", rev = "fee6b770c2ef1e89c3f8abeca831ae3ef8a40be9", optional = true }
-deno_core = { git = "https://github.com/Brainwires/deno", rev = "fee6b770c2ef1e89c3f8abeca831ae3ef8a40be9", default-features = false, features = ["v8", "reactor-tokio", "v8_use_custom_libcxx"], optional = true }
+deno_web_page = { git = "https://github.com/Brainwires/deno", rev = "ee97021949be2c17e6a081ffbcb31c940caaf785", optional = true }
+deno_core = { git = "https://github.com/Brainwires/deno", rev = "ee97021949be2c17e6a081ffbcb31c940caaf785", default-features = false, features = ["v8", "reactor-tokio", "v8_use_custom_libcxx"], optional = true }
 scraper = "0.24"
 kuchikiki = "0.8"
 
@@ -205,7 +205,7 @@ v8 = { git = "https://github.com/Brainwires/rusty_v8", rev = "f72a5f53280688d310
 # deno_web/deno_fetch), so the crates.io sys_traits does not compile there.
 # Cargo finds the package by name inside the fork repository
 # (libs/vendor/sys_traits). Keep the rev equal to the deno_web_page one.
-sys_traits = { git = "https://github.com/Brainwires/deno", rev = "fee6b770c2ef1e89c3f8abeca831ae3ef8a40be9" }
+sys_traits = { git = "https://github.com/Brainwires/deno", rev = "ee97021949be2c17e6a081ffbcb31c940caaf785" }
 
 # `deno_web_page` depends on thalora-dom by git revision of this repository.
 # Resolve it to the workspace crate instead, so there is one
